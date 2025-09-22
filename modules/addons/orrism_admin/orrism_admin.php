@@ -1,72 +1,217 @@
 <?php
 /**
- * ORRISM Administration Module - Ultra Minimal Debug Version
+ * ORRISM Administration Module for WHMCS
+ * Centralized configuration and management for ORRISM ShadowSocks system
+ *
+ * @package    WHMCS
+ * @author     ORRISM Development Team
+ * @copyright  Copyright (c) 2024
+ * @version    2.0
  */
 
 if (!defined('WHMCS')) {
     die('This file cannot be accessed directly');
 }
 
+use WHMCS\Database\Capsule;
+
+// Load required dependencies from server module
+$serverModulePath = __DIR__ . '/../../servers/orrism';
+
+// Check if server module exists
+if (!is_dir($serverModulePath)) {
+    // Fallback to WHMCS root detection
+    $whmcsRoot = dirname(__DIR__, 3);
+    $serverModulePath = $whmcsRoot . '/modules/servers/orrism';
+}
+
+// Include dependencies with error handling
+$dependencies = [
+    'database_manager.php' => $serverModulePath . '/includes/database_manager.php',
+    'whmcs_database.php' => $serverModulePath . '/includes/whmcs_database.php', 
+    'helper.php' => $serverModulePath . '/helper.php'
+];
+
+$loadErrors = [];
+foreach ($dependencies as $name => $path) {
+    if (file_exists($path)) {
+        try {
+            require_once $path;
+        } catch (Exception $e) {
+            $loadErrors[] = "Failed to include $name: " . $e->getMessage();
+            error_log("ORRISM Admin: Failed to include dependency: $name - " . $e->getMessage());
+        }
+    } else {
+        $loadErrors[] = "File not found: $name at $path";
+        error_log("ORRISM Admin: Failed to load dependency: $name at $path");
+    }
+}
+
+// Store load errors for later display
+global $orrism_load_errors;
+$orrism_load_errors = $loadErrors;
+
 /**
- * Module configuration
+ * Addon module configuration
+ * 
+ * @return array
  */
 function orrism_admin_config()
 {
-    error_log('ORRISM DEBUG: config() called');
-    
-    return array(
+    return [
         'name' => 'ORRISM Administration',
-        'description' => 'Debug version - Ultra minimal',
-        'version' => '2.0-debug-ultra',
-        'author' => 'ORRISM Team',
+        'description' => 'Centralized management for ORRISM ShadowSocks system including database setup, node management, and user administration.',
+        'version' => '2.0',
+        'author' => 'ORRISM Development Team',
         'language' => 'english',
-        'fields' => array(
-            'test_field' => array(
-                'FriendlyName' => 'Test Field',
+        'fields' => [
+            'database_host' => [
+                'FriendlyName' => 'ShadowSocks Database Host',
                 'Type' => 'text',
                 'Size' => '25',
-                'Default' => 'test',
-                'Description' => 'Test field for debugging'
-            )
-        )
-    );
+                'Default' => 'localhost',
+                'Description' => 'Database server hostname or IP'
+            ],
+            'database_name' => [
+                'FriendlyName' => 'ShadowSocks Database Name',
+                'Type' => 'text',
+                'Size' => '25',
+                'Default' => 'shadowsocks',
+                'Description' => 'Database name for ShadowSocks data'
+            ],
+            'database_user' => [
+                'FriendlyName' => 'Database Username',
+                'Type' => 'text',
+                'Size' => '25',
+                'Default' => 'shadowsocks_user',
+                'Description' => 'Database username'
+            ],
+            'database_password' => [
+                'FriendlyName' => 'Database Password',
+                'Type' => 'password',
+                'Size' => '25',
+                'Description' => 'Database password'
+            ],
+            'redis_host' => [
+                'FriendlyName' => 'Redis Host',
+                'Type' => 'text',
+                'Size' => '25',
+                'Default' => 'localhost',
+                'Description' => 'Redis server for caching'
+            ],
+            'redis_port' => [
+                'FriendlyName' => 'Redis Port',
+                'Type' => 'text',
+                'Size' => '10',
+                'Default' => '6379',
+                'Description' => 'Redis server port'
+            ],
+            'auto_sync' => [
+                'FriendlyName' => 'Auto Sync Enabled',
+                'Type' => 'yesno',
+                'Description' => 'Automatically sync user data with ShadowSocks database'
+            ]
+        ]
+    ];
 }
 
 /**
- * Module activation
+ * Addon module activation
+ * 
+ * @return array
  */
 function orrism_admin_activate()
 {
-    error_log('ORRISM DEBUG: activate() called');
-    
-    return array(
-        'status' => 'success',
-        'description' => 'Debug module activated successfully'
-    );
+    try {
+        // Create addon configuration tables if needed
+        $pdo = Capsule::connection()->getPdo();
+        
+        // Create addon settings table
+        $sql = "CREATE TABLE IF NOT EXISTS mod_orrism_admin_settings (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            setting_key VARCHAR(100) UNIQUE NOT NULL,
+            setting_value TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        )";
+        $pdo->exec($sql);
+        
+        // Insert default settings
+        $defaultSettings = [
+            'db_initialized' => '0',
+            'last_sync' => '',
+            'sync_enabled' => '1'
+        ];
+        
+        foreach ($defaultSettings as $key => $value) {
+            $stmt = $pdo->prepare("INSERT IGNORE INTO mod_orrism_admin_settings (setting_key, setting_value) VALUES (?, ?)");
+            $stmt->execute([$key, $value]);
+        }
+        
+        return [
+            'status' => 'success',
+            'description' => 'ORRISM Administration module activated successfully.'
+        ];
+        
+    } catch (Exception $e) {
+        return [
+            'status' => 'error',
+            'description' => 'Failed to activate module: ' . $e->getMessage()
+        ];
+    }
 }
 
 /**
- * Module deactivation
+ * Addon module deactivation
+ * 
+ * @return array
  */
 function orrism_admin_deactivate()
 {
-    error_log('ORRISM DEBUG: deactivate() called');
-    
-    return array(
-        'status' => 'success',
-        'description' => 'Debug module deactivated successfully'
-    );
+    try {
+        // Note: We don't drop tables on deactivation for safety
+        return [
+            'status' => 'success',
+            'description' => 'ORRISM Administration module deactivated successfully.'
+        ];
+        
+    } catch (Exception $e) {
+        return [
+            'status' => 'error', 
+            'description' => 'Failed to deactivate module: ' . $e->getMessage()
+        ];
+    }
+}
+
+// Include debug helper
+require_once __DIR__ . '/debug.php';
+
+/**
+ * Create fallback classes if dependencies fail to load
+ */
+if (!class_exists('OrrisDatabaseManager')) {
+    class OrrisDatabaseManager {
+        public function testConnection() { return false; }
+        public function isInstalled() { return false; }
+        public function getUserCount() { return 0; }
+        public function install() { return ['success' => false, 'message' => 'Database manager not available']; }
+    }
+}
+
+if (!class_exists('OrrisDatabase')) {
+    class OrrisDatabase {
+        public function getActiveServiceCount($module) { return 0; }
+    }
 }
 
 /**
- * Main module output function
+ * Main addon output function
+ * 
+ * @param array $vars Module variables
+ * @return string
  */
 function orrism_admin_output($vars)
 {
-    // 记录调用
-    error_log('=== ORRISM DEBUG: OUTPUT FUNCTION CALLED ===');
-    error_log('ORRISM DEBUG: vars = ' . print_r($vars, true));
-    
     // 清理任何之前的输出缓冲
     if (ob_get_level()) {
         ob_clean();
@@ -75,85 +220,427 @@ function orrism_admin_output($vars)
     // 强制开始输出缓冲
     ob_start();
     
-    // 设置正确的内容类型
-    if (!headers_sent()) {
-        header('Content-Type: text/html; charset=UTF-8');
+    // Enable error reporting for debugging
+    if (isset($_GET['debug']) || !class_exists('OrrisDatabaseManager')) {
+        ini_set('display_errors', 1);
+        error_reporting(E_ALL);
     }
     
-    // 直接输出内容而不是返回
-    ?>
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <meta charset="UTF-8">
-        <title>ORRISM Debug</title>
-        <style>
-            .orrism-debug { font-family: Arial, sans-serif; margin: 20px; }
-            .alert-success { background: #d4edda; color: #155724; padding: 15px; border: 1px solid #c3e6cb; border-radius: 4px; margin: 10px 0; }
-            .alert-info { background: #d1ecf1; color: #0c5460; padding: 15px; border: 1px solid #bee5eb; border-radius: 4px; margin: 10px 0; }
-            .debug-vars { background: #f8f9fa; padding: 15px; border-radius: 4px; overflow: auto; }
-        </style>
-    </head>
-    <body>
-        <div class="orrism-debug">
-            <h1 style="color: red; font-size: 32px;">🔥 ORRISM DEBUG MODE ACTIVE</h1>
-            
-            <div class="alert-success">
-                <h3>✅ SUCCESS - Function Called!</h3>
-                <p><strong>Time:</strong> <?php echo date('Y-m-d H:i:s'); ?></p>
-                <p><strong>Function:</strong> orrism_admin_output()</p>
-                <p><strong>Status:</strong> Output function is working correctly!</p>
-            </div>
-            
-            <div class="alert-info">
-                <h3>📋 Module Variables</h3>
-                <pre class="debug-vars"><?php echo htmlspecialchars(print_r($vars, true)); ?></pre>
-            </div>
-            
-            <div class="alert-info">
-                <h3>🔧 Environment Info</h3>
-                <ul>
-                    <li><strong>PHP Version:</strong> <?php echo PHP_VERSION; ?></li>
-                    <li><strong>WHMCS Defined:</strong> <?php echo defined('WHMCS') ? 'Yes' : 'No'; ?></li>
-                    <li><strong>Output Buffering Level:</strong> <?php echo ob_get_level(); ?></li>
-                    <li><strong>Headers Sent:</strong> <?php echo headers_sent() ? 'Yes' : 'No'; ?></li>
-                    <li><strong>Memory Usage:</strong> <?php echo memory_get_usage(true); ?></li>
-                </ul>
-            </div>
-            
-            <div class="alert-success">
-                <h3>🎯 Next Steps</h3>
-                <p>If you can see this page, the ORRISM Administration module is working!</p>
-                <p>Ready to restore full functionality.</p>
-            </div>
-        </div>
-    </body>
-    </html>
-    <?php
-    
-    // 获取缓冲内容
-    $content = ob_get_contents();
-    ob_end_clean();
-    
-    // 记录输出长度
-    error_log('ORRISM DEBUG: Generated output length = ' . strlen($content));
-    
-    // 直接输出到浏览器
-    echo $content;
-    
-    // 刷新输出缓冲区
-    if (ob_get_level()) {
-        ob_flush();
+    try {
+        // Add CSS styles for better appearance
+        $output = '<style>
+        .orrism-admin-dashboard { padding: 20px; }
+        .nav-tabs { margin-bottom: 20px; }
+        .nav-tabs .btn { margin-right: 5px; }
+        .alert { padding: 15px; margin-bottom: 20px; border: 1px solid transparent; border-radius: 4px; }
+        .alert-success { color: #3c763d; background-color: #dff0d8; border-color: #d6e9c6; }
+        .alert-warning { color: #8a6d3b; background-color: #fcf8e3; border-color: #faebcc; }
+        .alert-danger { color: #a94442; background-color: #f2dede; border-color: #ebccd1; }
+        .alert-info { color: #31708f; background-color: #d9edf7; border-color: #bce8f1; }
+        .text-success { color: #3c763d; }
+        .text-danger { color: #a94442; }
+        .text-warning { color: #8a6d3b; }
+        .text-muted { color: #777; }
+        .panel { margin-bottom: 20px; background-color: #fff; border: 1px solid #ddd; border-radius: 4px; }
+        .panel-heading { padding: 10px 15px; background-color: #f5f5f5; border-bottom: 1px solid #ddd; }
+        .panel-body { padding: 15px; }
+        </style>';
+        
+        $action = isset($_GET['action']) ? $_GET['action'] : 'dashboard';
+        
+        // Handle POST requests
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $output .= handlePostRequest($vars);
+        } else {
+            // Generate output based on action
+            switch ($action) {
+                case 'database':
+                    $output .= renderDatabaseSetup($vars);
+                    break;
+                case 'nodes':
+                    $output .= renderNodeManagement($vars);
+                    break;
+                case 'users':
+                    $output .= renderUserManagement($vars);
+                    break;
+                case 'traffic':
+                    $output .= renderTrafficManagement($vars);
+                    break;
+                case 'settings':
+                    $output .= renderSettings($vars);
+                    break;
+                default:
+                    $output .= renderDashboard($vars);
+                    break;
+            }
+        }
+        
+        // 获取缓冲内容
+        $content = ob_get_contents();
+        ob_end_clean();
+        
+        // 合并所有输出
+        $finalOutput = $output;
+        if (!empty($content)) {
+            $finalOutput = $content . $output;
+        }
+        
+        // 直接输出到浏览器
+        echo $finalOutput;
+        
+        // 刷新输出缓冲区
+        if (ob_get_level()) {
+            ob_flush();
+        }
+        flush();
+        
+        return $finalOutput;
+        
+    } catch (Exception $e) {
+        // Return error information instead of blank page
+        $errorOutput = '<div class="alert alert-danger">';
+        $errorOutput .= '<h4>ORRISM Administration Error</h4>';
+        $errorOutput .= '<p><strong>Error:</strong> ' . htmlspecialchars($e->getMessage()) . '</p>';
+        $errorOutput .= '<p><strong>File:</strong> ' . htmlspecialchars($e->getFile()) . '</p>';
+        $errorOutput .= '<p><strong>Line:</strong> ' . $e->getLine() . '</p>';
+        if (isset($_GET['debug'])) {
+            $errorOutput .= '<p><strong>Stack Trace:</strong></p>';
+            $errorOutput .= '<pre>' . htmlspecialchars($e->getTraceAsString()) . '</pre>';
+        }
+        $errorOutput .= '<p><a href="?module=orrism_admin&debug=1" class="btn btn-warning">Enable Debug Mode</a></p>';
+        $errorOutput .= '</div>';
+        
+        // Add debug information
+        $errorOutput .= orrism_debug_output_html();
+        
+        return $errorOutput;
+    } catch (Error $e) {
+        // Ultimate fallback for fatal errors
+        return '<div style="padding: 20px; border: 2px solid #d9534f; background: #f2dede; color: #a94442;">' .
+               '<h3>ORRISM Administration - Critical Error</h3>' .
+               '<p><strong>A critical error occurred:</strong> ' . htmlspecialchars($e->getMessage()) . '</p>' .
+               '<p><strong>Location:</strong> ' . htmlspecialchars($e->getFile()) . ':' . $e->getLine() . '</p>' .
+               '<p>Please check server error logs and contact system administrator.</p>' .
+               '<p><a href="?module=orrism_admin&debug=1">Enable Debug Mode</a> | ' .
+               '<a href="?module=orrism_admin">Reload</a></p>' .
+               '</div>';
     }
-    flush();
-    
-    // 也返回内容作为后备
-    return $content;
 }
 
-// 在文件末尾记录加载
-error_log('ORRISM DEBUG: Module file loaded completely at ' . date('Y-m-d H:i:s'));
-file_put_contents('/tmp/orrism_debug.log', 
-    '[' . date('Y-m-d H:i:s') . '] Module file loaded' . "\n", 
-    FILE_APPEND
-);
+/**
+ * Handle POST requests
+ * 
+ * @param array $vars Module variables
+ * @return string
+ */
+function handlePostRequest($vars)
+{
+    $action = $_POST['action'] ?? '';
+    
+    switch ($action) {
+        case 'install_database':
+            return handleDatabaseInstall($vars);
+        case 'sync_users':
+            return handleUserSync($vars);
+        case 'reset_traffic':
+            return handleTrafficReset($vars);
+        default:
+            return renderDashboard($vars);
+    }
+}
+
+/**
+ * Render main dashboard
+ * 
+ * @param array $vars Module variables
+ * @return string
+ */
+function renderDashboard($vars)
+{
+    try {
+        $content = '<div class="orrism-admin-dashboard">';
+        $content .= '<h2>ORRISM System Dashboard</h2>';
+    
+    // Navigation menu
+    $content .= '<div class="nav-tabs" style="margin-bottom: 20px;">';
+    $content .= '<a href="?module=orrism_admin&action=dashboard" class="btn btn-default">Dashboard</a> ';
+    $content .= '<a href="?module=orrism_admin&action=database" class="btn btn-default">Database Setup</a> ';
+    $content .= '<a href="?module=orrism_admin&action=nodes" class="btn btn-default">Node Management</a> ';
+    $content .= '<a href="?module=orrism_admin&action=users" class="btn btn-default">User Management</a> ';
+    $content .= '<a href="?module=orrism_admin&action=traffic" class="btn btn-default">Traffic Management</a> ';
+    $content .= '<a href="?module=orrism_admin&action=settings" class="btn btn-default">Settings</a>';
+    $content .= '</div>';
+    
+    // System status
+    $content .= '<div class="row">';
+    $content .= '<div class="col-md-6">';
+    $content .= '<div class="panel panel-default">';
+    $content .= '<div class="panel-heading">System Status</div>';
+    $content .= '<div class="panel-body">';
+    
+    // Check database connection
+    try {
+        if (class_exists('OrrisDatabaseManager')) {
+            $dbManager = new OrrisDatabaseManager();
+            $isConnected = $dbManager->testConnection();
+            $content .= '<p><i class="fa fa-database"></i> ShadowSocks Database: ';
+            $content .= $isConnected ? '<span class="text-success">Connected</span>' : '<span class="text-danger">Not Connected</span>';
+            $content .= '</p>';
+        } else {
+            $content .= '<p><i class="fa fa-database"></i> ShadowSocks Database: <span class="text-warning">Manager Not Loaded</span></p>';
+        }
+    } catch (Exception $e) {
+        $content .= '<p><i class="fa fa-database"></i> ShadowSocks Database: <span class="text-danger">Error: ' . $e->getMessage() . '</span></p>';
+    }
+    
+    // Check Redis connection
+    $content .= '<p><i class="fa fa-server"></i> Redis Cache: ';
+    if (class_exists('Redis')) {
+        try {
+            $redis = new Redis();
+            $connected = $redis->connect($vars['redis_host'] ?? 'localhost', $vars['redis_port'] ?? 6379);
+            $content .= $connected ? '<span class="text-success">Connected</span>' : '<span class="text-danger">Not Connected</span>';
+            if ($connected) $redis->close();
+        } catch (Exception $e) {
+            $content .= '<span class="text-danger">Error</span>';
+        }
+    } else {
+        $content .= '<span class="text-warning">Redis Extension Not Installed</span>';
+    }
+    $content .= '</p>';
+    
+    $content .= '</div></div></div>';
+    
+    // Quick stats
+    $content .= '<div class="col-md-6">';
+    $content .= '<div class="panel panel-default">';
+    $content .= '<div class="panel-heading">Quick Statistics</div>';
+    $content .= '<div class="panel-body">';
+    
+    try {
+        if (class_exists('OrrisDatabase')) {
+            $whmcsDb = new OrrisDatabase();
+            $totalServices = $whmcsDb->getActiveServiceCount('orrism');
+            $content .= '<p>Active Services: <strong>' . $totalServices . '</strong></p>';
+        }
+        
+        // Try to get ShadowSocks stats if database is connected
+        if (isset($isConnected) && $isConnected && isset($dbManager)) {
+            $userCount = $dbManager->getUserCount();
+            $content .= '<p>ShadowSocks Users: <strong>' . $userCount . '</strong></p>';
+        }
+    } catch (Exception $e) {
+        $content .= '<p class="text-muted">Statistics unavailable: ' . $e->getMessage() . '</p>';
+    }
+    
+    $content .= '</div></div></div></div>';
+    $content .= '</div>';
+    
+    // Add debug information if in development mode or if there are loading issues
+    if (isset($_GET['debug']) || !class_exists('OrrisDatabaseManager')) {
+        $content .= orrism_debug_output_html();
+    }
+    
+    $content .= '</div>';
+    return $content;
+    
+    } catch (Exception $e) {
+        return '<div class="alert alert-danger">Dashboard Error: ' . htmlspecialchars($e->getMessage()) . '</div>';
+    }
+}
+
+/**
+ * Render database setup page
+ * 
+ * @param array $vars Module variables
+ * @return string
+ */
+function renderDatabaseSetup($vars)
+{
+    try {
+        $content = '<div class="orrism-admin-dashboard">';
+        $content .= '<h2>Database Setup & Installation</h2>';
+    
+    // Navigation
+    $content .= '<div class="nav-tabs" style="margin-bottom: 20px;">';
+    $content .= '<a href="?module=orrism_admin&action=dashboard" class="btn btn-default">Dashboard</a> ';
+    $content .= '<a href="?module=orrism_admin&action=database" class="btn btn-primary">Database Setup</a>';
+    $content .= '</div>';
+    
+    // Database installation form
+    $content .= '<div class="panel panel-default">';
+    $content .= '<div class="panel-heading">Install ShadowSocks Database</div>';
+    $content .= '<div class="panel-body">';
+    $content .= '<form method="post">';
+    $content .= '<input type="hidden" name="action" value="install_database">';
+    $content .= '<p>This will create the necessary database tables for ShadowSocks integration.</p>';
+    $content .= '<p><strong>Current Configuration:</strong></p>';
+    $content .= '<ul>';
+    $content .= '<li>Host: ' . ($vars['database_host'] ?? 'localhost') . '</li>';
+    $content .= '<li>Database: ' . ($vars['database_name'] ?? 'shadowsocks') . '</li>';
+    $content .= '<li>Username: ' . ($vars['database_user'] ?? 'shadowsocks_user') . '</li>';
+    $content .= '</ul>';
+    $content .= '<button type="submit" class="btn btn-success">Install Database Tables</button>';
+    $content .= '</form>';
+    $content .= '</div></div>';
+    $content .= '</div>';
+    
+    return $content;
+    
+    } catch (Exception $e) {
+        return '<div class="alert alert-danger">Database Setup Error: ' . htmlspecialchars($e->getMessage()) . '</div>';
+    }
+}
+
+/**
+ * Handle database installation
+ * 
+ * @param array $vars Module variables
+ * @return string
+ */
+function handleDatabaseInstall($vars)
+{
+    try {
+        // Check if database manager class is available
+        if (!class_exists('OrrisDatabaseManager')) {
+            return '<div class="alert alert-danger">Database Manager not available. Please check server module installation.</div>' . renderDatabaseSetup($vars);
+        }
+        
+        // Create database manager instance
+        $dbManager = new OrrisDatabaseManager();
+        
+        // Check if already installed
+        if ($dbManager->isInstalled()) {
+            return '<div class="alert alert-warning">Database tables already exist. If you need to reinstall, please uninstall first.</div>' . renderDatabaseSetup($vars);
+        }
+        
+        // Run installation
+        $result = $dbManager->install();
+        
+        if ($result['success']) {
+            // Update addon settings
+            $pdo = Capsule::connection()->getPdo();
+            $stmt = $pdo->prepare("UPDATE mod_orrism_admin_settings SET setting_value = '1' WHERE setting_key = 'db_initialized'");
+            $stmt->execute();
+            
+            return '<div class="alert alert-success">Database installed successfully! ' . $result['message'] . '</div>' . renderDatabaseSetup($vars);
+        } else {
+            return '<div class="alert alert-danger">Database installation failed: ' . $result['message'] . '</div>' . renderDatabaseSetup($vars);
+        }
+        
+    } catch (Exception $e) {
+        return '<div class="alert alert-danger">Installation error: ' . $e->getMessage() . '</div>' . renderDatabaseSetup($vars);
+    }
+}
+
+/**
+ * Render node management page
+ * 
+ * @param array $vars Module variables
+ * @return string
+ */
+function renderNodeManagement($vars)
+{
+    try {
+        $content = '<div class="orrism-admin-dashboard">';
+        $content .= '<h2>Node Management</h2>';
+    
+    // Navigation
+    $content .= '<div class="nav-tabs" style="margin-bottom: 20px;">';
+    $content .= '<a href="?module=orrism_admin&action=dashboard" class="btn btn-default">Dashboard</a> ';
+    $content .= '<a href="?module=orrism_admin&action=nodes" class="btn btn-primary">Node Management</a>';
+    $content .= '</div>';
+    
+    $content .= '<div class="alert alert-info">Node management functionality will be implemented here.</div>';
+    $content .= '</div>';
+    
+    return $content;
+    
+    } catch (Exception $e) {
+        return '<div class="alert alert-danger">Node Management Error: ' . htmlspecialchars($e->getMessage()) . '</div>';
+    }
+}
+
+/**
+ * Render user management page
+ * 
+ * @param array $vars Module variables
+ * @return string
+ */
+function renderUserManagement($vars)
+{
+    try {
+        $content = '<div class="orrism-admin-dashboard">';
+        $content .= '<h2>User Management</h2>';
+    
+    // Navigation
+    $content .= '<div class="nav-tabs" style="margin-bottom: 20px;">';
+    $content .= '<a href="?module=orrism_admin&action=dashboard" class="btn btn-default">Dashboard</a> ';
+    $content .= '<a href="?module=orrism_admin&action=users" class="btn btn-primary">User Management</a>';
+    $content .= '</div>';
+    
+    $content .= '<div class="alert alert-info">User management functionality will be implemented here.</div>';
+    $content .= '</div>';
+    
+    return $content;
+    
+    } catch (Exception $e) {
+        return '<div class="alert alert-danger">User Management Error: ' . htmlspecialchars($e->getMessage()) . '</div>';
+    }
+}
+
+/**
+ * Render traffic management page
+ * 
+ * @param array $vars Module variables
+ * @return string
+ */
+function renderTrafficManagement($vars)
+{
+    try {
+        $content = '<div class="orrism-admin-dashboard">';
+        $content .= '<h2>Traffic Management</h2>';
+    
+    // Navigation
+    $content .= '<div class="nav-tabs" style="margin-bottom: 20px;">';
+    $content .= '<a href="?module=orrism_admin&action=dashboard" class="btn btn-default">Dashboard</a> ';
+    $content .= '<a href="?module=orrism_admin&action=traffic" class="btn btn-primary">Traffic Management</a>';
+    $content .= '</div>';
+    
+    $content .= '<div class="alert alert-info">Traffic management functionality will be implemented here.</div>';
+    $content .= '</div>';
+    
+    return $content;
+    
+    } catch (Exception $e) {
+        return '<div class="alert alert-danger">Traffic Management Error: ' . htmlspecialchars($e->getMessage()) . '</div>';
+    }
+}
+
+/**
+ * Render settings page
+ * 
+ * @param array $vars Module variables
+ * @return string
+ */
+function renderSettings($vars)
+{
+    try {
+        $content = '<div class="orrism-admin-dashboard">';
+        $content .= '<h2>ORRISM Settings</h2>';
+    
+    // Navigation
+    $content .= '<div class="nav-tabs" style="margin-bottom: 20px;">';
+    $content .= '<a href="?module=orrism_admin&action=dashboard" class="btn btn-default">Dashboard</a> ';
+    $content .= '<a href="?module=orrism_admin&action=settings" class="btn btn-primary">Settings</a>';
+    $content .= '</div>';
+    
+    $content .= '<div class="alert alert-info">Advanced settings configuration will be implemented here.</div>';
+    $content .= '</div>';
+    
+    return $content;
+    
+    } catch (Exception $e) {
+        return '<div class="alert alert-danger">Settings Error: ' . htmlspecialchars($e->getMessage()) . '</div>';
+    }
+}
