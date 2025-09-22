@@ -11,10 +11,7 @@
 
 // 用户相关业务模块
 require_once __DIR__ . '/../helper.php';
-require_once __DIR__ . '/database.php';
-require_once __DIR__ . '/../lib/uuid.php'; // 确保加载我们的UUID库
-// 不再直接使用Ramsey\Uuid，而是使用我们的兼容函数
-// use Ramsey\Uuid\Uuid;
+require_once __DIR__ . '/../lib/database.php';
 use WHMCS\Database\Capsule;
 
 /**
@@ -56,112 +53,126 @@ function orrism_smarty_clear_compiled_tpl($template = 'details.tpl') {
 }
 
 function orrism_user_create_account($params) {
-    $pid = $params['serviceid'] ?? 0;
-    $productidResult = Capsule::table('tblhostingconfigoptions')
-        ->where('relid', $pid)
-        ->get();
-    $bandwidthInBytes = 0;
-    foreach ($productidResult as $configOption) {
-        $optionId = $configOption->optionid;
-        $configId = $configOption->configid;
-        $optionNameResult = Capsule::table('tblproductconfigoptionssub')
-            ->where('configid', $configId)
-            ->where('id', $optionId)
-            ->first();
-        if ($optionNameResult) {
-            $optionName = intval($optionNameResult->optionname);
-            $bandwidthInBytes = $optionName * 1024 * 1024 * 1024;
+    try {
+        $serviceId = $params['serviceid'] ?? 0;
+        
+        // Get bandwidth from config options
+        $bandwidthInBytes = OrrisHelper::gbToBytes($params['configoption4'] ?? 100);
+        
+        // Check for product-specific config options
+        $productOptions = Capsule::table('tblhostingconfigoptions')
+            ->where('relid', $serviceId)
+            ->get();
+            
+        foreach ($productOptions as $option) {
+            $optionDetail = Capsule::table('tblproductconfigoptionssub')
+                ->where('configid', $option->configid)
+                ->where('id', $option->optionid)
+                ->first();
+            if ($optionDetail && is_numeric($optionDetail->optionname)) {
+                $bandwidthInBytes = OrrisHelper::gbToBytes(intval($optionDetail->optionname));
+                break;
+            }
         }
+        
+        $userData = [
+            'email' => OrrisHelper::sanitizeEmail($params['clientsdetails']['email'] ?? ''),
+            'uuid' => OrrisHelper::generateUuid(),
+            'token' => OrrisHelper::generateMd5Token(),
+            'sid' => $serviceId,
+            'package_id' => $params['pid'] ?? 0,
+            'telegram_id' => 0,
+            'enable' => 1,
+            'need_reset' => $params['configoption5'] ?? 0,
+            'node_group_id' => $params['configoption7'] ?? 1,
+            'bandwidth' => $bandwidthInBytes,
+            'custom_feature' => ''
+        ];
+        
+        $db = OrrisDatabase::getInstance();
+        $result = $db->createUser($userData);
+        
+        return $result ? 'success' : 'Account creation failed';
+        
+    } catch (Exception $e) {
+        OrrisHelper::log('error', 'Account creation failed', [
+            'service_id' => $params['serviceid'] ?? 'unknown',
+            'error' => $e->getMessage()
+        ]);
+        return 'Account creation failed: ' . $e->getMessage();
     }
-    if ($bandwidthInBytes === 0) {
-        $bandwidthInBytes = isset($params['configoption4']) ? $params['configoption4'] * 1024 * 1024 * 1024 : 0;
-    }
-    $customFeature = '';
-    $data = [
-        'email'         => $params['clientsdetails']['email'] ?? '',
-        'uuid'          => orrism_uuid4(), // 使用我们的函数替代Uuid::uuid4()
-        'token'         => orrism_generate_md5_token(),
-        'sid'           => $params['serviceid'] ?? 0,
-        'package_id'    => $params['pid'] ?? 0,
-        'telegram_id'   => 0,
-        'enable'        => 1,
-        'need_reset'    => $params['configoption5'] ?? 0,
-        'node_group_id' => $params['configoption7'] ?? 0,
-        'bandwidth'     => $bandwidthInBytes,
-        'custom_feature'=> $customFeature
-    ];
-    return orrism_new_account($data);
 }
 
 function orrism_user_suspend_account($params) {
-    $sid = $params['serviceid'] ?? 0;
-    $data = [
-        'sid'    => $sid,
-        'action' => 0,
-    ];
-    return orrism_set_status($data);
+    $serviceId = $params['serviceid'] ?? 0;
+    $db = OrrisDatabase::getInstance();
+    $result = $db->updateUserStatus($serviceId, 0);
+    return $result ? 'success' : 'Suspend failed';
 }
 
 function orrism_user_unsuspend_account($params) {
-    $sid = $params['serviceid'] ?? 0;
-    $data = [
-        'sid'    => $sid,
-        'action' => 1,
-    ];
-    return orrism_set_status($data);
+    $serviceId = $params['serviceid'] ?? 0;
+    $db = OrrisDatabase::getInstance();
+    $result = $db->updateUserStatus($serviceId, 1);
+    return $result ? 'success' : 'Unsuspend failed';
 }
 
 function orrism_user_terminate_account($params) {
-    $sid = $params['serviceid'] ?? 0;
-    $data = [ 
-        'sid' => $sid
-    ];
-    return orrism_delete_account($data);
+    $serviceId = $params['serviceid'] ?? 0;
+    $db = OrrisDatabase::getInstance();
+    $result = $db->deleteUser($serviceId);
+    return $result ? 'success' : 'Termination failed';
 }
 
 function orrism_user_reset_uuid($params) {
-    $sid = $params['serviceid'] ?? 0;
-    $new_uuid = orrism_uuid4(); // Generate the new UUID
-    $data = [
-        'sid'  => $sid,
-        'uuid' => $new_uuid
-    ];
+    $serviceId = $params['serviceid'] ?? 0;
+    $newUuid = OrrisHelper::generateUuid();
     
-    $success = orrism_reset_uuid_internal($data); // This now returns true or false
+    $db = OrrisDatabase::getInstance();
+    $success = $db->resetUserUuid($serviceId, $newUuid);
     
     if ($success) {
-        // Log success with the new UUID
-        //error_log("ORRISM_INFO: UUID and Token reset successful for service ID {$sid}. New UUID: {$new_uuid}");
         return [
-            'status'   => 'success',
-            'msg'      => ORRISM_L::product_reset_uuid_success,
-            'new_uuid' => $new_uuid // Optionally include the new UUID in the response
+            'status' => 'success',
+            'msg' => ORRISM_L::product_reset_uuid_success,
+            'new_uuid' => $newUuid
         ];
     } else {
-        // Error details are already logged by orrism_reset_uuid_internal
-        //error_log("ORRISM_ERROR: UUID and Token reset failed for service ID {$sid}. Check previous logs for details.");
         return [
             'status' => 'error',
-            'msg'    => "UUID/Token重置失败，请检查系统日志。" // Generic error message for the client
+            'msg' => 'UUID reset failed, please check system logs'
         ];
     }
 }
 
 function orrism_user_admin_services_tab_fields($params) {
     try {
-        $user = orrism_get_user($params['serviceid'] ?? 0)[0];
-        $result = [
-            'uuid'                => $user['uuid'],
-            ORRISM_L::admin_bandwidth    => orrism_convert_byte($user['bandwidth']),
-            ORRISM_L::common_upload      => orrism_convert_byte($user['u']),
-            ORRISM_L::common_download    => orrism_convert_byte($user['d']),
-            ORRISM_L::common_left        => orrism_convert_byte($user['bandwidth'] - ($user['u'] + $user['d'])),
-            ORRISM_L::common_used        => orrism_convert_byte($user['u'] + $user['d']),
-            ORRISM_L::common_created_at  => $user['created_at'],
+        $db = OrrisDatabase::getInstance();
+        $user = $db->getUser($params['serviceid'] ?? 0);
+        
+        if (!$user) {
+            return ['error' => 'User not found'];
+        }
+        
+        $totalUsed = $user['u'] + $user['d'];
+        $remaining = max(0, $user['bandwidth'] - $totalUsed);
+        
+        return [
+            'uuid' => $user['uuid'],
+            ORRISM_L::admin_bandwidth => OrrisHelper::formatBytes($user['bandwidth']),
+            ORRISM_L::common_upload => OrrisHelper::formatBytes($user['u']),
+            ORRISM_L::common_download => OrrisHelper::formatBytes($user['d']),
+            ORRISM_L::common_left => OrrisHelper::formatBytes($remaining),
+            ORRISM_L::common_used => OrrisHelper::formatBytes($totalUsed),
+            ORRISM_L::common_created_at => date('Y-m-d H:i:s', $user['created_at']),
+            'Usage Percentage' => OrrisHelper::calculateUsagePercentage($totalUsed, $user['bandwidth']) . '%'
         ];
-        return $result;
     } catch (Exception $e) {
-        return $e;
+        OrrisHelper::log('error', 'Failed to get admin tab fields', [
+            'service_id' => $params['serviceid'] ?? 'unknown',
+            'error' => $e->getMessage()
+        ]);
+        return ['error' => $e->getMessage()];
     }
 }
 
@@ -232,12 +243,14 @@ function orrism_user_client_area($params) {
                     break;
                 case 'ResetBandwidth':
                     if (isset($_GET['sid']) && $_GET['sid'] == ($params['serviceid'] ?? 0)) {
-                        // 直接输出JSON响应
-                        orrism_traffic_reset_bandwidth_user($params);
+                        // 重置用户流量
+                        $db = OrrisDatabase::getInstance();
+                        $resetResult = $db->resetUserTraffic($serviceId);
+                        
                         header('Content-Type: application/json');
                         echo json_encode([
-                            'status' => 'success',
-                            'msg'    => ORRISM_L::traffic_reset_success
+                            'status' => $resetResult ? 'success' : 'error',
+                            'msg' => $resetResult ? ORRISM_L::traffic_reset_success : 'Reset failed'
                         ]);
                         exit;
                     } else {
@@ -267,37 +280,41 @@ function orrism_user_client_area($params) {
         $service_id = $params['serviceid'] ?? 0;
         
         // 获取用户信息
-        $user = orrism_get_user($service_id);
+        $db = OrrisDatabase::getInstance();
+        $user = $db->getUser($service_id);
         if ($user) {
-            $user_traffic_total = $user[0]['u'] + $user[0]['d'];
-            $user_traffic_upload = $user[0]['u'];
-            $user_traffic_download = $user[0]['d'];
-            $bandwidth = $user[0]['bandwidth'];
-            $left = $bandwidth - $user_traffic_total;
-            $uuid = $user[0]['uuid'];
-            $telegram_id = $user[0]['telegram_id'];
-            $sid = $user[0]['sid'];
-            $created_at = $user[0]['created_at'];
-            $token = $user[0]['token'];
+            $user_traffic_total = $user['u'] + $user['d'];
+            $user_traffic_upload = $user['u'];
+            $user_traffic_download = $user['d'];
+            $bandwidth = $user['bandwidth'];
+            $left = max(0, $bandwidth - $user_traffic_total);
+            
             $info = [
-                'uuid'        => $uuid,
-                'upload'      => orrism_convert_byte($user_traffic_upload),
-                'download'    => orrism_convert_byte($user_traffic_download),
-                'total_used'  => orrism_convert_byte($user_traffic_total),
-                'left'        => orrism_convert_byte($left),
-                'created_at'  => $created_at,
-                'telegram_id' => $telegram_id,
-                'bandwidth'   => orrism_convert_byte($bandwidth),
-                'sid'         => $sid,
-                'token'       => $token
+                'uuid' => $user['uuid'],
+                'upload' => OrrisHelper::formatBytes($user_traffic_upload),
+                'download' => OrrisHelper::formatBytes($user_traffic_download),
+                'total_used' => OrrisHelper::formatBytes($user_traffic_total),
+                'left' => OrrisHelper::formatBytes($left),
+                'created_at' => date('Y-m-d H:i:s', $user['created_at']),
+                'telegram_id' => $user['telegram_id'],
+                'bandwidth' => OrrisHelper::formatBytes($bandwidth),
+                'sid' => $user['sid'],
+                'token' => $user['token'],
+                'usage_percent' => OrrisHelper::calculateUsagePercentage($user_traffic_total, $bandwidth)
             ];
             
-            // 获取节点信息，添加错误处理
+            // 获取节点信息
             try {
-                $nodes = orrism_get_nodes($service_id);
-                //error_log("成功获取服务 #{$service_id} 的节点列表：" . count($nodes) . " 个节点");
+                $nodes = $db->getNodesForUser($service_id);
+                OrrisHelper::log('info', 'Retrieved nodes for user', [
+                    'service_id' => $service_id,
+                    'node_count' => count($nodes)
+                ]);
             } catch (Exception $e) {
-                //error_log("获取服务 #{$service_id} 的节点列表时出错: " . $e->getMessage());
+                OrrisHelper::log('error', 'Failed to get nodes for user', [
+                    'service_id' => $service_id,
+                    'error' => $e->getMessage()
+                ]);
                 $nodes = [];
             }
             

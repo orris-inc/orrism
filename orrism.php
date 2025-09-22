@@ -349,7 +349,8 @@ function orrism_AdminCustomButtonArray()
     return [
         'Reset Traffic' => 'ResetTraffic',
         'Reset UUID' => 'ResetUUID',
-        'View Usage' => 'ViewUsage'
+        'View Usage' => 'ViewUsage',
+        'Module Setup' => 'ModuleSetup'
     ];
 }
 
@@ -431,6 +432,29 @@ function orrism_ViewUsage(array $params)
             'Status' => ucfirst($usage['status']),
             'Last Reset' => $usage['last_reset'] ?: 'Never'
         ];
+        
+    } catch (Exception $e) {
+        logModuleCall('orrism', __FUNCTION__, $params, $e->getMessage());
+        return ['error' => $e->getMessage()];
+    }
+}
+
+/**
+ * Module setup admin function
+ *
+ * @param array $params Module parameters
+ * @return array
+ */
+function orrism_ModuleSetup(array $params)
+{
+    try {
+        // Generate setup page URL with security token
+        $token = $_SESSION['token'] ?? '';
+        $setupUrl = '/modules/servers/orrism/admin/setup.php?token=' . urlencode($token);
+        
+        // Redirect to setup page
+        header('Location: ' . $setupUrl);
+        exit;
         
     } catch (Exception $e) {
         logModuleCall('orrism', __FUNCTION__, $params, $e->getMessage());

@@ -11,64 +11,71 @@
 
 // 流量相关业务模块
 require_once __DIR__ . '/../helper.php';
-require_once __DIR__ . '/database.php';
-require_once __DIR__ . '/user.php';
+require_once __DIR__ . '/../lib/database.php';
 require_once __DIR__ . '/product.php';
 
 
 function orrism_traffic_reset_bandwidth_user($params) {
-    if (($params['configoption5'] ?? 0) != 0) {
-        $client_product = orrism_get_client_products($params['serviceid'] ?? 0);
-        if (($client_product['result'] ?? '') === 'success') {
-            $product = $client_product['products']['product'][0] ?? [];
-            if (($product['status'] ?? '') === 'Active') {
-                $amount = $product['recurringamount'] ?? 0;
-                $cost = ($params['configoption6'] ?? 0) * $amount;
-                if ($cost > 0) {
-                    $data = [
-                        'clientid'    => $params['userid'] ?? 0,
-                        'description' => 'reset traffic fee by ' . ($params['userid'] ?? 0),
-                        'amount'      => (float)($cost),
-                        'type'        => 'remove',
-                    ];
-                    $result = orrism_set_credit($data);
-                } else {
-                    $result = ['result' => 'success'];
-                }
-                if (($result['result'] ?? '') === 'success') {
-                    $reset = [
-                        'sid' => $params['serviceid'] ?? 0,
-                        'u'   => 0,
-                        'd'   => 0,
-                    ];
-                    orrism_set_bandwidth($reset);
-                    return ['status' => 'success', 'msg' => ORRISM_L::product_reset_bandwidth_success];
-                } else {
-                    return ['status' => 'fail', 'msg' => ORRISM_L::product_reset_bandwidth_error];
+    try {
+        $serviceId = $params['serviceid'] ?? 0;
+        
+        // Check if paid reset is enabled
+        if (($params['configoption5'] ?? 0) != 0) {
+            $client_product = orrism_get_client_products($serviceId);
+            if (($client_product['result'] ?? '') === 'success') {
+                $product = $client_product['products']['product'][0] ?? [];
+                if (($product['status'] ?? '') === 'Active') {
+                    $amount = $product['recurringamount'] ?? 0;
+                    $cost = ($params['configoption6'] ?? 0) * $amount;
+                    
+                    if ($cost > 0) {
+                        $creditData = [
+                            'clientid' => $params['userid'] ?? 0,
+                            'description' => 'Traffic reset fee for service #' . $serviceId,
+                            'amount' => (float)$cost,
+                            'type' => 'remove',
+                        ];
+                        $result = orrism_set_credit($creditData);
+                        
+                        if (($result['result'] ?? '') !== 'success') {
+                            return ['status' => 'fail', 'msg' => ORRISM_L::product_reset_bandwidth_error];
+                        }
+                    }
                 }
             }
         }
+        
+        // Reset traffic using unified database layer
+        $db = OrrisDatabase::getInstance();
+        $resetResult = $db->resetUserTraffic($serviceId);
+        
+        return [
+            'status' => $resetResult ? 'success' : 'fail',
+            'msg' => $resetResult ? ORRISM_L::product_reset_bandwidth_success : ORRISM_L::product_reset_bandwidth_error
+        ];
+        
+    } catch (Exception $e) {
+        OrrisHelper::log('error', 'Traffic reset failed', [
+            'service_id' => $params['serviceid'] ?? 'unknown',
+            'error' => $e->getMessage()
+        ]);
+        return ['status' => 'fail', 'msg' => ORRISM_L::common_prohibit];
     }
-    
-    // 如果执行到这里，说明没有进入任何有效的处理流程
-    return ['status' => 'fail', 'msg' => ORRISM_L::common_prohibit];
 }
 
 function orrism_traffic_reset_bandwidth_admin($params) {
     try {
-        $data = [
-            'sid' => $params['serviceid'] ?? 0,
-            'u'   => 0,
-            'd'   => 0,
-        ];
-        $action = orrism_set_bandwidth($data);
-        if ($action) {
-            return ORRISM_L::product_reset_bandwidth_success;
-        } else {
-            return ORRISM_L::product_reset_bandwidth_error;
-        }
+        $serviceId = $params['serviceid'] ?? 0;
+        $db = OrrisDatabase::getInstance();
+        $result = $db->resetUserTraffic($serviceId);
+        
+        return $result ? ORRISM_L::product_reset_bandwidth_success : ORRISM_L::product_reset_bandwidth_error;
     } catch (Exception $e) {
-        return $e;
+        OrrisHelper::log('error', 'Admin traffic reset failed', [
+            'service_id' => $serviceId ?? 'unknown',
+            'error' => $e->getMessage()
+        ]);
+        return $e->getMessage();
     }
 }
 

@@ -9,12 +9,36 @@
  * @version    2.0
  */
 
-use WHMCS\Database\Capsule;
-
-// Check admin authentication
+// Check WHMCS admin authorization
 if (!defined('WHMCS')) {
-    die('This file cannot be accessed directly');
+    // Include WHMCS init for admin page access
+    $whmcs_path = dirname(__DIR__, 4);
+    if (file_exists($whmcs_path . '/init.php')) {
+        require_once $whmcs_path . '/init.php';
+    } else {
+        die('WHMCS installation not found');
+    }
 }
+
+// Verify admin access and CSRF token
+if (!isset($_SESSION['adminid'])) {
+    die('Access denied: Please login to WHMCS admin area first');
+}
+
+// Check for CSRF token when accessed directly
+if (!isset($_GET['token']) && !isset($_POST['token'])) {
+    die('Access denied: This page must be accessed through WHMCS admin panel');
+}
+
+// Verify CSRF token if provided
+if (isset($_GET['token']) || isset($_POST['token'])) {
+    $token = $_GET['token'] ?? $_POST['token'];
+    if (!hash_equals($_SESSION['token'], $token)) {
+        die('Access denied: Invalid security token');
+    }
+}
+
+use WHMCS\Database\Capsule;
 
 require_once dirname(__DIR__) . '/includes/database_manager.php';
 

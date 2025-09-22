@@ -9,12 +9,11 @@
  */
 // 节点相关业务模块
 require_once __DIR__ . '/../helper.php';
-require_once __DIR__ . '/database.php';
-require_once __DIR__ . '/user.php';
+require_once __DIR__ . '/../lib/database.php';
 
 function orrism_node_get_nodes($sid) {
-    // 迁移 get_nodes 逻辑
-    return orrism_get_nodes($sid);
+    $db = OrrisDatabase::getInstance();
+    return $db->getNodesForUser($sid);
 }
 
 /**
@@ -63,74 +62,8 @@ function orrism_get_group_id_user($group_id) {
     }
 }
 
-/**
- * 获取用户节点列表
- * @param int $sid
- * @return array
- */
-function orrism_get_nodes($sid) {
-    $redis_key = 'node_key_' . $sid;
-    $cached_node = orrism_set_redis($redis_key, null, 'get', 1);
-    if ($cached_node) {
-        return json_decode($cached_node, true);
-    }
-    $conn = orrism_get_db_connection();
-    $node_group_id = orrism_set_redis("node_group_id_sid_{$sid}", null, 'get');
-    if ($node_group_id !== null) {
-        $node_group_ids = explode(",", $node_group_id);
-        $node_data = [];
-        foreach ($node_group_ids as $id) {
-            $jsonData = orrism_set_redis("node_group_id_{$sid}_{$id}", null, 'get', 1);
-            if ($jsonData) {
-                $node_data = array_merge($node_data, json_decode($jsonData, true));
-            }
-        }
-    } else {
-        if (!empty(orrism_get_user($sid))) {
-            $conn = orrism_get_db_connection();
-            $action = $conn->prepare('SELECT node_group_id FROM user WHERE `sid` = :sid');
-            $action->bindValue(':sid', $sid);
-            $action->execute();
-            $id = $action->fetch(PDO::FETCH_ASSOC)['node_group_id'] ?? '';
-            orrism_set_redis("node_group_id_sid_{$sid}", $id, 'set');
-            
-            // Handle empty node group id case
-            if (empty($id)) {
-                return [];
-            }
-            
-            $node_group_ids = explode(",", $id);
-            $placeholders = implode(',', array_fill(0, count($node_group_ids), '?'));
-            $sql = "SELECT * FROM nodes WHERE `group_id` IN ($placeholders) AND enable = 1 ORDER BY rate";
-            
-            $action = $conn->prepare($sql);
-            
-            // Bind all parameters using bindValue with specific positions
-            foreach ($node_group_ids as $index => $group_id) {
-                $action->bindValue($index + 1, (int)$group_id, PDO::PARAM_INT);
-            }
-            
-            $action->execute();
-            $node_data = $action->fetchAll(PDO::FETCH_ASSOC);
-            
-            // Initialize the array before use
-            $allNodes = [];
-            foreach ($node_data as $node) {
-                $allNodes[$node['group_id']][] = $node;
-            }
-            
-            // Cache node data by group
-            foreach ($allNodes as $group_id => $nodes) {
-                // Set longer expiration for node data
-                $redis = orrism_get_redis_connection(1);
-                $redis->set("node_group_id_{$sid}_{$group_id}", json_encode($nodes), 3600); // Cache for 1 hour
-            }
-        } else {
-            return ORRISM_L::error_account_not_found;
-        }
-    }
-    return $node_data ?? [];
-}
+// This function is now handled by OrrisDatabase::getNodesForUser()
+// Kept for backward compatibility - redirects to unified database layer
 
 function orrism_get_node_group_id($sid) {
     $node_group_id = orrism_set_redis("node_group_id_sid_{$sid}", null, 'get');
