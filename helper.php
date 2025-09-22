@@ -29,19 +29,42 @@ function orrism_convert_byte($size, $digits=2) {
 }
 
 /**
- * GB转字节
+ * GB转字节 - 添加函数存在性检查避免冲突
  * @param int|float $gb
  * @return int
  */
-function gb_to_bytes($gb) {
-    return (int)($gb * 1024 * 1024 * 1024);
+if (!function_exists('gb_to_bytes')) {
+    function gb_to_bytes($gb) {
+        return (int)($gb * 1024 * 1024 * 1024);
+    }
 }
 
 /**
- * 生成UUID v4
+ * 生成UUID v4 - 添加函数存在性检查避免冲突
  * @return string
  */
-function generate_uuid() {
+if (!function_exists('generate_uuid')) {
+    function generate_uuid() {
+        if (class_exists('Ramsey\\Uuid\\Uuid')) {
+            return Ramsey\Uuid\Uuid::uuid4()->toString();
+        }
+        // 简单兜底
+        return sprintf(
+            '%04x%04x-%04x-%04x-%04x-%04x%04x%04x',
+            mt_rand(0, 0xffff), mt_rand(0, 0xffff),
+            mt_rand(0, 0xffff),
+            mt_rand(0, 0x0fff) | 0x4000,
+            mt_rand(0, 0x3fff) | 0x8000,
+            mt_rand(0, 0xffff), mt_rand(0, 0xffff), mt_rand(0, 0xffff)
+        );
+    }
+}
+
+/**
+ * ORRISM专用UUID生成函数 - 避免与其他模块冲突
+ * @return string
+ */
+function orrism_generate_uuid() {
     if (class_exists('Ramsey\\Uuid\\Uuid')) {
         return Ramsey\Uuid\Uuid::uuid4()->toString();
     }
