@@ -508,6 +508,26 @@ class OrrisDatabaseManager
         
         return $status;
     }
+    
+    /**
+     * Get count of users in ShadowSocks database
+     * 
+     * @return int Number of users
+     */
+    public function getUserCount()
+    {
+        try {
+            if (!$this->isInstalled()) {
+                return 0;
+            }
+            
+            return Capsule::table('mod_orrism_users')->count();
+            
+        } catch (Exception $e) {
+            logModuleCall('orrism', __METHOD__, [], 'Error: ' . $e->getMessage());
+            return 0;
+        }
+    }
 }
 
 /**

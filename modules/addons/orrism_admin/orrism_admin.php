@@ -368,29 +368,32 @@ function renderDatabaseSetup($vars)
 function handleDatabaseInstall($vars)
 {
     try {
-        $migrationPath = dirname(__DIR__, 2) . '/servers/orrism/migration/legacy_data_migration.php';
-        
-        if (file_exists($migrationPath)) {
-            // Include and run migration
-            include_once $migrationPath;
-            
-            if (function_exists('install_shadowsocks_database')) {
-                $result = install_shadowsocks_database($vars);
-                
-                if ($result['success']) {
-                    // Update settings
-                    $pdo = Capsule::connection()->getPdo();
-                    $stmt = $pdo->prepare("UPDATE mod_orrism_admin_settings SET setting_value = '1' WHERE setting_key = 'db_initialized'");
-                    $stmt->execute();
-                    
-                    return '<div class="alert alert-success">Database installed successfully!</div>' . renderDatabaseSetup($vars);
-                } else {
-                    return '<div class="alert alert-danger">Database installation failed: ' . $result['message'] . '</div>' . renderDatabaseSetup($vars);
-                }
-            }
+        // Check if database manager class is available
+        if (!class_exists('OrrisDatabaseManager')) {
+            return '<div class="alert alert-danger">Database Manager not available. Please check server module installation.</div>' . renderDatabaseSetup($vars);
         }
         
-        return '<div class="alert alert-danger">Migration script not found.</div>' . renderDatabaseSetup($vars);
+        // Create database manager instance
+        $dbManager = new OrrisDatabaseManager();
+        
+        // Check if already installed
+        if ($dbManager->isInstalled()) {
+            return '<div class="alert alert-warning">Database tables already exist. If you need to reinstall, please uninstall first.</div>' . renderDatabaseSetup($vars);
+        }
+        
+        // Run installation
+        $result = $dbManager->install();
+        
+        if ($result['success']) {
+            // Update addon settings
+            $pdo = Capsule::connection()->getPdo();
+            $stmt = $pdo->prepare("UPDATE mod_orrism_admin_settings SET setting_value = '1' WHERE setting_key = 'db_initialized'");
+            $stmt->execute();
+            
+            return '<div class="alert alert-success">Database installed successfully! ' . $result['message'] . '</div>' . renderDatabaseSetup($vars);
+        } else {
+            return '<div class="alert alert-danger">Database installation failed: ' . $result['message'] . '</div>' . renderDatabaseSetup($vars);
+        }
         
     } catch (Exception $e) {
         return '<div class="alert alert-danger">Installation error: ' . $e->getMessage() . '</div>' . renderDatabaseSetup($vars);

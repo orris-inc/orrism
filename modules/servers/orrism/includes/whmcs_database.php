@@ -508,6 +508,27 @@ class OrrisDatabase
             return false;
         }
     }
+    
+    /**
+     * Get count of active services for a specific module
+     * 
+     * @param string $moduleName Module name
+     * @return int Number of active services
+     */
+    public function getActiveServiceCount($moduleName = 'orrism')
+    {
+        try {
+            return Capsule::table('tblhosting')
+                ->join('tblproducts', 'tblhosting.packageid', '=', 'tblproducts.id')
+                ->where('tblproducts.servertype', $moduleName)
+                ->whereIn('tblhosting.domainstatus', ['Active', 'Suspended'])
+                ->count();
+                
+        } catch (Exception $e) {
+            logModuleCall('orrism', __METHOD__, ['module' => $moduleName], 'Error: ' . $e->getMessage());
+            return 0;
+        }
+    }
 }
 
 /**
