@@ -235,7 +235,7 @@ class SubscriptionService {
         
         // 生成响应数据
         header('Content-Type:text/html; charset=utf-8');
-        echo generate_response($this->app, $nodeData, $userData, $timestampDueDate);
+        echo orrism_generate_response($this->app, $nodeData, $userData, $timestampDueDate);
     }
 }
 

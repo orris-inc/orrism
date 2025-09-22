@@ -21,7 +21,7 @@ if (!$api_token) {
  * @param string $token 请求中的令牌
  * @return bool 验证是否通过
  */
-function verify_token($token) {
+function orrism_verify_token($token) {
     $api_token = orrism_get_config('api_key') ?: '123456789';
     return $token === $api_token;
 }
@@ -33,7 +33,7 @@ $node_id = isset($_GET['node_id']) ? intval($_GET['node_id']) : 0;
 $node_type = isset($_GET['node_type']) ? $_GET['node_type'] : '';
 
 // 验证令牌
-if (!verify_token($token)) {
+if (!orrism_verify_token($token)) {
     http_response_code(401);
     echo json_encode(['error' => 'Unauthorized access']);
     exit;
@@ -42,10 +42,10 @@ if (!verify_token($token)) {
 // 请求处理逻辑
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     // 处理GET请求
-    handleGetRequest($act, $node_id, $node_type);
+    orrism_handleGetRequest($act, $node_id, $node_type);
 } else if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // 处理POST请求
-    handlePostRequest($act, $node_id);
+    orrism_handlePostRequest($act, $node_id);
 } else {
     // 不支持的请求方法
     http_response_code(405);
@@ -58,7 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
  * @param int $node_id 节点ID
  * @param string $node_type 节点类型
  */
-function handleGetRequest($act, $node_id, $node_type) {
+function orrism_handleGetRequest($act, $node_id, $node_type) {
     $raw_data = file_get_contents('php://input');
     
     switch ($act) {
@@ -97,7 +97,7 @@ function handleGetRequest($act, $node_id, $node_type) {
  * @param string $act 操作类型
  * @param int $node_id 节点ID
  */
-function handlePostRequest($act, $node_id) {
+function orrism_handlePostRequest($act, $node_id) {
     $raw_data = file_get_contents('php://input');
     $data = json_decode($raw_data, true);
     
@@ -113,7 +113,7 @@ function handlePostRequest($act, $node_id) {
             
         case 'nodestatus':
             // 处理节点状态上报
-            handleNodeStatusReport($data, $node_id);
+            orrism_handleNodeStatusReport($data, $node_id);
             break;
             
         case 'sync_state_to_mysql':
@@ -134,7 +134,7 @@ function handlePostRequest($act, $node_id) {
  * @param array $data 节点状态数据
  * @param int $node_id 节点ID
  */
-function handleNodeStatusReport($data, $node_id) {
+function orrism_handleNodeStatusReport($data, $node_id) {
     // 检查数据格式
     if (!is_array($data) || !isset($data['cpu'], $data['mem'], $data['net'], $data['disk'], $data['uptime'])) {
         http_response_code(400);

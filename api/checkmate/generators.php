@@ -309,7 +309,7 @@ class ConfigGeneratorFactory {
  * @param int $timestamp_due_date 到期时间戳
  * @return mixed 生成的配置内容
  */
-function generate_response($app, $data, $user, $timestamp_due_date) {
+function orrism_generate_response($app, $data, $user, $timestamp_due_date) {
     $generator = ConfigGeneratorFactory::create($app, $data, $user, $timestamp_due_date);
     
     if ($generator) {

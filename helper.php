@@ -29,41 +29,14 @@ function orrism_convert_byte($size, $digits=2) {
 }
 
 /**
- * GB转字节 - 添加函数存在性检查避免冲突
+ * GB转字节
  * @param int|float $gb
  * @return int
  */
-if (!function_exists('gb_to_bytes')) {
-    function gb_to_bytes($gb) {
-        return (int)($gb * 1024 * 1024 * 1024);
-    }
+function orrism_gb_to_bytes($gb) {
+    return (int)($gb * 1024 * 1024 * 1024);
 }
 
-/**
- * 生成UUID v4 - 添加函数存在性检查避免冲突
- * @return string
- */
-if (!function_exists('generate_uuid')) {
-    function generate_uuid() {
-        // 优先使用orrism专用函数
-        if (function_exists('orrism_generate_uuid')) {
-            return orrism_generate_uuid();
-        }
-        
-        if (class_exists('Ramsey\\Uuid\\Uuid')) {
-            return Ramsey\Uuid\Uuid::uuid4()->toString();
-        }
-        // 简单兜底
-        return sprintf(
-            '%04x%04x-%04x-%04x-%04x-%04x%04x%04x',
-            mt_rand(0, 0xffff), mt_rand(0, 0xffff),
-            mt_rand(0, 0xffff),
-            mt_rand(0, 0x0fff) | 0x4000,
-            mt_rand(0, 0x3fff) | 0x8000,
-            mt_rand(0, 0xffff), mt_rand(0, 0xffff), mt_rand(0, 0xffff)
-        );
-    }
-}
 
 
 /**

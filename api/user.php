@@ -22,7 +22,7 @@ use WHMCS\Database\Capsule;
  * @param string $template 模板名称
  * @return bool 是否成功清除
  */
-function smarty_clear_compiled_tpl($template = 'details.tpl') {
+function orrism_smarty_clear_compiled_tpl($template = 'details.tpl') {
     try {
         // 尝试获取Smarty对象
         global $smarty;
@@ -184,7 +184,7 @@ function orrism_user_client_area($params) {
     }
     
     // 清除模板缓存，确保使用最新的常量
-    smarty_clear_compiled_tpl('details.tpl');
+    orrism_smarty_clear_compiled_tpl('details.tpl');
     
     if (!class_exists('ORRISM_L')) {
         return [
