@@ -1,9 +1,9 @@
 <?php
 /**
- * MSSM - ShadowSocks Manager Module for WHMCS
+ * ORRIS - ShadowSocks Manager Module for WHMCS
  *
  * @package    WHMCS
- * @author     MSSM Development Team
+ * @author     ORRIS Development Team
  * @copyright  Copyright (c) 2022-2024
  * @version    1.0
  */
@@ -11,7 +11,7 @@
 /**
  * 调用 WHMCS API 的通用函数
  */
-function mssm_callAPI($command, $postData, $adminUser, $logMessage = '') {
+function orris_callAPI($command, $postData, $adminUser, $logMessage = '') {
     $results = localAPI($command, $postData, $adminUser);
     if ($logMessage) {
         $logStatus = $results['result'] === 'success' ? "成功" : "失败";
@@ -26,8 +26,8 @@ function mssm_callAPI($command, $postData, $adminUser, $logMessage = '') {
  * @param string $moduleName 模块名
  * @return array 产品ID列表
  */
-function mssm_get_module_product_ids($adminUser, $moduleName = 'mssm') {
-    $moduleProductsResponse = mssm_callAPI('GetProducts', ['module' => $moduleName], $adminUser, "获取模块 {$moduleName} 的产品ID");
+function orris_get_module_product_ids($adminUser, $moduleName = 'orris') {
+    $moduleProductsResponse = orris_callAPI('GetProducts', ['module' => $moduleName], $adminUser, "获取模块 {$moduleName} 的产品ID");
     $productIds = [];
     if (isset($moduleProductsResponse['products']['product'])) {
         foreach ($moduleProductsResponse['products']['product'] as $moduleProduct) {
@@ -35,9 +35,9 @@ function mssm_get_module_product_ids($adminUser, $moduleName = 'mssm') {
         }
     }
     if (empty($productIds)) {
-        error_log("MSSM_DEBUG: Module {$moduleName} has no product IDs.");
+        error_log("ORRIS_DEBUG: Module {$moduleName} has no product IDs.");
     } else {
-        error_log("MSSM_DEBUG: Module {$moduleName} Product IDs: " . print_r($productIds, true));
+        error_log("ORRIS_DEBUG: Module {$moduleName} Product IDs: " . print_r($productIds, true));
     }
     return $productIds;
 }
@@ -49,14 +49,14 @@ function mssm_get_module_product_ids($adminUser, $moduleName = 'mssm') {
  * @param string $status 服务状态, 默认为 'Active'
  * @return array 客户服务列表
  */
-function mssm_get_module_client_services($adminUser, array $productIds, $status = 'Active') {
+function orris_get_module_client_services($adminUser, array $productIds, $status = 'Active') {
     if (empty($productIds)) {
         return [];
     }
 
     $allClientProducts = [];
     foreach ($productIds as $productId) {
-        $singlePidClientResponse = mssm_callAPI(
+        $singlePidClientResponse = orris_callAPI(
             'GetClientsProducts',
             [
                 'limitnum' => 10000, 
@@ -66,12 +66,12 @@ function mssm_get_module_client_services($adminUser, array $productIds, $status 
             $adminUser,
             "获取PID {$productId} 的 {$status} 客户服务"
         );
-        // error_log("MSSM_DEBUG: GetClientsProducts response for single PID {$productId}: " . print_r($singlePidClientResponse, true));
+        // error_log("ORRIS_DEBUG: GetClientsProducts response for single PID {$productId}: " . print_r($singlePidClientResponse, true));
 
         if (isset($singlePidClientResponse['products']['product'])) {
             $allClientProducts = array_merge($allClientProducts, $singlePidClientResponse['products']['product']);
         }
     }
-    // error_log("MSSM_DEBUG: All combined client products for selected PIDs: " . print_r(array_column($allClientProducts, 'id'), true));
+    // error_log("ORRIS_DEBUG: All combined client products for selected PIDs: " . print_r(array_column($allClientProducts, 'id'), true));
     return $allClientProducts;
 } 

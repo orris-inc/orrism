@@ -4,14 +4,14 @@
  */
 
 // 全局函数 - 生成UUID
-if (!function_exists('mssm_generate_uuid')) {
+if (!function_exists('orris_generate_uuid')) {
     /**
      * 生成UUID v4
      * 这是一个简单的实现，可以生成符合RFC 4122规范的UUID
      * 
      * @return string UUID字符串
      */
-    function mssm_generate_uuid() {
+    function orris_generate_uuid() {
         // 生成16字节的随机数据
         $data = random_bytes(16);
         
@@ -27,14 +27,14 @@ if (!function_exists('mssm_generate_uuid')) {
 }
 
 // 定义全局函数以替代命名空间类
-if (!function_exists('mssm_uuid4')) {
+if (!function_exists('orris_uuid4')) {
     /**
      * 生成UUID v4并返回字符串 (模拟Ramsey\Uuid\Uuid::uuid4()->toString())
      * 
      * @return string
      */
-    function mssm_uuid4() {
-        return mssm_generate_uuid();
+    function orris_uuid4() {
+        return orris_generate_uuid();
     }
 }
 

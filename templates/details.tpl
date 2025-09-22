@@ -1,7 +1,7 @@
-<script src="https://milus.one/modules/servers/mssm/frontend/3.4.15"></script>
-<link href="https://milus.one/modules/servers/mssm/frontend/all.min.css" rel="stylesheet">
-<script src="https://milus.one/modules/servers/mssm/frontend/clipboard.js"></script>
-<script src="https://milus.one/modules/servers/mssm/frontend/layer.min.js"></script>
+<script src="https://milus.one/modules/servers/orris/frontend/3.4.15"></script>
+<link href="https://milus.one/modules/servers/orris/frontend/all.min.css" rel="stylesheet">
+<script src="https://milus.one/modules/servers/orris/frontend/clipboard.js"></script>
+<script src="https://milus.one/modules/servers/orris/frontend/layer.min.js"></script>
 <style>
     .section-title {
         margin: 2rem 0 1rem 0;
@@ -410,7 +410,7 @@
             
             <!-- Subscription Records -->
             <h2 class="section-title text-lg sm:text-xl font-semibold text-gray-900">
-                <i class="fa-solid fa-history mr-2 text-indigo-500"></i>{MSSM_L::client_subscription_records}
+                <i class="fa-solid fa-history mr-2 text-indigo-500"></i>{ORRIS_L::client_subscription_records}
             </h2>
             
             <div class="container-card">
@@ -419,13 +419,13 @@
                         <thead class="bg-gray-50">
                             <tr>
                                 <th scope="col" class="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    {MSSM_L::client_access_time}
+                                    {ORRIS_L::client_access_time}
                                 </th>
                                 <th scope="col" class="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    {MSSM_L::client_ip_address}
+                                    {ORRIS_L::client_ip_address}
                                 </th>
                                 <th scope="col" class="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    {MSSM_L::client_app_type}
+                                    {ORRIS_L::client_app_type}
                                 </th>
                             </tr>
                         </thead>
@@ -445,7 +445,7 @@
                             {foreachelse}
                                 <tr>
                                     <td colspan="3" class="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500 text-center">
-                                        {MSSM_L::client_no_records}
+                                        {ORRIS_L::client_no_records}
                                     </td>
                                 </tr>
                             {/foreach}
@@ -465,17 +465,17 @@
             <div class="grid gap-2 sm:gap-3 grid-cols-2">
                 <button id="copy-button" class="copy w-full inline-flex justify-center items-center px-3 sm:px-4 py-2 border border-gray-300 shadow-sm text-xs sm:text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
                     <i class="fa-solid fa-copy mr-1 sm:mr-2 text-gray-500"></i>
-                    {MSSM_L::client_copy}
+                    {ORRIS_L::client_copy}
                 </button>
 
                 <button id="one_click" class="w-full inline-flex justify-center items-center px-3 sm:px-4 py-2 border border-transparent shadow-sm text-xs sm:text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
                     <i class="fa-solid fa-file-import mr-1 sm:mr-2"></i>
-                    {MSSM_L::client_import}
+                    {ORRIS_L::client_import}
                 </button>
                 
                 <button id="Choc" class="hidden w-full col-span-2 inline-flex justify-center items-center px-3 sm:px-4 py-2 border border-gray-300 shadow-sm text-xs sm:text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
                     <i class="fa-solid fa-file-import mr-1 sm:mr-2 text-gray-500"></i>
-                    {MSSM_L::client_import_to_choc}
+                    {ORRIS_L::client_import_to_choc}
                 </button>
             </div>
         </div>
@@ -557,8 +557,8 @@
                 },{
                     once: true
                 });
-                copy_button.innerHTML = '<i class="fa-solid fa-copy mr-1 sm:mr-2 text-gray-500"></i>{MSSM_L::client_copy_subscribe_url}';
-                one_click.innerHTML = '<i class="fa-solid fa-file-import mr-1 sm:mr-2"></i>{MSSM_L::client_import_to_clash}';
+                copy_button.innerHTML = '<i class="fa-solid fa-copy mr-1 sm:mr-2 text-gray-500"></i>{ORRIS_L::client_copy_subscribe_url}';
+                one_click.innerHTML = '<i class="fa-solid fa-file-import mr-1 sm:mr-2"></i>{ORRIS_L::client_import_to_clash}';
                 break;
             case obj.id === 'Surge':
                 open_new('surge:///install-config?url=' + encodeURIComponent(subscribe_url) + "&name=" + encodeURIComponent('Milus'));
@@ -582,14 +582,14 @@
         if(!_con.is(e.target) && _con.has(e.target).length === 0){ // Mark 1
             dialog_2.classList.add('hidden');
             import_to_choc.classList.add('hidden');
-            copy_button.innerHTML = '<i class="fa-solid fa-copy mr-1 sm:mr-2 text-gray-500"></i>{MSSM_L::client_copy}';
-            one_click.innerHTML = '<i class="fa-solid fa-file-import mr-1 sm:mr-2"></i>{MSSM_L::client_import}';
+            copy_button.innerHTML = '<i class="fa-solid fa-copy mr-1 sm:mr-2 text-gray-500"></i>{ORRIS_L::client_copy}';
+            one_click.innerHTML = '<i class="fa-solid fa-file-import mr-1 sm:mr-2"></i>{ORRIS_L::client_import}';
         }
     });
     
     var clipboard = new ClipboardJS('.copy');
     clipboard.on('success', function (e) {
-        layer.msg('{MSSM_L::client_copy_success}')
+        layer.msg('{ORRIS_L::client_copy_success}')
         console.log(e);
     });
     clipboard.on('error', function (e) {

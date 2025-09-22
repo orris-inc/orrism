@@ -1,63 +1,39 @@
 <?php
 /**
- * MSSM - ShadowSocks Manager Module for WHMCS
+ * ORRIS Configuration for WHMCS Module
  *
  * @package    WHMCS
- * @author     MSSM Development Team
- * @copyright  Copyright (c) 2022-2024
- * @version    1.0
+ * @author     ORRIS Development Team
+ * @copyright  Copyright (c) 2024
+ * @version    2.0
+ * @link       https://github.com/your-org/orris-whmcs-module
  */
 
+if (!defined('WHMCS')) {
+    die('This file cannot be accessed directly');
+}
+
+// Module configuration constants
+define('ORRIS_MODULE_VERSION', '2.0');
+define('ORRIS_API_VERSION', '1.1');
+define('ORRIS_MIN_PHP_VERSION', '7.4');
+
 /**
- * 获取系统配置
+ * Get module configuration
  * 
- * @param string $key 可选，指定获取特定配置项
- * @return array|mixed 返回配置数组或指定的配置项
+ * @param string|null $key Optional specific configuration key to retrieve
+ * @return array|mixed Configuration array or specific value
  */
-function mssm_get_config($key = null) {
-    // 定义配置文件路径
-    $config_file = __DIR__ . '/config.local.php';
+function orris_get_config($key = null)
+{
+    static $config = null;
     
-    // 基础配置
-    $config = [
-        // API相关配置
-        'api_key' => getenv('SSM_API_KEY') ?: 'YJH2HikkEn1d',
-        
-        // 数据库配置
-        'mysql_host' => getenv('SSM_MYSQL_HOST') ?: 'mysql',
-        'mysql_db' => getenv('SSM_MYSQL_DB') ?: 'ssmanage',        
-        'mysql_user' => getenv('SSM_MYSQL_USER') ?: 'root',
-        'mysql_pass' => getenv('SSM_MYSQL_PASS') ?: 'root',
-        'mysql_port' => getenv('SSM_MYSQL_PORT') ?: '3306',
-        
-        // Redis配置
-        'redis_host' => getenv('SSM_REDIS_HOST') ?: 'redis',
-        'redis_port' => getenv('SSM_REDIS_PORT') ?: '6379',
-        'redis_pass' => getenv('SSM_REDIS_PASS') ?: '',
-        
-        // 管理设置
-        'admin_username' => getenv('SSM_ADMIN_USERNAME') ?: 'root',
-        
-        // 订阅相关设置
-        'subscribe_urls' => [
-            'localhost:8080/modules/servers/ssm/api'
-        ],
-    ];
-    
-    // 如果存在本地配置文件，加载并覆盖默认配置
-    if (file_exists($config_file)) {
-        $local_config = include($config_file);
-        if (is_array($local_config)) {
-            $config = array_merge($config, $local_config);
-        }
+    // Initialize configuration once
+    if ($config === null) {
+        $config = orris_load_configuration();
     }
     
-    // 自动选择订阅URL
-    if (!isset($config['subscribe_url']) && isset($config['subscribe_urls']) && !empty($config['subscribe_urls'])) {
-        $config['subscribe_url'] = $config['subscribe_urls'][array_rand($config['subscribe_urls'], 1)];
-    }
-    
-    // 如果指定了获取特定配置项
+    // Return specific key if requested
     if ($key !== null) {
         return $config[$key] ?? null;
     }
@@ -66,14 +42,253 @@ function mssm_get_config($key = null) {
 }
 
 /**
- * 设置配置项（运行时）
+ * Load and merge configuration from multiple sources
  * 
- * @param string $key 配置键名
- * @param mixed $value 配置值
- * @return bool 设置是否成功
+ * @return array Complete configuration array
  */
-function mssm_set_config($key, $value) {
-    static $runtime_config = [];
-    $runtime_config[$key] = $value;
+function orris_load_configuration()
+{
+    // Default configuration
+    $defaultConfig = [
+        // API Settings
+        'api_key' => getenv('ORRIS_API_KEY') ?: '',
+        'api_timeout' => 30,
+        'api_retries' => 3,
+        
+        // Database Settings (fallback for legacy systems)
+        'mysql_host' => getenv('ORRIS_MYSQL_HOST') ?: 'localhost',
+        'mysql_db' => getenv('ORRIS_MYSQL_DB') ?: 'shadowsocks',        
+        'mysql_user' => getenv('ORRIS_MYSQL_USER') ?: '',
+        'mysql_pass' => getenv('ORRIS_MYSQL_PASS') ?: '',
+        'mysql_port' => getenv('ORRIS_MYSQL_PORT') ?: '3306',
+        'mysql_charset' => 'utf8mb4',
+        
+        // Redis Settings (optional cache layer)
+        'redis_enabled' => false,
+        'redis_host' => getenv('ORRIS_REDIS_HOST') ?: '127.0.0.1',
+        'redis_port' => getenv('ORRIS_REDIS_PORT') ?: '6379',
+        'redis_pass' => getenv('ORRIS_REDIS_PASS') ?: '',
+        'redis_database' => 0,
+        'redis_prefix' => 'orris:',
+        
+        // Module Settings
+        'debug_mode' => getenv('ORRIS_DEBUG') === 'true',
+        'log_level' => getenv('ORRIS_LOG_LEVEL') ?: 'info',
+        'cache_ttl' => 300, // 5 minutes
+        
+        // Security Settings
+        'encrypt_passwords' => true,
+        'token_lifetime' => 300, // 5 minutes for SSO tokens
+        'max_login_attempts' => 5,
+        
+        // Subscription Settings
+        'subscription_base_url' => '',
+        'subscription_token_key' => '',
+        'subscription_encryption' => true,
+        
+        // Traffic Management
+        'auto_reset_traffic' => false,
+        'reset_day' => 1, // First day of month
+        'traffic_multiplier' => 1.0,
+        
+        // Node Management
+        'auto_sync_nodes' => true,
+        'node_check_interval' => 300, // 5 minutes
+        'node_timeout' => 10,
+        
+        // Feature Flags
+        'enable_usage_tracking' => true,
+        'enable_sso' => true,
+        'enable_client_reset' => true,
+        'enable_notifications' => false,
+    ];
+    
+    // Load local configuration if exists
+    $localConfig = orris_load_local_config();
+    
+    // Merge configurations (local overrides default)
+    $config = array_merge($defaultConfig, $localConfig);
+    
+    // Post-process configuration
+    $config = orris_process_configuration($config);
+    
+    return $config;
+}
+
+/**
+ * Load local configuration file
+ * 
+ * @return array Local configuration array
+ */
+function orris_load_local_config()
+{
+    $configFile = __DIR__ . '/config.local.php';
+    
+    if (!file_exists($configFile)) {
+        return [];
+    }
+    
+    try {
+        $localConfig = include $configFile;
+        return is_array($localConfig) ? $localConfig : [];
+    } catch (Exception $e) {
+        error_log("ORRIS: Failed to load local config - " . $e->getMessage());
+        return [];
+    }
+}
+
+/**
+ * Process and validate configuration
+ * 
+ * @param array $config Raw configuration
+ * @return array Processed configuration
+ */
+function orris_process_configuration(array $config)
+{
+    // Validate PHP version
+    if (version_compare(PHP_VERSION, ORRIS_MIN_PHP_VERSION, '<')) {
+        error_log("ORRIS: PHP version " . ORRIS_MIN_PHP_VERSION . " or higher required");
+    }
+    
+    // Process subscription URL
+    if (empty($config['subscription_base_url'])) {
+        global $_SERVER;
+        $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+        $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+        $config['subscription_base_url'] = "{$protocol}://{$host}/modules/servers/orris/api/subscribe";
+    }
+    
+    // Ensure required directories exist
+    orris_ensure_directories();
+    
+    return $config;
+}
+
+/**
+ * Ensure required directories exist
+ */
+function orris_ensure_directories()
+{
+    $directories = [
+        __DIR__ . '/logs',
+        __DIR__ . '/cache',
+        __DIR__ . '/tmp'
+    ];
+    
+    foreach ($directories as $dir) {
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0755, true);
+        }
+    }
+}
+
+/**
+ * Set runtime configuration value
+ * 
+ * @param string $key Configuration key
+ * @param mixed $value Configuration value
+ * @return bool Success status
+ */
+function orris_set_config($key, $value)
+{
+    static $runtimeConfig = [];
+    
+    if (!is_string($key) || empty($key)) {
+        return false;
+    }
+    
+    $runtimeConfig[$key] = $value;
+    
+    // Log configuration changes in debug mode
+    if (orris_get_config('debug_mode')) {
+        error_log("ORRIS: Runtime config set - {$key}");
+    }
+    
     return true;
+}
+
+/**
+ * Get runtime configuration value
+ * 
+ * @param string $key Configuration key
+ * @param mixed $default Default value if key not found
+ * @return mixed Configuration value
+ */
+function orris_get_runtime_config($key, $default = null)
+{
+    static $runtimeConfig = [];
+    return $runtimeConfig[$key] ?? $default;
+}
+
+/**
+ * Check if module is properly configured
+ * 
+ * @return array Configuration status
+ */
+function orris_check_configuration()
+{
+    $config = orris_get_config();
+    $issues = [];
+    
+    // Check required settings
+    if (empty($config['mysql_host'])) {
+        $issues[] = 'MySQL host not configured';
+    }
+    
+    if (empty($config['mysql_user'])) {
+        $issues[] = 'MySQL user not configured';
+    }
+    
+    if (empty($config['api_key'])) {
+        $issues[] = 'API key not configured';
+    }
+    
+    // Check optional but recommended settings
+    $warnings = [];
+    
+    if (!$config['encrypt_passwords']) {
+        $warnings[] = 'Password encryption is disabled';
+    }
+    
+    if ($config['debug_mode']) {
+        $warnings[] = 'Debug mode is enabled in production';
+    }
+    
+    return [
+        'status' => empty($issues) ? 'ok' : 'error',
+        'issues' => $issues,
+        'warnings' => $warnings
+    ];
+}
+
+/**
+ * Get database connection parameters from WHMCS or module config
+ * 
+ * @param array $params WHMCS module parameters
+ * @return array Database connection parameters
+ */
+function orris_get_database_config(array $params = [])
+{
+    // Try to get from WHMCS parameters first
+    if (!empty($params['serverhostname']) || !empty($params['serverip'])) {
+        return [
+            'host' => $params['serverhostname'] ?: $params['serverip'],
+            'username' => $params['serverusername'] ?? '',
+            'password' => $params['serverpassword'] ?? '',
+            'database' => $params['configoption1'] ?: orris_get_config('mysql_db'),
+            'port' => orris_get_config('mysql_port'),
+            'charset' => orris_get_config('mysql_charset')
+        ];
+    }
+    
+    // Fallback to module configuration
+    $config = orris_get_config();
+    return [
+        'host' => $config['mysql_host'],
+        'username' => $config['mysql_user'],
+        'password' => $config['mysql_pass'],
+        'database' => $config['mysql_db'],
+        'port' => $config['mysql_port'],
+        'charset' => $config['mysql_charset']
+    ];
 }

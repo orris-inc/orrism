@@ -1,9 +1,9 @@
 <?php
 /**
- * MSSM - ShadowSocks Manager Module for WHMCS
+ * ORRIS - ShadowSocks Manager Module for WHMCS
  *
  * @package    WHMCS
- * @author     MSSM Development Team
+ * @author     ORRIS Development Team
  * @copyright  Copyright (c) 2022-2024
  * @version    1.0
  */
@@ -16,26 +16,26 @@ use Carbon\Carbon; // Ensure Carbon is available if used directly
 /**
  * 暂停逾期的产品并暂停相关订单的模块函数
  */
-function mssm_suspendOverdueProducts($adminUser, $allowableOverdueDays = 1) {
+function orris_suspendOverdueProducts($adminUser, $allowableOverdueDays = 1) {
     $now = Carbon::now()->startOfDay();
 
-    // Step 1: Get Product IDs for the 'mssm' module
-    $mssmProductIds = mssm_get_module_product_ids($adminUser, 'mssm');
+    // Step 1: Get Product IDs for the 'orris' module
+    $orrisProductIds = orris_get_module_product_ids($adminUser, 'orris');
 
-    if (empty($mssmProductIds)) {
-        error_log("MSSM_DEBUG: No product IDs found for mssm module in mssm_suspendOverdueProducts. Skipping.");
+    if (empty($orrisProductIds)) {
+        error_log("ORRIS_DEBUG: No product IDs found for orris module in orris_suspendOverdueProducts. Skipping.");
         return;
     }
 
     // Step 2: Get active client services for these Product IDs
-    $activeClientServices = mssm_get_module_client_services($adminUser, $mssmProductIds, 'Active');
+    $activeClientServices = orris_get_module_client_services($adminUser, $orrisProductIds, 'Active');
 
     if (empty($activeClientServices)) {
-        error_log("MSSM_DEBUG: No active client services found for mssm module in mssm_suspendOverdueProducts. Skipping.");
+        error_log("ORRIS_DEBUG: No active client services found for orris module in orris_suspendOverdueProducts. Skipping.");
         return;
     }
 
-    error_log("MSSM_DEBUG: Suspending overdue products. Processing " . count($activeClientServices) . " mssm client services.");
+    error_log("ORRIS_DEBUG: Suspending overdue products. Processing " . count($activeClientServices) . " orris client services.");
 
     foreach ($activeClientServices as $service) {
         if (isset($service['status']) && $service['status'] === 'Cancelled') {
@@ -50,7 +50,7 @@ function mssm_suspendOverdueProducts($adminUser, $allowableOverdueDays = 1) {
 
             if ($daysDifference > $allowableOverdueDays) {
                 error_log("产品 #" . $service['id'] . " 已逾期超过允许的天数 ({$daysDifference} > {$allowableOverdueDays})，尝试暂停服务。");
-                mssm_suspendAssociatedOrders($service['clientid'], $service['id'], $adminUser);
+                orris_suspendAssociatedOrders($service['clientid'], $service['id'], $adminUser);
             }
         }
     }
@@ -59,24 +59,24 @@ function mssm_suspendOverdueProducts($adminUser, $allowableOverdueDays = 1) {
 /**
  * 检查逾期产品
  */
-function mssm_checkOverdueProducts($adminUser, $allowableOverdueDays = 1) {
+function orris_checkOverdueProducts($adminUser, $allowableOverdueDays = 1) {
     $now = Carbon::now()->startOfDay();
 
-    $mssmProductIds = mssm_get_module_product_ids($adminUser, 'mssm');
+    $orrisProductIds = orris_get_module_product_ids($adminUser, 'orris');
 
-    if (empty($mssmProductIds)) {
-        error_log("MSSM_DEBUG: No product IDs found for mssm module in mssm_checkOverdueProducts. Returning empty list.");
+    if (empty($orrisProductIds)) {
+        error_log("ORRIS_DEBUG: No product IDs found for orris module in orris_checkOverdueProducts. Returning empty list.");
         return [];
     }
 
-    $activeClientServices = mssm_get_module_client_services($adminUser, $mssmProductIds, 'Active');
+    $activeClientServices = orris_get_module_client_services($adminUser, $orrisProductIds, 'Active');
 
     if (empty($activeClientServices)) {
-        error_log("MSSM_DEBUG: No active client services found for mssm module in mssm_checkOverdueProducts. Returning empty list.");
+        error_log("ORRIS_DEBUG: No active client services found for orris module in orris_checkOverdueProducts. Returning empty list.");
         return [];
     }
     
-    error_log("MSSM_DEBUG: Checking overdue products. Processing " . count($activeClientServices) . " mssm client services.");
+    error_log("ORRIS_DEBUG: Checking overdue products. Processing " . count($activeClientServices) . " orris client services.");
 
     $overdueServiceIds = [];
 
@@ -93,7 +93,7 @@ function mssm_checkOverdueProducts($adminUser, $allowableOverdueDays = 1) {
     }
     
     if (!empty($overdueServiceIds)) {
-        error_log("MSSM_DEBUG: Found overdue mssm service IDs: " . print_r($overdueServiceIds, true));
+        error_log("ORRIS_DEBUG: Found overdue orris service IDs: " . print_r($overdueServiceIds, true));
     }
 
     return $overdueServiceIds;
@@ -102,8 +102,8 @@ function mssm_checkOverdueProducts($adminUser, $allowableOverdueDays = 1) {
 /**
  * 暂停与特定产品关联的订单服务
  */
-function mssm_suspendAssociatedOrders($clientId, $productId, $adminUser) {
-    $suspendOrderResults = mssm_callAPI('ModuleSuspend', ['serviceid' => $productId, 'suspendreason' => '逾期未付款'], $adminUser, "暂停服务 #" . $productId);
+function orris_suspendAssociatedOrders($clientId, $productId, $adminUser) {
+    $suspendOrderResults = orris_callAPI('ModuleSuspend', ['serviceid' => $productId, 'suspendreason' => '逾期未付款'], $adminUser, "暂停服务 #" . $productId);
     
     if ($suspendOrderResults['result'] === 'success') {
         error_log("已暂停产品 #" . $productId . " 关联的服务，客户 #" . $clientId . "。", 0);
@@ -116,21 +116,21 @@ function mssm_suspendAssociatedOrders($clientId, $productId, $adminUser) {
  * Processes pending orders that have been paid or have a zero amount.
  * @param string $adminUser WHMCS admin username
  */
-function mssm_process_paid_pending_orders($adminUser) {
-    error_log("MSSM_DEBUG: Starting mssm_process_paid_pending_orders.");
-    $orders = mssm_callAPI('GetOrders', ['limitnum' => 10000, 'status' => 'Pending'], $adminUser, 'GetPendingOrdersForProcessing');
+function orris_process_paid_pending_orders($adminUser) {
+    error_log("ORRIS_DEBUG: Starting orris_process_paid_pending_orders.");
+    $orders = orris_callAPI('GetOrders', ['limitnum' => 10000, 'status' => 'Pending'], $adminUser, 'GetPendingOrdersForProcessing');
     
     if (isset($orders['orders']['order'])) {
         $processedCount = 0;
         foreach ($orders['orders']['order'] as $order) {
             if (($order['paymentstatus'] ?? null) === 'Paid' || (isset($order['amount']) && $order['amount'] === '0.00')) {
-                mssm_callAPI('AcceptOrder', ['orderid' => $order['id']], $adminUser, "Accept order #" . $order['id']);
+                orris_callAPI('AcceptOrder', ['orderid' => $order['id']], $adminUser, "Accept order #" . $order['id']);
                 $processedCount++;
             }
         }
-        error_log("MSSM_DEBUG: mssm_process_paid_pending_orders processed {$processedCount} orders.");
+        error_log("ORRIS_DEBUG: orris_process_paid_pending_orders processed {$processedCount} orders.");
     } else {
-        error_log("MSSM_DEBUG: No pending orders found to process in mssm_process_paid_pending_orders.");
+        error_log("ORRIS_DEBUG: No pending orders found to process in orris_process_paid_pending_orders.");
     }
 }
 
@@ -139,23 +139,23 @@ function mssm_process_paid_pending_orders($adminUser) {
  * @param string $adminUser WHMCS admin username
  * @param int $orderOverdueDays Number of days after which a pending order is considered overdue
  */
-function mssm_cancel_overdue_pending_orders($adminUser, $orderOverdueDays) {
-    error_log("MSSM_DEBUG: Starting mssm_cancel_overdue_pending_orders. Overdue days: {$orderOverdueDays}");
+function orris_cancel_overdue_pending_orders($adminUser, $orderOverdueDays) {
+    error_log("ORRIS_DEBUG: Starting orris_cancel_overdue_pending_orders. Overdue days: {$orderOverdueDays}");
     $now = Carbon::now()->startOfDay();
-    $orders = mssm_callAPI('GetOrders', ['limitnum' => 10000, 'status' => 'Pending'], $adminUser, 'GetPendingOrdersForCancellation');
+    $orders = orris_callAPI('GetOrders', ['limitnum' => 10000, 'status' => 'Pending'], $adminUser, 'GetPendingOrdersForCancellation');
 
     if (isset($orders['orders']['order'])) {
         $cancelledCount = 0;
         foreach ($orders['orders']['order'] as $order) {
             $createDate = Carbon::parse($order['date'])->startOfDay();
             if ($now->diffInDays($createDate) >= $orderOverdueDays) {
-                mssm_callAPI('CancelOrder', ['orderid' => $order['id']], $adminUser, "Cancel overdue order #" . $order['id']);
+                orris_callAPI('CancelOrder', ['orderid' => $order['id']], $adminUser, "Cancel overdue order #" . $order['id']);
                 $cancelledCount++;
             }
         }
-        error_log("MSSM_DEBUG: mssm_cancel_overdue_pending_orders cancelled {$cancelledCount} orders.");
+        error_log("ORRIS_DEBUG: orris_cancel_overdue_pending_orders cancelled {$cancelledCount} orders.");
     } else {
-        error_log("MSSM_DEBUG: No pending orders found for cancellation in mssm_cancel_overdue_pending_orders.");
+        error_log("ORRIS_DEBUG: No pending orders found for cancellation in orris_cancel_overdue_pending_orders.");
     }
 }
 
@@ -164,12 +164,12 @@ function mssm_cancel_overdue_pending_orders($adminUser, $orderOverdueDays) {
  * @param string $adminUser WHMCS admin username
  * @param int $invoiceOverdueDays Number of days after due date an invoice is considered overdue for cancellation
  */
-function mssm_cancel_overdue_invoices($adminUser, $invoiceOverdueDays) {
-    error_log("MSSM_DEBUG: Starting mssm_cancel_overdue_invoices. Overdue days: {$invoiceOverdueDays}");
+function orris_cancel_overdue_invoices($adminUser, $invoiceOverdueDays) {
+    error_log("ORRIS_DEBUG: Starting orris_cancel_overdue_invoices. Overdue days: {$invoiceOverdueDays}");
     $now = Carbon::now()->startOfDay();
     // Note: WHMCS GetInvoices status 'Overdue' might be sufficient. 
     // If not, one might need to fetch 'Unpaid' and then check duedate.
-    $invoices = mssm_callAPI('GetInvoices', ['limitnum' => 10000, 'status' => 'Overdue'], $adminUser, 'GetOverdueInvoicesForCancellation');
+    $invoices = orris_callAPI('GetInvoices', ['limitnum' => 10000, 'status' => 'Overdue'], $adminUser, 'GetOverdueInvoicesForCancellation');
 
     if (isset($invoices['invoices']['invoice'])) {
         $cancelledCount = 0;
@@ -178,37 +178,37 @@ function mssm_cancel_overdue_invoices($adminUser, $invoiceOverdueDays) {
             // The GetInvoices call with status=Overdue should ideally only return overdue invoices.
             // This diffInDays check is an additional safeguard or for a more precise definition of "overdue for cancellation".
             if ($now->diffInDays($dueDate) >= $invoiceOverdueDays) {
-                mssm_callAPI('UpdateInvoice', ['invoiceid' => $invoice['id'], 'status' => 'Cancelled'], $adminUser, "Cancel overdue invoice #" . $invoice['id']);
+                orris_callAPI('UpdateInvoice', ['invoiceid' => $invoice['id'], 'status' => 'Cancelled'], $adminUser, "Cancel overdue invoice #" . $invoice['id']);
                 $cancelledCount++;
             }
         }
-        error_log("MSSM_DEBUG: mssm_cancel_overdue_invoices cancelled {$cancelledCount} invoices.");
+        error_log("ORRIS_DEBUG: orris_cancel_overdue_invoices cancelled {$cancelledCount} invoices.");
     } else {
-        error_log("MSSM_DEBUG: No overdue invoices found for cancellation in mssm_cancel_overdue_invoices.");
+        error_log("ORRIS_DEBUG: No overdue invoices found for cancellation in orris_cancel_overdue_invoices.");
     }
 }
 
 /**
- * Performs traffic checks for active, non-overdue MSSM services.
+ * Performs traffic checks for active, non-overdue ORRIS services.
  * This is typically called by the AfterCronJob hook.
  * @param string $adminUser WHMCS admin username
  */
-function mssm_perform_after_cron_traffic_checks($adminUser) {
-    error_log("MSSM_DEBUG: Starting mssm_perform_after_cron_traffic_checks.");
+function orris_perform_after_cron_traffic_checks($adminUser) {
+    error_log("ORRIS_DEBUG: Starting orris_perform_after_cron_traffic_checks.");
     try {
-        $mssmProductIds = mssm_get_module_product_ids($adminUser, 'mssm');
-        if (empty($mssmProductIds)) {
-            error_log("MSSM: AfterCronJob (via mssm_perform_after_cron_traffic_checks) - No MSSM product IDs found, skipping traffic check logic.");
+        $orrisProductIds = orris_get_module_product_ids($adminUser, 'orris');
+        if (empty($orrisProductIds)) {
+            error_log("ORRIS: AfterCronJob (via orris_perform_after_cron_traffic_checks) - No ORRIS product IDs found, skipping traffic check logic.");
             return;
         }
 
-        // It's important that mssm_checkOverdueProducts itself is efficient and correctly scoped.
+        // It's important that orris_checkOverdueProducts itself is efficient and correctly scoped.
         // Allowable overdue days for traffic check is 0, meaning if it's overdue at all, skip traffic reset.
-        $overdueServiceIds = mssm_checkOverdueProducts($adminUser, 0);
-        $activeClientServices = mssm_get_module_client_services($adminUser, $mssmProductIds, 'Active');
+        $overdueServiceIds = orris_checkOverdueProducts($adminUser, 0);
+        $activeClientServices = orris_get_module_client_services($adminUser, $orrisProductIds, 'Active');
         
         if (empty($activeClientServices)) {
-            error_log("MSSM: AfterCronJob (via mssm_perform_after_cron_traffic_checks) - No active MSSM client services found.");
+            error_log("ORRIS: AfterCronJob (via orris_perform_after_cron_traffic_checks) - No active ORRIS client services found.");
             return;
         }
 
@@ -216,18 +216,18 @@ function mssm_perform_after_cron_traffic_checks($adminUser) {
         $skippedCount = 0;
         foreach ($activeClientServices as $service) {
             if (!in_array($service['id'], $overdueServiceIds)) {
-                mssm_reset_traffic($service['id']); // This function is from api/traffic.php
-                // error_log("MSSM: AfterCronJob (via mssm_perform_after_cron_traffic_checks) - Product #" . $service['id'] . " traffic check executed.");
+                orris_reset_traffic($service['id']); // This function is from api/traffic.php
+                // error_log("ORRIS: AfterCronJob (via orris_perform_after_cron_traffic_checks) - Product #" . $service['id'] . " traffic check executed.");
                 $checkedCount++;
             } else {
-                // error_log("MSSM: AfterCronJob (via mssm_perform_after_cron_traffic_checks) - Product #" . $service['id'] . " is overdue, skipping traffic check.");
+                // error_log("ORRIS: AfterCronJob (via orris_perform_after_cron_traffic_checks) - Product #" . $service['id'] . " is overdue, skipping traffic check.");
                 $skippedCount++;
             }
         }
-        error_log("MSSM_DEBUG: mssm_perform_after_cron_traffic_checks completed. Services checked: {$checkedCount}, services skipped (overdue): {$skippedCount}.");
+        error_log("ORRIS_DEBUG: orris_perform_after_cron_traffic_checks completed. Services checked: {$checkedCount}, services skipped (overdue): {$skippedCount}.");
 
     } catch (Exception $e) {
-        error_log("MSSM: Error in mssm_perform_after_cron_traffic_checks: " . $e->getMessage() . " Trace: " . $e->getTraceAsString());
+        error_log("ORRIS: Error in orris_perform_after_cron_traffic_checks: " . $e->getMessage() . " Trace: " . $e->getTraceAsString());
     }
 }
 
@@ -236,24 +236,24 @@ function mssm_perform_after_cron_traffic_checks($adminUser) {
  * Performs traffic reset for services whose next due date is today (billing day).
  * @param string $adminUser WHMCS admin username
  */
-function mssm_perform_billing_day_traffic_reset($adminUser) {
-    error_log("MSSM_DEBUG: Starting mssm_perform_billing_day_traffic_reset.");
+function orris_perform_billing_day_traffic_reset($adminUser) {
+    error_log("ORRIS_DEBUG: Starting orris_perform_billing_day_traffic_reset.");
     try {
         $now = Carbon::now()->startOfDay();
 
-        // Step 1: Get Product IDs for the 'mssm' module
-        $mssmProductIds = mssm_get_module_product_ids($adminUser, 'mssm');
+        // Step 1: Get Product IDs for the 'orris' module
+        $orrisProductIds = orris_get_module_product_ids($adminUser, 'orris');
 
-        if (empty($mssmProductIds)) {
-            error_log("MSSM: BillingDayTrafficReset - No MSSM product IDs found, skipping billing day traffic reset.");
+        if (empty($orrisProductIds)) {
+            error_log("ORRIS: BillingDayTrafficReset - No ORRIS product IDs found, skipping billing day traffic reset.");
             return;
         }
 
         // Step 2: Get active client services for these Product IDs
-        $activeClientServices = mssm_get_module_client_services($adminUser, $mssmProductIds, 'Active');
+        $activeClientServices = orris_get_module_client_services($adminUser, $orrisProductIds, 'Active');
 
         if (empty($activeClientServices)) {
-            error_log("MSSM: BillingDayTrafficReset - No active MSSM client services found for billing day traffic reset.");
+            error_log("ORRIS: BillingDayTrafficReset - No active ORRIS client services found for billing day traffic reset.");
             return;
         }
 
@@ -263,14 +263,14 @@ function mssm_perform_billing_day_traffic_reset($adminUser) {
 
             // Check if the next due date is today
             if ($nextDueDate->isSameDay($now)) {
-                mssm_reset_traffic($service['id']); // This function is from api/traffic.php
-                // error_log("MSSM: BillingDayTrafficReset - Product #" . $service['id'] . " billing day traffic reset executed.");
+                orris_reset_traffic($service['id']); // This function is from api/traffic.php
+                // error_log("ORRIS: BillingDayTrafficReset - Product #" . $service['id'] . " billing day traffic reset executed.");
                 $resetCount++;
             }
         }
-        error_log("MSSM_DEBUG: mssm_perform_billing_day_traffic_reset completed. Services reset: {$resetCount}.");
+        error_log("ORRIS_DEBUG: orris_perform_billing_day_traffic_reset completed. Services reset: {$resetCount}.");
 
     } catch (Exception $e) {
-        error_log("MSSM: Error in mssm_perform_billing_day_traffic_reset: " . $e->getMessage() . " Trace: " . $e->getTraceAsString());
+        error_log("ORRIS: Error in orris_perform_billing_day_traffic_reset: " . $e->getMessage() . " Trace: " . $e->getTraceAsString());
     }
 } 

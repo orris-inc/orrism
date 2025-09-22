@@ -1,9 +1,9 @@
 <?php
 /**
- * MSSM - ShadowSocks Manager Module for WHMCS
+ * ORRIS - ShadowSocks Manager Module for WHMCS
  *
  * @package    WHMCS
- * @author     MSSM Development Team
+ * @author     ORRIS Development Team
  * @copyright  Copyright (c) 2022-2024
  * @version    1.0
  */
@@ -34,8 +34,8 @@ abstract class ConfigGenerator {
         if (in_array($node['node_method'], ['2022-blake3-aes-128-gcm', '2022-blake3-aes-256-gcm'])) {
             $len = $node['node_method'] === '2022-blake3-aes-128-gcm' ? 16 : 32;
             $ctime_ts = is_numeric($node['ctime']) ? intval($node['ctime']) : strtotime($node['ctime']);
-            $serverKey = mssm_get_server_key($ctime_ts, $len);
-            $userKey = mssm_uuidToBase64($this->user['uuid'], $len);
+            $serverKey = orris_get_server_key($ctime_ts, $len);
+            $userKey = orris_uuidToBase64($this->user['uuid'], $len);
             return "{$serverKey}:{$userKey}";
         }
         return $this->user['uuid'];
@@ -91,10 +91,10 @@ class SurgeGenerator extends ConfigGenerator {
         $proxies = '';
         $proxyGroup = '';
         $defaultConfig = __DIR__ . '/rules/default.surge.conf';
-        $config_values = mssm_get_config(); 
+        $config_values = orris_get_config(); 
         $subsDomain = $config_values['subscribe_url'] ?? '';
         if (empty($subsDomain)) {
-            error_log("MSSM API Services Error (surge_generate for SID: {$this->user['sid']}): subscribe_url not found in config.");
+            error_log("ORRIS API Services Error (surge_generate for SID: {$this->user['sid']}): subscribe_url not found in config.");
         }
         $subsURL = 'https://' . $subsDomain . '/services?token=' . $this->user['uuid'] . '&type=surge&sid=' . $this->user['sid'];
         header("content-disposition:attachment; filename=Milus_Surge.conf; filename*=UTF-8''Milus_Surge.conf");

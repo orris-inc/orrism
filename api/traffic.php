@@ -1,9 +1,9 @@
 <?php
 /**
- * MSSM - ShadowSocks Manager Module for WHMCS
+ * ORRIS - ShadowSocks Manager Module for WHMCS
  *
  * @package    WHMCS
- * @author     MSSM Development Team
+ * @author     ORRIS Development Team
  * @copyright  Copyright (c) 2022-2024
  * @version    1.0
  */
@@ -16,9 +16,9 @@ require_once __DIR__ . '/user.php';
 require_once __DIR__ . '/product.php';
 
 
-function mssm_traffic_reset_bandwidth_user($params) {
+function orris_traffic_reset_bandwidth_user($params) {
     if (($params['configoption5'] ?? 0) != 0) {
-        $client_product = mssm_get_client_products($params['serviceid'] ?? 0);
+        $client_product = orris_get_client_products($params['serviceid'] ?? 0);
         if (($client_product['result'] ?? '') === 'success') {
             $product = $client_product['products']['product'][0] ?? [];
             if (($product['status'] ?? '') === 'Active') {
@@ -31,7 +31,7 @@ function mssm_traffic_reset_bandwidth_user($params) {
                         'amount'      => (float)($cost),
                         'type'        => 'remove',
                     ];
-                    $result = mssm_set_credit($data);
+                    $result = orris_set_credit($data);
                 } else {
                     $result = ['result' => 'success'];
                 }
@@ -41,31 +41,31 @@ function mssm_traffic_reset_bandwidth_user($params) {
                         'u'   => 0,
                         'd'   => 0,
                     ];
-                    mssm_set_bandwidth($reset);
-                    return ['status' => 'success', 'msg' => MSSM_L::product_reset_bandwidth_success];
+                    orris_set_bandwidth($reset);
+                    return ['status' => 'success', 'msg' => ORRIS_L::product_reset_bandwidth_success];
                 } else {
-                    return ['status' => 'fail', 'msg' => MSSM_L::product_reset_bandwidth_error];
+                    return ['status' => 'fail', 'msg' => ORRIS_L::product_reset_bandwidth_error];
                 }
             }
         }
     }
     
     // 如果执行到这里，说明没有进入任何有效的处理流程
-    return ['status' => 'fail', 'msg' => MSSM_L::common_prohibit];
+    return ['status' => 'fail', 'msg' => ORRIS_L::common_prohibit];
 }
 
-function mssm_traffic_reset_bandwidth_admin($params) {
+function orris_traffic_reset_bandwidth_admin($params) {
     try {
         $data = [
             'sid' => $params['serviceid'] ?? 0,
             'u'   => 0,
             'd'   => 0,
         ];
-        $action = mssm_set_bandwidth($data);
+        $action = orris_set_bandwidth($data);
         if ($action) {
-            return MSSM_L::product_reset_bandwidth_success;
+            return ORRIS_L::product_reset_bandwidth_success;
         } else {
-            return MSSM_L::product_reset_bandwidth_error;
+            return ORRIS_L::product_reset_bandwidth_error;
         }
     } catch (Exception $e) {
         return $e;
@@ -77,13 +77,13 @@ function mssm_traffic_reset_bandwidth_admin($params) {
  * @param array $data
  * @return bool
  */
-function mssm_report_traffic($data) {
+function orris_report_traffic($data) {
     try {
         $u = $data['u'];
         $d = $data['d'];
         $sid = $data['user_id'];
         $node_id = $data['node_id'];
-        $conn = mssm_get_db_connection();
+        $conn = orris_get_db_connection();
         $conn->beginTransaction();
         $update = $conn->prepare('UPDATE `user` SET `u` = u + :u, `d` = d + :d, `updated_at` = UNIX_TIMESTAMP() WHERE `sid` = :sid');
         $update->bindValue(':u', $u, PDO::PARAM_INT);
@@ -92,7 +92,7 @@ function mssm_report_traffic($data) {
         $update_result = $update->execute();
         if ($update_result) {
             $conn->commit();
-            mssm_reset_traffic($sid);
+            orris_reset_traffic($sid);
             return true;
         } else {
             $conn->rollBack();
@@ -111,9 +111,9 @@ function mssm_report_traffic($data) {
  * 检查并自动禁用/启用超流量用户
  * @return bool
  */
-function mssm_check_traffic() {
+function orris_check_traffic() {
     try {
-        $conn = mssm_get_db_connection();
+        $conn = orris_get_db_connection();
         
         // Disable users who have exceeded their bandwidth and are currently enabled
         $stmt_disable = $conn->prepare('UPDATE user SET enable = 0 WHERE (u + d) > bandwidth AND enable = 1');
@@ -134,7 +134,7 @@ function mssm_check_traffic() {
  * 检查用户流量并更新状态
  * @param int $sid
  */
-function mssm_reset_traffic($sid) {
+function orris_reset_traffic($sid) {
     try {
         $data = array(
             'sid' => $sid,
@@ -142,7 +142,7 @@ function mssm_reset_traffic($sid) {
         );
 
         // 获取用户流量信息
-        $user = mssm_get_user($sid);
+        $user = orris_get_user($sid);
         if (!$user) {
             return; // 如果用户不存在，则直接返回
         }
@@ -156,7 +156,7 @@ function mssm_reset_traffic($sid) {
         }
 
         if (!is_null($data['action'])) {
-            mssm_set_status($data);
+            orris_set_status($data);
         }
     } catch (Exception $e) {
         error_log("Traffic check failed: " . $e->getMessage());
@@ -167,8 +167,8 @@ function mssm_reset_traffic($sid) {
  * 月度流量重置
  * @return void
  */
-function mssm_reset_traffic_month(){
-    $adminUsername = mssm_get_config()['admin_username'];
+function orris_reset_traffic_month(){
+    $adminUsername = orris_get_config()['admin_username'];
     $get_orders_data = array(
         'status' => 'Active',
         'limitstart' => 0,
@@ -176,7 +176,7 @@ function mssm_reset_traffic_month(){
     );
     $result_orders = localAPI('GetOrders', $get_orders_data, $adminUsername);
     $get_products_data = array(
-        'module' => 'mssm'
+        'module' => 'orris'
     );
     $result_products = localAPI('GetProducts', $get_products_data, $adminUsername);
 
@@ -197,10 +197,10 @@ function mssm_reset_traffic_month(){
         // Process orders in sorted order
         foreach ($orders as $sid => $data) {
             try {
-                $product = mssm_get_client_products($sid)['products']['product'][0];
+                $product = orris_get_client_products($sid)['products']['product'][0];
                 
                 // 检查用户need_reset设置
-                $user_data = mssm_get_user($sid);
+                $user_data = orris_get_user($sid);
                 if (empty($user_data)) {
                     error_log("用户 {$sid} 不存在");
                     continue;
@@ -235,7 +235,7 @@ function mssm_reset_traffic_month(){
                 }
 
                 if ($should_reset) {
-                    mssm_reset_user_traffic($sid);
+                    orris_reset_user_traffic($sid);
                     error_log("用户 {$sid} 的流量已重置");
                 } else {
                     error_log("用户 {$sid} 未到重置时间");

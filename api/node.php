@@ -1,9 +1,9 @@
 <?php
 /**
- * MSSM - ShadowSocks Manager Module for WHMCS
+ * ORRIS - ShadowSocks Manager Module for WHMCS
  *
  * @package    WHMCS
- * @author     MSSM Development Team
+ * @author     ORRIS Development Team
  * @copyright  Copyright (c) 2022-2024
  * @version    1.0
  */
@@ -12,9 +12,9 @@ require_once __DIR__ . '/../helper.php';
 require_once __DIR__ . '/database.php';
 require_once __DIR__ . '/user.php';
 
-function mssm_node_get_nodes($sid) {
+function orris_node_get_nodes($sid) {
     // 迁移 get_nodes 逻辑
-    return mssm_get_nodes($sid);
+    return orris_get_nodes($sid);
 }
 
 /**
@@ -22,20 +22,20 @@ function mssm_node_get_nodes($sid) {
  * @param int $node_id
  * @return array|null
  */
-function mssm_get_node($node_id) {
+function orris_get_node($node_id) {
     try {
         $redis_key = "node_data_{$node_id}";
-        $cached_node = mssm_set_redis($redis_key, null, 'get', 1);
+        $cached_node = orris_set_redis($redis_key, null, 'get', 1);
         if ($cached_node !== null && $cached_node !== false) {
             return json_decode($cached_node, true);
         }
-        $conn = mssm_get_db_connection();
+        $conn = orris_get_db_connection();
         $action = $conn->prepare('SELECT * FROM nodes WHERE `id` = :id');
         $action->bindValue(':id', $node_id, PDO::PARAM_INT);
         $action->execute();
         $result = $action->fetch(PDO::FETCH_ASSOC);
         if ($result) {
-            $redis = mssm_get_redis_connection(1);
+            $redis = orris_get_redis_connection(1);
             $redis->set($redis_key, json_encode($result), 3600);
         }
         return $result;
@@ -50,9 +50,9 @@ function mssm_get_node($node_id) {
  * @param int $group_id
  * @return array
  */
-function mssm_get_group_id_user($group_id) {
+function orris_get_group_id_user($group_id) {
     try {
-        $conn = mssm_get_db_connection();
+        $conn = orris_get_db_connection();
         $action = $conn->prepare('SELECT * FROM user WHERE `node_group_id` = :node_group_id AND `enable` = 1');
         $action->bindValue(':node_group_id', $group_id);
         $action->execute();
@@ -68,31 +68,31 @@ function mssm_get_group_id_user($group_id) {
  * @param int $sid
  * @return array
  */
-function mssm_get_nodes($sid) {
+function orris_get_nodes($sid) {
     $redis_key = 'node_key_' . $sid;
-    $cached_node = mssm_set_redis($redis_key, null, 'get', 1);
+    $cached_node = orris_set_redis($redis_key, null, 'get', 1);
     if ($cached_node) {
         return json_decode($cached_node, true);
     }
-    $conn = mssm_get_db_connection();
-    $node_group_id = mssm_set_redis("node_group_id_sid_{$sid}", null, 'get');
+    $conn = orris_get_db_connection();
+    $node_group_id = orris_set_redis("node_group_id_sid_{$sid}", null, 'get');
     if ($node_group_id !== null) {
         $node_group_ids = explode(",", $node_group_id);
         $node_data = [];
         foreach ($node_group_ids as $id) {
-            $jsonData = mssm_set_redis("node_group_id_{$sid}_{$id}", null, 'get', 1);
+            $jsonData = orris_set_redis("node_group_id_{$sid}_{$id}", null, 'get', 1);
             if ($jsonData) {
                 $node_data = array_merge($node_data, json_decode($jsonData, true));
             }
         }
     } else {
-        if (!empty(mssm_get_user($sid))) {
-            $conn = mssm_get_db_connection();
+        if (!empty(orris_get_user($sid))) {
+            $conn = orris_get_db_connection();
             $action = $conn->prepare('SELECT node_group_id FROM user WHERE `sid` = :sid');
             $action->bindValue(':sid', $sid);
             $action->execute();
             $id = $action->fetch(PDO::FETCH_ASSOC)['node_group_id'] ?? '';
-            mssm_set_redis("node_group_id_sid_{$sid}", $id, 'set');
+            orris_set_redis("node_group_id_sid_{$sid}", $id, 'set');
             
             // Handle empty node group id case
             if (empty($id)) {
@@ -122,35 +122,35 @@ function mssm_get_nodes($sid) {
             // Cache node data by group
             foreach ($allNodes as $group_id => $nodes) {
                 // Set longer expiration for node data
-                $redis = mssm_get_redis_connection(1);
+                $redis = orris_get_redis_connection(1);
                 $redis->set("node_group_id_{$sid}_{$group_id}", json_encode($nodes), 3600); // Cache for 1 hour
             }
         } else {
-            return MSSM_L::error_account_not_found;
+            return ORRIS_L::error_account_not_found;
         }
     }
     return $node_data ?? [];
 }
 
-function mssm_get_node_group_id($sid) {
-    $node_group_id = mssm_set_redis("node_group_id_sid_{$sid}", null, 'get');
+function orris_get_node_group_id($sid) {
+    $node_group_id = orris_set_redis("node_group_id_sid_{$sid}", null, 'get');
     if ($node_group_id !== null) {
         return $node_group_id;
     }
     return null;
 }
 
-function mssm_get_node_by_group_id($sid, $id) {
-    $jsonData = mssm_set_redis("node_group_id_{$sid}_{$id}", null, 'get', 1);
+function orris_get_node_by_group_id($sid, $id) {
+    $jsonData = orris_set_redis("node_group_id_{$sid}_{$id}", null, 'get', 1);
     if ($jsonData) {
-        $conn = mssm_get_db_connection();
+        $conn = orris_get_db_connection();
         $action = $conn->prepare('SELECT * FROM nodes WHERE `group_id` = :group_id AND `id` = :id');
         $action->bindValue(':group_id', $id);
         $action->bindValue(':id', $id);
         $action->execute();
         $result = $action->fetch(PDO::FETCH_ASSOC);
         if ($result) {
-            mssm_set_redis("node_group_id_sid_{$sid}", $id, 'set');
+            orris_set_redis("node_group_id_sid_{$sid}", $id, 'set');
             return $result;
         }
     }
