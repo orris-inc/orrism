@@ -503,7 +503,8 @@ function handleDatabaseInstall($vars)
     try {
         // Check if database manager class is available
         if (!class_exists('OrrisDatabaseManager')) {
-            return '<div class="alert alert-danger">Database Manager not available. Please check server module installation.</div>' . renderDatabaseSetup($vars);
+            // Fallback: Try simple table creation
+            return handleSimpleTableCreation($vars);
         }
         
         // Create database manager instance
@@ -519,9 +520,14 @@ function handleDatabaseInstall($vars)
         
         if ($result['success']) {
             // Update addon settings
-            $pdo = Capsule::connection()->getPdo();
-            $stmt = $pdo->prepare("UPDATE mod_orrism_admin_settings SET setting_value = '1' WHERE setting_key = 'db_initialized'");
-            $stmt->execute();
+            try {
+                $pdo = Capsule::connection()->getPdo();
+                $stmt = $pdo->prepare("UPDATE mod_orrism_admin_settings SET setting_value = '1' WHERE setting_key = 'db_initialized'");
+                $stmt->execute();
+            } catch (Exception $updateError) {
+                // Log but don't fail the installation
+                error_log('ORRISM: Failed to update addon settings: ' . $updateError->getMessage());
+            }
             
             return '<div class="alert alert-success">Database installed successfully! ' . $result['message'] . '</div>' . renderDatabaseSetup($vars);
         } else {
@@ -529,7 +535,97 @@ function handleDatabaseInstall($vars)
         }
         
     } catch (Exception $e) {
-        return '<div class="alert alert-danger">Installation error: ' . $e->getMessage() . '</div>' . renderDatabaseSetup($vars);
+        error_log('ORRISM: Database installation error: ' . $e->getMessage());
+        
+        // Try fallback method
+        return handleSimpleTableCreation($vars);
+    }
+}
+
+/**
+ * Fallback simple table creation method
+ */
+function handleSimpleTableCreation($vars)
+{
+    try {
+        $pdo = Capsule::connection()->getPdo();
+        
+        // Simple table creation without transactions
+        $tables = [
+            'mod_orrism_node_groups' => "CREATE TABLE IF NOT EXISTS mod_orrism_node_groups (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(100) UNIQUE,
+                description TEXT,
+                sort_order INT DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            )",
+            
+            'mod_orrism_nodes' => "CREATE TABLE IF NOT EXISTS mod_orrism_nodes (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(100),
+                type ENUM('shadowsocks', 'v2ray', 'trojan') DEFAULT 'shadowsocks',
+                address VARCHAR(255),
+                port INT,
+                method VARCHAR(50),
+                group_id INT,
+                sort_order INT DEFAULT 0,
+                status ENUM('active', 'inactive') DEFAULT 'active',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            )",
+            
+            'mod_orrism_users' => "CREATE TABLE IF NOT EXISTS mod_orrism_users (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                service_id INT UNIQUE,
+                email VARCHAR(255),
+                uuid VARCHAR(36) UNIQUE,
+                password VARCHAR(255),
+                transfer_enable BIGINT DEFAULT 0,
+                upload BIGINT DEFAULT 0,
+                download BIGINT DEFAULT 0,
+                total BIGINT DEFAULT 0,
+                status ENUM('active', 'inactive', 'suspended') DEFAULT 'active',
+                node_group_id INT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            )",
+            
+            'mod_orrism_config' => "CREATE TABLE IF NOT EXISTS mod_orrism_config (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                config_key VARCHAR(100) UNIQUE,
+                config_value TEXT,
+                config_type ENUM('string', 'boolean', 'json') DEFAULT 'string',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            )"
+        ];
+        
+        $createdTables = [];
+        foreach ($tables as $tableName => $sql) {
+            try {
+                $pdo->exec($sql);
+                $createdTables[] = $tableName;
+            } catch (Exception $tableError) {
+                error_log("ORRISM: Failed to create table $tableName: " . $tableError->getMessage());
+            }
+        }
+        
+        if (count($createdTables) > 0) {
+            // Insert default data
+            try {
+                $pdo->exec("INSERT IGNORE INTO mod_orrism_node_groups (name, description) VALUES ('Default Group', 'Default node group')");
+            } catch (Exception $dataError) {
+                error_log('ORRISM: Failed to insert default data: ' . $dataError->getMessage());
+            }
+            
+            return '<div class="alert alert-success">Database tables created successfully! Created: ' . implode(', ', $createdTables) . '</div>' . renderDatabaseSetup($vars);
+        } else {
+            return '<div class="alert alert-danger">Failed to create any database tables. Please check error logs.</div>' . renderDatabaseSetup($vars);
+        }
+        
+    } catch (Exception $e) {
+        return '<div class="alert alert-danger">Simple installation also failed: ' . $e->getMessage() . '</div>' . renderDatabaseSetup($vars);
     }
 }
 

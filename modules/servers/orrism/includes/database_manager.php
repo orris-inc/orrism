@@ -85,30 +85,59 @@ class OrrisDatabaseManager
     public function install()
     {
         try {
-            // Start transaction
-            Capsule::beginTransaction();
+            // Check if already installed first
+            if ($this->isInstalled()) {
+                return [
+                    'success' => false,
+                    'message' => 'Database tables already exist'
+                ];
+            }
             
-            // Create tables
-            $this->createTables();
+            $connection = Capsule::connection();
+            $inTransaction = false;
             
-            // Insert default data
-            $this->insertDefaultData();
-            
-            // Record installation
-            $this->recordMigration('1.0', 'Initial database installation');
-            
-            Capsule::commit();
-            
-            logModuleCall('orrism', __METHOD__, [], 'Database installation completed successfully');
-            
-            return [
-                'success' => true,
-                'message' => 'Database tables installed successfully'
-            ];
+            try {
+                // Check if we're already in a transaction
+                if (!$connection->transactionLevel()) {
+                    $connection->beginTransaction();
+                    $inTransaction = true;
+                }
+                
+                // Create tables
+                $this->createTables();
+                
+                // Insert default data
+                $this->insertDefaultData();
+                
+                // Record installation
+                $this->recordMigration('1.0', 'Initial database installation');
+                
+                // Commit only if we started the transaction
+                if ($inTransaction) {
+                    $connection->commit();
+                }
+                
+                logModuleCall('orrism', __METHOD__, [], 'Database installation completed successfully');
+                
+                return [
+                    'success' => true,
+                    'message' => 'Database tables installed successfully'
+                ];
+                
+            } catch (Exception $e) {
+                // Rollback only if we started the transaction
+                if ($inTransaction && $connection->transactionLevel()) {
+                    try {
+                        $connection->rollback();
+                    } catch (Exception $rollbackError) {
+                        // Log rollback error but continue with original error
+                        logModuleCall('orrism', __METHOD__, [], 'Rollback error: ' . $rollbackError->getMessage());
+                    }
+                }
+                throw $e;
+            }
             
         } catch (Exception $e) {
-            Capsule::rollback();
-            
             $errorMsg = 'Database installation failed: ' . $e->getMessage();
             logModuleCall('orrism', __METHOD__, [], $errorMsg);
             
