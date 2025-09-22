@@ -234,26 +234,38 @@ class OrrisHelper
 }
 
 // Legacy function wrappers for backward compatibility
-function orrism_convert_byte($size, $digits = 2) {
-    return OrrisHelper::formatBytes($size, $digits);
+if (!function_exists('orrism_convert_byte')) {
+    function orrism_convert_byte($size, $digits = 2) {
+        return OrrisHelper::formatBytes($size, $digits);
+    }
 }
 
-function orrism_gb_to_bytes($gb) {
-    return OrrisHelper::gbToBytes($gb);
+if (!function_exists('orrism_gb_to_bytes')) {
+    function orrism_gb_to_bytes($gb) {
+        return OrrisHelper::gbToBytes($gb);
+    }
 }
 
-function orrism_get_server_key($timestamp, $length) {
-    return OrrisHelper::generateServerKey($timestamp, $length);
+if (!function_exists('orrism_get_server_key')) {
+    function orrism_get_server_key($timestamp, $length) {
+        return OrrisHelper::generateServerKey($timestamp, $length);
+    }
 }
 
-function orrism_uuidToBase64($uuid, $length) {
-    return OrrisHelper::uuidToBase64($uuid, $length);
+if (!function_exists('orrism_uuidToBase64')) {
+    function orrism_uuidToBase64($uuid, $length) {
+        return OrrisHelper::uuidToBase64($uuid, $length);
+    }
 }
 
-function orrism_generate_md5_token() {
-    return OrrisHelper::generateMd5Token();
+if (!function_exists('orrism_generate_md5_token')) {
+    function orrism_generate_md5_token() {
+        return OrrisHelper::generateMd5Token();
+    }
 }
 
-function orrism_uuid4() {
-    return OrrisHelper::generateUuid();
+if (!function_exists('orrism_uuid4')) {
+    function orrism_uuid4() {
+        return OrrisHelper::generateUuid();
+    }
 }
