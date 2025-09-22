@@ -1,9 +1,9 @@
 <?php
 /**
- * ORRISM - ShadowSocks Manager Module for WHMCS
+ * ORRIS - ShadowSocks Manager Module for WHMCS
  *
  * @package    WHMCS
- * @author     ORRISM Development Team
+ * @author     ORRIS Development Team
  * @copyright  Copyright (c) 2022-2024
  * @version    1.0
  */
@@ -11,7 +11,10 @@
 
 // 用户相关业务模块
 require_once __DIR__ . '/../helper.php';
-require_once __DIR__ . '/../lib/database.php';
+require_once __DIR__ . '/database.php';
+require_once __DIR__ . '/../lib/uuid.php'; // 确保加载我们的UUID库
+// 不再直接使用Ramsey\Uuid，而是使用我们的兼容函数
+// use Ramsey\Uuid\Uuid;
 use WHMCS\Database\Capsule;
 
 /**
@@ -52,134 +55,120 @@ function orrism_smarty_clear_compiled_tpl($template = 'details.tpl') {
     }
 }
 
-function orrism_user_create_account($params) {
-    try {
-        $serviceId = $params['serviceid'] ?? 0;
-        
-        // Get bandwidth from config options
-        $bandwidthInBytes = OrrisHelper::gbToBytes($params['configoption4'] ?? 100);
-        
-        // Check for product-specific config options
-        $productOptions = Capsule::table('tblhostingconfigoptions')
-            ->where('relid', $serviceId)
-            ->get();
-            
-        foreach ($productOptions as $option) {
-            $optionDetail = Capsule::table('tblproductconfigoptionssub')
-                ->where('configid', $option->configid)
-                ->where('id', $option->optionid)
-                ->first();
-            if ($optionDetail && is_numeric($optionDetail->optionname)) {
-                $bandwidthInBytes = OrrisHelper::gbToBytes(intval($optionDetail->optionname));
-                break;
-            }
+function orris_user_create_account($params) {
+    $pid = $params['serviceid'] ?? 0;
+    $productidResult = Capsule::table('tblhostingconfigoptions')
+        ->where('relid', $pid)
+        ->get();
+    $bandwidthInBytes = 0;
+    foreach ($productidResult as $configOption) {
+        $optionId = $configOption->optionid;
+        $configId = $configOption->configid;
+        $optionNameResult = Capsule::table('tblproductconfigoptionssub')
+            ->where('configid', $configId)
+            ->where('id', $optionId)
+            ->first();
+        if ($optionNameResult) {
+            $optionName = intval($optionNameResult->optionname);
+            $bandwidthInBytes = $optionName * 1024 * 1024 * 1024;
         }
-        
-        $userData = [
-            'email' => OrrisHelper::sanitizeEmail($params['clientsdetails']['email'] ?? ''),
-            'uuid' => OrrisHelper::generateUuid(),
-            'token' => OrrisHelper::generateMd5Token(),
-            'sid' => $serviceId,
-            'package_id' => $params['pid'] ?? 0,
-            'telegram_id' => 0,
-            'enable' => 1,
-            'need_reset' => $params['configoption5'] ?? 0,
-            'node_group_id' => $params['configoption7'] ?? 1,
-            'bandwidth' => $bandwidthInBytes,
-            'custom_feature' => ''
-        ];
-        
-        $db = OrrisDatabase::getInstance();
-        $result = $db->createUser($userData);
-        
-        return $result ? 'success' : 'Account creation failed';
-        
-    } catch (Exception $e) {
-        OrrisHelper::log('error', 'Account creation failed', [
-            'service_id' => $params['serviceid'] ?? 'unknown',
-            'error' => $e->getMessage()
-        ]);
-        return 'Account creation failed: ' . $e->getMessage();
     }
+    if ($bandwidthInBytes === 0) {
+        $bandwidthInBytes = isset($params['configoption4']) ? $params['configoption4'] * 1024 * 1024 * 1024 : 0;
+    }
+    $customFeature = '';
+    $data = [
+        'email'         => $params['clientsdetails']['email'] ?? '',
+        'uuid'          => orris_uuid4(), // 使用我们的函数替代Uuid::uuid4()
+        'token'         => orris_generate_md5_token(),
+        'sid'           => $params['serviceid'] ?? 0,
+        'package_id'    => $params['pid'] ?? 0,
+        'telegram_id'   => 0,
+        'enable'        => 1,
+        'need_reset'    => $params['configoption5'] ?? 0,
+        'node_group_id' => $params['configoption7'] ?? 0,
+        'bandwidth'     => $bandwidthInBytes,
+        'custom_feature'=> $customFeature
+    ];
+    return orris_new_account($data);
 }
 
-function orrism_user_suspend_account($params) {
-    $serviceId = $params['serviceid'] ?? 0;
-    $db = OrrisDatabase::getInstance();
-    $result = $db->updateUserStatus($serviceId, 0);
-    return $result ? 'success' : 'Suspend failed';
+function orris_user_suspend_account($params) {
+    $sid = $params['serviceid'] ?? 0;
+    $data = [
+        'sid'    => $sid,
+        'action' => 0,
+    ];
+    return orris_set_status($data);
 }
 
-function orrism_user_unsuspend_account($params) {
-    $serviceId = $params['serviceid'] ?? 0;
-    $db = OrrisDatabase::getInstance();
-    $result = $db->updateUserStatus($serviceId, 1);
-    return $result ? 'success' : 'Unsuspend failed';
+function orris_user_unsuspend_account($params) {
+    $sid = $params['serviceid'] ?? 0;
+    $data = [
+        'sid'    => $sid,
+        'action' => 1,
+    ];
+    return orris_set_status($data);
 }
 
-function orrism_user_terminate_account($params) {
-    $serviceId = $params['serviceid'] ?? 0;
-    $db = OrrisDatabase::getInstance();
-    $result = $db->deleteUser($serviceId);
-    return $result ? 'success' : 'Termination failed';
+function orris_user_terminate_account($params) {
+    $sid = $params['serviceid'] ?? 0;
+    $data = [ 
+        'sid' => $sid
+    ];
+    return orris_delete_account($data);
 }
 
-function orrism_user_reset_uuid($params) {
-    $serviceId = $params['serviceid'] ?? 0;
-    $newUuid = OrrisHelper::generateUuid();
+function orris_user_reset_uuid($params) {
+    $sid = $params['serviceid'] ?? 0;
+    $new_uuid = orris_uuid4(); // Generate the new UUID
+    $data = [
+        'sid'  => $sid,
+        'uuid' => $new_uuid
+    ];
     
-    $db = OrrisDatabase::getInstance();
-    $success = $db->resetUserUuid($serviceId, $newUuid);
+    $success = orris_reset_uuid_internal($data); // This now returns true or false
     
     if ($success) {
+        // Log success with the new UUID
+        //error_log("ORRIS_INFO: UUID and Token reset successful for service ID {$sid}. New UUID: {$new_uuid}");
         return [
-            'status' => 'success',
-            'msg' => ORRISM_L::product_reset_uuid_success,
-            'new_uuid' => $newUuid
+            'status'   => 'success',
+            'msg'      => ORRIS_L::product_reset_uuid_success,
+            'new_uuid' => $new_uuid // Optionally include the new UUID in the response
         ];
     } else {
+        // Error details are already logged by orris_reset_uuid_internal
+        //error_log("ORRIS_ERROR: UUID and Token reset failed for service ID {$sid}. Check previous logs for details.");
         return [
             'status' => 'error',
-            'msg' => 'UUID reset failed, please check system logs'
+            'msg'    => "UUID/Token重置失败，请检查系统日志。" // Generic error message for the client
         ];
     }
 }
 
-function orrism_user_admin_services_tab_fields($params) {
+function orris_user_admin_services_tab_fields($params) {
     try {
-        $db = OrrisDatabase::getInstance();
-        $user = $db->getUser($params['serviceid'] ?? 0);
-        
-        if (!$user) {
-            return ['error' => 'User not found'];
-        }
-        
-        $totalUsed = $user['u'] + $user['d'];
-        $remaining = max(0, $user['bandwidth'] - $totalUsed);
-        
-        return [
-            'uuid' => $user['uuid'],
-            ORRISM_L::admin_bandwidth => OrrisHelper::formatBytes($user['bandwidth']),
-            ORRISM_L::common_upload => OrrisHelper::formatBytes($user['u']),
-            ORRISM_L::common_download => OrrisHelper::formatBytes($user['d']),
-            ORRISM_L::common_left => OrrisHelper::formatBytes($remaining),
-            ORRISM_L::common_used => OrrisHelper::formatBytes($totalUsed),
-            ORRISM_L::common_created_at => date('Y-m-d H:i:s', $user['created_at']),
-            'Usage Percentage' => OrrisHelper::calculateUsagePercentage($totalUsed, $user['bandwidth']) . '%'
+        $user = orris_get_user($params['serviceid'] ?? 0)[0];
+        $result = [
+            'uuid'                => $user['uuid'],
+            ORRIS_L::admin_bandwidth    => orris_convert_byte($user['bandwidth']),
+            ORRIS_L::common_upload      => orris_convert_byte($user['u']),
+            ORRIS_L::common_download    => orris_convert_byte($user['d']),
+            ORRIS_L::common_left        => orris_convert_byte($user['bandwidth'] - ($user['u'] + $user['d'])),
+            ORRIS_L::common_used        => orris_convert_byte($user['u'] + $user['d']),
+            ORRIS_L::common_created_at  => $user['created_at'],
         ];
+        return $result;
     } catch (Exception $e) {
-        OrrisHelper::log('error', 'Failed to get admin tab fields', [
-            'service_id' => $params['serviceid'] ?? 'unknown',
-            'error' => $e->getMessage()
-        ]);
-        return ['error' => $e->getMessage()];
+        return $e;
     }
 }
 
-function orrism_user_admin_custom_button_array() {
+function orris_user_admin_custom_button_array() {
     return [
-        ORRISM_L::product_reset_bandwidth => 'reset_bandwidth_admin',
-        ORRISM_L::product_reset_uuid      => 'module_reset_uuid',
+        ORRIS_L::product_reset_bandwidth => 'reset_bandwidth_admin',
+        ORRIS_L::product_reset_uuid      => 'module_reset_uuid',
     ];
 }
 
@@ -188,28 +177,28 @@ function orrism_user_admin_custom_button_array() {
  * @param array $params
  * @return array
  */
-function orrism_user_client_area($params) {
+function orris_user_client_area($params) {
     // 确保清除所有可能的输出缓冲，防止与Laminas冲突
     while (ob_get_level() > 0) {
         ob_end_clean();
     }
     
     // 清除模板缓存，确保使用最新的常量
-    orrism_smarty_clear_compiled_tpl('details.tpl');
+    smarty_clear_compiled_tpl('details.tpl');
     
-    if (!class_exists('ORRISM_L')) {
+    if (!class_exists('ORRIS_L')) {
         return [
             'tabOverviewReplacementTemplate' => 'error.tpl',
             'templateVariables' => [
-                'error' => 'Class ORRISM_L not found',
+                'error' => 'Class ORRIS_L not found',
             ],
         ];
     }
-    if (!defined('ORRISM_L::admin_bandwidth')) {
+    if (!defined('ORRIS_L::admin_bandwidth')) {
         return [
             'tabOverviewReplacementTemplate' => 'error.tpl',
             'templateVariables' => [
-                'error' => 'ORRISM_L::admin_bandwidth not defined',
+                'error' => 'ORRIS_L::admin_bandwidth not defined',
             ],
         ];
     }
@@ -220,44 +209,42 @@ function orrism_user_client_area($params) {
             switch ($_GET['ssmAction']) {
                 case 'ResetUUID':
                     if (isset($_GET['sid']) && $_GET['sid'] == ($params['serviceid'] ?? 0)) {
-                        $reset_result = orrism_user_reset_uuid($params); // Get the structured result
+                        $reset_result = orris_user_reset_uuid($params); // Get the structured result
                         
                         header('Content-Type: application/json');
                         echo json_encode($reset_result); // Output the actual result to the client
                         
                         // Log based on the actual outcome
                         if ($reset_result['status'] === 'success') {
-                            //error_log("ORRISM_INFO: Client Area - UUID reset successful for service ID {$params['serviceid']}. Response: " . json_encode($reset_result));
+                            //error_log("ORRIS_INFO: Client Area - UUID reset successful for service ID {$params['serviceid']}. Response: " . json_encode($reset_result));
                         } else {
-                            //error_log("ORRISM_ERROR: Client Area - UUID reset failed for service ID {$params['serviceid']}. Response: " . json_encode($reset_result));
+                            //error_log("ORRIS_ERROR: Client Area - UUID reset failed for service ID {$params['serviceid']}. Response: " . json_encode($reset_result));
                         }
                         exit;
                     } else {
                         header('Content-Type: application/json');
                         echo json_encode([
                             'status' => 'error',
-                            'msg'    => ORRISM_L::common_prohibit
+                            'msg'    => ORRIS_L::common_prohibit
                         ]);
                         exit;
                     }
                     break;
                 case 'ResetBandwidth':
                     if (isset($_GET['sid']) && $_GET['sid'] == ($params['serviceid'] ?? 0)) {
-                        // 重置用户流量
-                        $db = OrrisDatabase::getInstance();
-                        $resetResult = $db->resetUserTraffic($serviceId);
-                        
+                        // 直接输出JSON响应
+                        orris_traffic_reset_bandwidth_user($params);
                         header('Content-Type: application/json');
                         echo json_encode([
-                            'status' => $resetResult ? 'success' : 'error',
-                            'msg' => $resetResult ? ORRISM_L::traffic_reset_success : 'Reset failed'
+                            'status' => 'success',
+                            'msg'    => ORRIS_L::traffic_reset_success
                         ]);
                         exit;
                     } else {
                         header('Content-Type: application/json');
                         echo json_encode([
                             'status' => 'error',
-                            'msg'    => ORRISM_L::common_prohibit
+                            'msg'    => ORRIS_L::common_prohibit
                         ]);
                         exit;
                     }
@@ -280,41 +267,37 @@ function orrism_user_client_area($params) {
         $service_id = $params['serviceid'] ?? 0;
         
         // 获取用户信息
-        $db = OrrisDatabase::getInstance();
-        $user = $db->getUser($service_id);
+        $user = orris_get_user($service_id);
         if ($user) {
-            $user_traffic_total = $user['u'] + $user['d'];
-            $user_traffic_upload = $user['u'];
-            $user_traffic_download = $user['d'];
-            $bandwidth = $user['bandwidth'];
-            $left = max(0, $bandwidth - $user_traffic_total);
-            
+            $user_traffic_total = $user[0]['u'] + $user[0]['d'];
+            $user_traffic_upload = $user[0]['u'];
+            $user_traffic_download = $user[0]['d'];
+            $bandwidth = $user[0]['bandwidth'];
+            $left = $bandwidth - $user_traffic_total;
+            $uuid = $user[0]['uuid'];
+            $telegram_id = $user[0]['telegram_id'];
+            $sid = $user[0]['sid'];
+            $created_at = $user[0]['created_at'];
+            $token = $user[0]['token'];
             $info = [
-                'uuid' => $user['uuid'],
-                'upload' => OrrisHelper::formatBytes($user_traffic_upload),
-                'download' => OrrisHelper::formatBytes($user_traffic_download),
-                'total_used' => OrrisHelper::formatBytes($user_traffic_total),
-                'left' => OrrisHelper::formatBytes($left),
-                'created_at' => date('Y-m-d H:i:s', $user['created_at']),
-                'telegram_id' => $user['telegram_id'],
-                'bandwidth' => OrrisHelper::formatBytes($bandwidth),
-                'sid' => $user['sid'],
-                'token' => $user['token'],
-                'usage_percent' => OrrisHelper::calculateUsagePercentage($user_traffic_total, $bandwidth)
+                'uuid'        => $uuid,
+                'upload'      => orris_convert_byte($user_traffic_upload),
+                'download'    => orris_convert_byte($user_traffic_download),
+                'total_used'  => orris_convert_byte($user_traffic_total),
+                'left'        => orris_convert_byte($left),
+                'created_at'  => $created_at,
+                'telegram_id' => $telegram_id,
+                'bandwidth'   => orris_convert_byte($bandwidth),
+                'sid'         => $sid,
+                'token'       => $token
             ];
             
-            // 获取节点信息
+            // 获取节点信息，添加错误处理
             try {
-                $nodes = $db->getNodesForUser($service_id);
-                OrrisHelper::log('info', 'Retrieved nodes for user', [
-                    'service_id' => $service_id,
-                    'node_count' => count($nodes)
-                ]);
+                $nodes = orris_get_nodes($service_id);
+                //error_log("成功获取服务 #{$service_id} 的节点列表：" . count($nodes) . " 个节点");
             } catch (Exception $e) {
-                OrrisHelper::log('error', 'Failed to get nodes for user', [
-                    'service_id' => $service_id,
-                    'error' => $e->getMessage()
-                ]);
+                //error_log("获取服务 #{$service_id} 的节点列表时出错: " . $e->getMessage());
                 $nodes = [];
             }
             
@@ -384,7 +367,7 @@ function orrism_user_client_area($params) {
                     'product'       => $productName,
                     'serviceid'     => $service_id,
                     'nextduedate'   => $nextduedate,
-                    'subscribe_url' => orrism_get_config()['subscribe_url'] ?? '',
+                    'subscribe_url' => orris_get_config()['subscribe_url'] ?? '',
                     'subscription_records' => $subscription_records,
                 ],
             ];
@@ -392,7 +375,7 @@ function orrism_user_client_area($params) {
             return [
                 'tabOverviewReplacementTemplate' => 'error.tpl',
                 'templateVariables' => [
-                    'error' => ORRISM_L::error_account_not_found,
+                    'error' => ORRIS_L::error_account_not_found,
                 ],
             ];
         }
@@ -412,9 +395,9 @@ function orrism_user_client_area($params) {
  * @param int $sid
  * @return array
  */
-function orrism_get_user($sid) {
+function orris_get_user($sid) {
     $redis_key = 'uuid'.$sid;
-    $conn = orrism_get_db_connection();
+    $conn = orris_get_db_connection();
     $sql = 'SELECT * FROM user WHERE `sid` = :sid';
     $db = $conn->prepare($sql);
     $db->bindValue(':sid', $sid);
@@ -427,10 +410,10 @@ function orrism_get_user($sid) {
  * @param array $data
  * @return bool|string|Exception
  */
-function orrism_new_account($data){
+function orris_new_account($data){
     try {
-        if (empty(orrism_get_user($data['sid']))){
-            $conn = orrism_get_db_connection();
+        if (empty(orris_get_user($data['sid']))){
+            $conn = orris_get_db_connection();
             $insert = 'INSERT INTO `user`(`email`,`uuid`,`u`,`d`,`bandwidth`,`created_at`,`updated_at`,`need_reset`,`sid`,`package_id`,`enable`,`telegram_id`,`token`,`node_group_id`) VALUES (:email,:uuid,0,0,:bandwidth,UNIX_TIMESTAMP(),0,:need_reset,:sid,:package_id,:enable,:telegram_id,:token,:node_group_id)';
             $action = $conn->prepare($insert);
             $params = [
@@ -448,12 +431,12 @@ function orrism_new_account($data){
             foreach ($params as $key => $value) {
                 $action->bindValue($key, $value);
             }
-            orrism_set_redis($data['sid'], $data['token'], 'set');
-            orrism_set_redis("node_group_id_sid_{$data['sid']}", $data['node_group_id'], 'set');
-            orrism_set_redis("uuid{$data['sid']}", $data['uuid'], 'set');
+            orris_set_redis($data['sid'], $data['token'], 'set');
+            orris_set_redis("node_group_id_sid_{$data['sid']}", $data['node_group_id'], 'set');
+            orris_set_redis("uuid{$data['sid']}", $data['uuid'], 'set');
             return $action->execute();
         } else{
-            return ORRISM_L::error_account_already_exists;
+            return ORRIS_L::error_account_already_exists;
         }
     } catch (Exception $e){
         return $e;
@@ -465,26 +448,26 @@ function orrism_new_account($data){
  * @param array $data
  * @return bool|string|Exception
  */
-function orrism_set_status($data){
-    //error_log("ORRISM_DEBUG: orrism_set_status called with data: " . print_r($data, true)); // Log input data
+function orris_set_status($data){
+    //error_log("ORRIS_DEBUG: orris_set_status called with data: " . print_r($data, true)); // Log input data
     try {
-        $user_exists = count(orrism_get_user($data['sid'])) > 0;
-        //error_log("ORRISM_DEBUG: User exists for sid " . ($data['sid'] ?? 'N/A') . "? " . ($user_exists ? 'Yes' : 'No')); // Log user existence
+        $user_exists = count(orris_get_user($data['sid'])) > 0;
+        //error_log("ORRIS_DEBUG: User exists for sid " . ($data['sid'] ?? 'N/A') . "? " . ($user_exists ? 'Yes' : 'No')); // Log user existence
 
         if ($user_exists){
-            $conn = orrism_get_db_connection();
+            $conn = orris_get_db_connection();
             $db = $conn->prepare('UPDATE `user` SET `enable` = :enable WHERE `sid` = :sid');
             $db->bindValue(':enable',$data['action']);
             $db->bindValue(':sid',$data['sid']);
             $execute_result = $db->execute();
-            //error_log("ORRISM_DEBUG: Database execute result for sid " . ($data['sid'] ?? 'N/A') . ": " . ($execute_result ? 'Success' : 'Failure')); // Log execution result
+            //error_log("ORRIS_DEBUG: Database execute result for sid " . ($data['sid'] ?? 'N/A') . ": " . ($execute_result ? 'Success' : 'Failure')); // Log execution result
             return $execute_result;
         } else{
-            //error_log("ORRISM_DEBUG: User not found for sid " . ($data['sid'] ?? 'N/A') . ". Returning error_account_not_found."); // Log user not found
-            return ORRISM_L::error_account_not_found;
+            //error_log("ORRIS_DEBUG: User not found for sid " . ($data['sid'] ?? 'N/A') . ". Returning error_account_not_found."); // Log user not found
+            return ORRIS_L::error_account_not_found;
         }
     } catch (Exception $e){
-        //error_log("ORRISM_DEBUG: Exception in orrism_set_status for sid " . ($data['sid'] ?? 'N/A') . ": " . $e->getMessage()); // Log exception
+        //error_log("ORRIS_DEBUG: Exception in orris_set_status for sid " . ($data['sid'] ?? 'N/A') . ": " . $e->getMessage()); // Log exception
         return $e;
     }
 }
@@ -494,16 +477,16 @@ function orrism_set_status($data){
  * @param array $data
  * @return bool|string|Exception
  */
-function orrism_delete_account($data){
+function orris_delete_account($data){
     try {
-        if (count(orrism_get_user($data['sid'])) > 0){
-            $conn = orrism_get_db_connection();
+        if (count(orris_get_user($data['sid'])) > 0){
+            $conn = orris_get_db_connection();
             $db = $conn->prepare('DELETE FROM `user` WHERE `sid` = :sid');
             $db->bindValue(':sid',$data['sid']);
-            //orrism_set_redis($data['sid'],null,'del');
+            //orris_set_redis($data['sid'],null,'del');
             return $db->execute();
         } else{
-            return ORRISM_L::error_account_not_found;
+            return ORRIS_L::error_account_not_found;
         }
     } catch (Exception $e){
         return $e;
@@ -515,14 +498,14 @@ function orrism_delete_account($data){
  * @param array $data
  * @return bool|string|Exception
  */
-function orrism_reset_uuid_internal($data){
+function orris_reset_uuid_internal($data){
     try {
-        // Call orrism_get_user once to check existence
-        $user_info = orrism_get_user($data['sid']);
+        // Call orris_get_user once to check existence
+        $user_info = orris_get_user($data['sid']);
         if (count($user_info) > 0) {
-            $conn = orrism_get_db_connection();
-            $new_token = orrism_generate_md5_token(); // Generate a new token
-            // $data['uuid'] is the new UUID passed from orrism_user_reset_uuid
+            $conn = orris_get_db_connection();
+            $new_token = orris_generate_md5_token(); // Generate a new token
+            // $data['uuid'] is the new UUID passed from orris_user_reset_uuid
             $db = $conn->prepare('UPDATE `user` SET `uuid` = :uuid, `token` = :token WHERE `sid` = :sid');
             $db->bindValue(':sid', $data['sid']);
             $db->bindValue(':uuid', $data['uuid']);
@@ -530,22 +513,22 @@ function orrism_reset_uuid_internal($data){
             
             if ($db->execute()) {
                 // Clear and set Redis cache for UUID
-                orrism_set_redis('uuid'.$data['sid'], null, 'del', 0);
-                orrism_set_redis('uuid'.$data['sid'], $data['uuid'], 'set', 0);
+                orris_set_redis('uuid'.$data['sid'], null, 'del', 0);
+                orris_set_redis('uuid'.$data['sid'], $data['uuid'], 'set', 0);
                 // Clear and set Redis cache for token (using sid as key for token)
-                orrism_set_redis($data['sid'], null, 'del', 0); 
-                orrism_set_redis($data['sid'], $new_token, 'set', 0);
+                orris_set_redis($data['sid'], null, 'del', 0); 
+                orris_set_redis($data['sid'], $new_token, 'set', 0);
                 return true; // Successfully updated DB and Redis
             } else {
-                //error_log("ORRISM_ERROR: Database execute failed in orrism_reset_uuid_internal for SID: " . ($data['sid'] ?? 'N/A'));
+                //error_log("ORRIS_ERROR: Database execute failed in orris_reset_uuid_internal for SID: " . ($data['sid'] ?? 'N/A'));
                 return false; // Database execution failed
             }
         } else {
-            //error_log("ORRISM_ERROR: User not found in orrism_reset_uuid_internal for SID: " . ($data['sid'] ?? 'N/A'));
+            //error_log("ORRIS_ERROR: User not found in orris_reset_uuid_internal for SID: " . ($data['sid'] ?? 'N/A'));
             return false; // User not found
         }
     } catch (Exception $e) {
-        //error_log("ORRISM_ERROR: Exception in orrism_reset_uuid_internal for SID: " . ($data['sid'] ?? 'N/A') . " - " . $e->getMessage());
+        //error_log("ORRIS_ERROR: Exception in orris_reset_uuid_internal for SID: " . ($data['sid'] ?? 'N/A') . " - " . $e->getMessage());
         return false; // An exception occurred
     }
 }
@@ -555,17 +538,17 @@ function orrism_reset_uuid_internal($data){
  * @param array $data
  * @return bool|string|Exception
  */
-function orrism_set_bandwidth($data){
+function orris_set_bandwidth($data){
     try {
-        if (count(orrism_get_user($data['sid'])) > 0) {
-            $conn = orrism_get_db_connection();
+        if (count(orris_get_user($data['sid'])) > 0) {
+            $conn = orris_get_db_connection();
             $db = $conn->prepare('UPDATE `user` SET `u` = :u , `d` = :d  WHERE `sid` = :sid');
             $db->bindValue(':u', $data['u']);
             $db->bindValue(':d',$data['d']);
             $db->bindValue(':sid', $data['sid']);
             return $db->execute();
         }else{
-            return ORRISM_L::error_account_not_found;
+            return ORRIS_L::error_account_not_found;
         }
     } catch (Exception $e){
         return $e;
@@ -576,14 +559,14 @@ function orrism_set_bandwidth($data){
  * 重置用户流量
  * @param int $sid
  */
-function orrism_reset_user_traffic($sid) {
-    if (orrism_get_user($sid) != null){
+function orris_reset_user_traffic($sid) {
+    if (orris_get_user($sid) != null){
         $reset_traffic = array(
             'u' => 0,
             'd' => 0,
             'sid' => $sid
         );
-        orrism_set_bandwidth($reset_traffic);
+        orris_set_bandwidth($reset_traffic);
     }
 }
 
@@ -592,14 +575,14 @@ function orrism_reset_user_traffic($sid) {
  * @param int $sid
  * @return string|null
  */
-function orrism_get_uuid($sid){
+function orris_get_uuid($sid){
     $redis_key = 'uuid'.$sid;
-    $redis = orrism_get_redis_connection(0);
-    $redis = orrism_set_redis($redis_key, null, 'get', 0);
+    $redis = orris_get_redis_connection(0);
+    $redis = orris_set_redis($redis_key, null, 'get', 0);
     if ($redis) {
         return $redis;
     }
-    $conn = orrism_get_db_connection();
+    $conn = orris_get_db_connection();
     $sql = 'SELECT uuid FROM user WHERE `sid` = :sid';
     $db = $conn->prepare($sql);
     $db->bindValue(':sid', $sid, PDO::PARAM_INT);
@@ -612,7 +595,7 @@ function orrism_get_uuid($sid){
     
     $result = $row['uuid'];
     // Store in Redis with longer expiration (24 hours)
-    $redis = orrism_get_redis_connection(0);
+    $redis = orris_get_redis_connection(0);
     $redis->set($redis_key, $result, 86400);
     
     return $result;
@@ -623,8 +606,8 @@ function orrism_get_uuid($sid){
  * @param int $sid
  * @return string|null
  */
-function orrism_get_token($sid){
-    $conn = orrism_get_db_connection();
+function orris_get_token($sid){
+    $conn = orris_get_db_connection();
     $sql = 'SELECT token FROM user WHERE `sid` = :sid';
     $db = $conn->prepare($sql);
     $db->bindValue(':sid', $sid, PDO::PARAM_INT);
@@ -644,10 +627,10 @@ function orrism_get_token($sid){
  * @param int $sid 服务ID
  * @return array 节点列表
  */
-function orrism_get_nodes($sid) {
+function orris_get_nodes($sid) {
     try {
         // 获取用户信息，主要是获取node_group_id
-        $user = orrism_get_user($sid);
+        $user = orris_get_user($sid);
         if (empty($user)) {
             return [];
         }
@@ -655,7 +638,7 @@ function orrism_get_nodes($sid) {
         $node_group_id = $user[0]['node_group_id'] ?? 0;
         // error_log("node_group_id: " . $node_group_id);
         // 连接数据库
-        $conn = orrism_get_db_connection();
+        $conn = orris_get_db_connection();
         
         // 如果有node_group_id，获取该组的节点
         if ($node_group_id > 0) {

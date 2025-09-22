@@ -1,9 +1,9 @@
 <?php
 /**
- * ORRISM - ShadowSocks Manager Module for WHMCS
+ * ORRIS - ShadowSocks Manager Module for WHMCS
  *
  * @package    WHMCS
- * @author     ORRISM Development Team
+ * @author     ORRIS Development Team
  * @copyright  Copyright (c) 2022-2024
  * @version    1.0
  */
@@ -77,26 +77,26 @@ class Security {
             $user_key = "user_data:{$sid}";
             
             // 检查哈希表是否存在，不存在则初始化
-            $exists = orrism_set_redis($user_key, null, 'exists', 0);
+            $exists = orris_set_redis($user_key, null, 'exists', 0);
             if (!$exists) {
                 // 初始化新用户数据
-                orrism_set_redis($user_key, ['created_at', $current_time], 'hSet', 0);
-                orrism_set_redis($user_key, ['ip_history', json_encode([])], 'hSet', 0);
-                orrism_set_redis($user_key, ['app_stats', json_encode([])], 'hSet', 0);
+                orris_set_redis($user_key, ['created_at', $current_time], 'hSet', 0);
+                orris_set_redis($user_key, ['ip_history', json_encode([])], 'hSet', 0);
+                orris_set_redis($user_key, ['app_stats', json_encode([])], 'hSet', 0);
                 
                 // 设置过期时间
-                orrism_set_redis($user_key, $oneMonth, 'expire', 0);
+                orris_set_redis($user_key, $oneMonth, 'expire', 0);
             } else {
                 // 更新过期时间
-                orrism_set_redis($user_key, $oneMonth, 'expire', 0);
+                orris_set_redis($user_key, $oneMonth, 'expire', 0);
             }
             
             // 更新最近IP和访问时间
-            orrism_set_redis($user_key, ['last_ip', $ip], 'hSet', 0);
-            orrism_set_redis($user_key, ['last_access', $current_time], 'hSet', 0);
+            orris_set_redis($user_key, ['last_ip', $ip], 'hSet', 0);
+            orris_set_redis($user_key, ['last_access', $current_time], 'hSet', 0);
             
             // 更新IP历史
-            $ip_history_json = orrism_set_redis($user_key, 'ip_history', 'hGet', 0);
+            $ip_history_json = orris_set_redis($user_key, 'ip_history', 'hGet', 0);
             $ip_history = $ip_history_json ? json_decode($ip_history_json, true) : [];
             
             // 限制历史记录数量，只保留最近10条
@@ -112,10 +112,10 @@ class Security {
             ];
             
             // 更新IP历史记录
-            orrism_set_redis($user_key, ['ip_history', json_encode($ip_history)], 'hSet', 0);
+            orris_set_redis($user_key, ['ip_history', json_encode($ip_history)], 'hSet', 0);
             
             // 更新APP使用统计
-            $app_stats_json = orrism_set_redis($user_key, 'app_stats', 'hGet', 0);
+            $app_stats_json = orris_set_redis($user_key, 'app_stats', 'hGet', 0);
             $app_stats = $app_stats_json ? json_decode($app_stats_json, true) : [];
             
             if (!isset($app_stats[$app])) {
@@ -124,11 +124,11 @@ class Security {
             $app_stats[$app]++;
             
             // 更新APP统计数据
-            orrism_set_redis($user_key, ['app_stats', json_encode($app_stats)], 'hSet', 0);
+            orris_set_redis($user_key, ['app_stats', json_encode($app_stats)], 'hSet', 0);
             
             // 记录全局IP映射，用于反查
             $ip_key = "ip_sid_map";
-            $ip_map_json = orrism_set_redis($ip_key, null, 'get', 0);
+            $ip_map_json = orris_set_redis($ip_key, null, 'get', 0);
             $ip_map = $ip_map_json ? json_decode($ip_map_json, true) : [];
             
             // 格式化IP作为键名
@@ -147,15 +147,15 @@ class Security {
             }
             
             // 更新IP映射
-            orrism_set_redis($ip_key, json_encode($ip_map), 'set', 0, $oneMonth);
+            orris_set_redis($ip_key, json_encode($ip_map), 'set', 0, $oneMonth);
             
             // 更新每日统计
             $date_key = "stats:daily:" . date('Y-m-d');
-            orrism_set_redis($date_key, 1, 'incrBy', 0, 86400); // 1天有效期
+            orris_set_redis($date_key, 1, 'incrBy', 0, 86400); // 1天有效期
             
             return true;
         } catch (Exception $e) {
-            error_log("ORRISM API Services Error: 记录IP到Redis失败: " . $e->getMessage());
+            error_log("ORRIS API Services Error: 记录IP到Redis失败: " . $e->getMessage());
             return false;
         }
     }
@@ -173,7 +173,7 @@ class RequestHandler {
      */
     public static function checkRateLimit($sid, $ip) {
         // 基于用户ID和IP的限制文件
-        $rate_limit_file = sys_get_temp_dir() . "/orrism_rate_limit_" . md5($sid . '_' . $ip);
+        $rate_limit_file = sys_get_temp_dir() . "/orris_rate_limit_" . md5($sid . '_' . $ip);
         $max_requests = 10; // 最大请求次数
         $time_window = 60; // 时间窗口（秒）
         
@@ -242,7 +242,7 @@ class RequestHandler {
      */
     public static function handleError($status, $message, $ip, $user_message) {
         header("HTTP/1.1 $status");
-        error_log("ORRISM API Services Error [IP: $ip]: $message");
+        error_log("ORRIS API Services Error [IP: $ip]: $message");
         exit($user_message);
     }
 }
@@ -281,13 +281,13 @@ class Utils {
             $user_key = "user_data:{$sid}";
             
             // 检查用户数据是否存在
-            $exists = orrism_set_redis($user_key, null, 'exists', 0);
+            $exists = orris_set_redis($user_key, null, 'exists', 0);
             if (!$exists) {
                 return [];
             }
             
             // 获取IP历史记录
-            $ip_history_json = orrism_set_redis($user_key, 'ip_history', 'hGet', 0);
+            $ip_history_json = orris_set_redis($user_key, 'ip_history', 'hGet', 0);
             if (empty($ip_history_json)) {
                 return [];
             }
@@ -302,7 +302,7 @@ class Utils {
             // 限制返回记录数
             return array_slice($ip_history, 0, $limit);
         } catch (Exception $e) {
-            error_log("ORRISM API Services Error: 获取订阅记录失败: " . $e->getMessage());
+            error_log("ORRIS API Services Error: 获取订阅记录失败: " . $e->getMessage());
             return [];
         }
     }
@@ -317,20 +317,20 @@ class Utils {
             $user_key = "user_data:{$sid}";
             
             // 检查用户数据是否存在
-            $exists = orrism_set_redis($user_key, null, 'exists', 0);
+            $exists = orris_set_redis($user_key, null, 'exists', 0);
             if (!$exists) {
                 return [];
             }
             
             // 获取应用统计数据
-            $app_stats_json = orrism_set_redis($user_key, 'app_stats', 'hGet', 0);
+            $app_stats_json = orris_set_redis($user_key, 'app_stats', 'hGet', 0);
             if (empty($app_stats_json)) {
                 return [];
             }
             
             return json_decode($app_stats_json, true) ?: [];
         } catch (Exception $e) {
-            error_log("ORRISM API Services Error: 获取应用统计失败: " . $e->getMessage());
+            error_log("ORRIS API Services Error: 获取应用统计失败: " . $e->getMessage());
             return [];
         }
     }

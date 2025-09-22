@@ -349,8 +349,7 @@ function orrism_AdminCustomButtonArray()
     return [
         'Reset Traffic' => 'ResetTraffic',
         'Reset UUID' => 'ResetUUID',
-        'View Usage' => 'ViewUsage',
-        'Module Setup' => 'ModuleSetup'
+        'View Usage' => 'ViewUsage'
     ];
 }
 
@@ -439,30 +438,6 @@ function orrism_ViewUsage(array $params)
     }
 }
 
-/**
- * Module setup admin function
- *
- * @param array $params Module parameters
- * @return array
- */
-function orrism_ModuleSetup(array $params)
-{
-    try {
-        // Get the current WHMCS URL
-        $whmcsUrl = rtrim($GLOBALS['CONFIG']['SystemURL'], '/');
-        
-        // Generate setup page URL with security token
-        $token = $_SESSION['token'] ?? '';
-        $setupUrl = $whmcsUrl . '/modules/servers/orrism/admin/setup.php?token=' . urlencode($token);
-        
-        // Return JavaScript redirect for AJAX-based admin buttons
-        return '<script type="text/javascript">window.open(\'' . addslashes($setupUrl) . '\', \'_blank\');</script>';
-        
-    } catch (Exception $e) {
-        logModuleCall('orrism', __FUNCTION__, $params, $e->getMessage());
-        return 'Error: ' . $e->getMessage();
-    }
-}
 
 /**
  * Client area output
