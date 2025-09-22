@@ -448,17 +448,19 @@ function orrism_ViewUsage(array $params)
 function orrism_ModuleSetup(array $params)
 {
     try {
+        // Get the current WHMCS URL
+        $whmcsUrl = rtrim($GLOBALS['CONFIG']['SystemURL'], '/');
+        
         // Generate setup page URL with security token
         $token = $_SESSION['token'] ?? '';
-        $setupUrl = '/modules/servers/orrism/admin/setup.php?token=' . urlencode($token);
+        $setupUrl = $whmcsUrl . '/modules/servers/orrism/admin/setup.php?token=' . urlencode($token);
         
-        // Redirect to setup page
-        header('Location: ' . $setupUrl);
-        exit;
+        // Return JavaScript redirect for AJAX-based admin buttons
+        return '<script type="text/javascript">window.open(\'' . addslashes($setupUrl) . '\', \'_blank\');</script>';
         
     } catch (Exception $e) {
         logModuleCall('orrism', __FUNCTION__, $params, $e->getMessage());
-        return ['error' => $e->getMessage()];
+        return 'Error: ' . $e->getMessage();
     }
 }
 
