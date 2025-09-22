@@ -45,6 +45,11 @@ if (!function_exists('gb_to_bytes')) {
  */
 if (!function_exists('generate_uuid')) {
     function generate_uuid() {
+        // 优先使用orrism专用函数
+        if (function_exists('orrism_generate_uuid')) {
+            return orrism_generate_uuid();
+        }
+        
         if (class_exists('Ramsey\\Uuid\\Uuid')) {
             return Ramsey\Uuid\Uuid::uuid4()->toString();
         }
@@ -60,24 +65,6 @@ if (!function_exists('generate_uuid')) {
     }
 }
 
-/**
- * ORRISM专用UUID生成函数 - 避免与其他模块冲突
- * @return string
- */
-function orrism_generate_uuid() {
-    if (class_exists('Ramsey\\Uuid\\Uuid')) {
-        return Ramsey\Uuid\Uuid::uuid4()->toString();
-    }
-    // 简单兜底
-    return sprintf(
-        '%04x%04x-%04x-%04x-%04x-%04x%04x%04x',
-        mt_rand(0, 0xffff), mt_rand(0, 0xffff),
-        mt_rand(0, 0xffff),
-        mt_rand(0, 0x0fff) | 0x4000,
-        mt_rand(0, 0x3fff) | 0x8000,
-        mt_rand(0, 0xffff), mt_rand(0, 0xffff), mt_rand(0, 0xffff)
-    );
-}
 
 /**
  * 生成服务器密钥
