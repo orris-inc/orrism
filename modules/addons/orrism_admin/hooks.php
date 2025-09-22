@@ -16,11 +16,30 @@ if (!defined('WHMCS')) {
 use WHMCS\Database\Capsule;
 
 // Load required dependencies from server module
-$serverModulePath = dirname(__DIR__, 2) . '/servers/orrism';
-require_once $serverModulePath . '/includes/database_manager.php';
-require_once $serverModulePath . '/includes/whmcs_database.php';
-require_once $serverModulePath . '/includes/hook_logic.php';
-require_once $serverModulePath . '/helper.php';
+$serverModulePath = __DIR__ . '/../../servers/orrism';
+
+// Check if server module exists
+if (!is_dir($serverModulePath)) {
+    // Fallback to WHMCS root detection
+    $whmcsRoot = dirname(__DIR__, 3);
+    $serverModulePath = $whmcsRoot . '/modules/servers/orrism';
+}
+
+// Include dependencies with error handling
+$dependencies = [
+    'database_manager.php' => $serverModulePath . '/includes/database_manager.php',
+    'whmcs_database.php' => $serverModulePath . '/includes/whmcs_database.php',
+    'hook_logic.php' => $serverModulePath . '/includes/hook_logic.php',
+    'helper.php' => $serverModulePath . '/helper.php'
+];
+
+foreach ($dependencies as $name => $path) {
+    if (file_exists($path)) {
+        require_once $path;
+    } else {
+        error_log("ORRISM Hooks: Failed to load dependency: $name at $path");
+    }
+}
 
 /**
  * AfterCronJob hook - handles routine system maintenance

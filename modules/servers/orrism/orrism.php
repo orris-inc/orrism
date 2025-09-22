@@ -17,11 +17,21 @@ if (!defined('WHMCS')) {
 use WHMCS\Database\Capsule;
 use WHMCS\Module\Server;
 
-// Load required dependencies
-require_once __DIR__ . '/includes/database_manager.php';
-require_once __DIR__ . '/includes/whmcs_database.php';
-require_once __DIR__ . '/lib/uuid.php';
-require_once __DIR__ . '/helper.php';
+// Load required dependencies with error handling
+$dependencies = [
+    'database_manager.php' => __DIR__ . '/includes/database_manager.php',
+    'whmcs_database.php' => __DIR__ . '/includes/whmcs_database.php',
+    'uuid.php' => __DIR__ . '/lib/uuid.php',
+    'helper.php' => __DIR__ . '/helper.php'
+];
+
+foreach ($dependencies as $name => $path) {
+    if (file_exists($path)) {
+        require_once $path;
+    } else {
+        logModuleCall('orrism', 'dependency_load_failed', [], "Failed to load: $name at $path");
+    }
+}
 
 /**
  * Module metadata

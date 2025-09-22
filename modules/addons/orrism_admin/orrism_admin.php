@@ -15,11 +15,30 @@ if (!defined('WHMCS')) {
 
 use WHMCS\Database\Capsule;
 
-// Load required dependencies from parent module
-$parentModulePath = dirname(__DIR__, 2) . '/servers/orrism';
-require_once $parentModulePath . '/includes/database_manager.php';
-require_once $parentModulePath . '/includes/whmcs_database.php';
-require_once $parentModulePath . '/helper.php';
+// Load required dependencies from server module
+$serverModulePath = __DIR__ . '/../../servers/orrism';
+
+// Check if server module exists
+if (!is_dir($serverModulePath)) {
+    // Fallback to WHMCS root detection
+    $whmcsRoot = dirname(__DIR__, 3);
+    $serverModulePath = $whmcsRoot . '/modules/servers/orrism';
+}
+
+// Include dependencies with error handling
+$dependencies = [
+    'database_manager.php' => $serverModulePath . '/includes/database_manager.php',
+    'whmcs_database.php' => $serverModulePath . '/includes/whmcs_database.php', 
+    'helper.php' => $serverModulePath . '/helper.php'
+];
+
+foreach ($dependencies as $name => $path) {
+    if (file_exists($path)) {
+        require_once $path;
+    } else {
+        error_log("ORRISM Admin: Failed to load dependency: $name at $path");
+    }
+}
 
 /**
  * Addon module configuration
@@ -153,6 +172,9 @@ function orrism_admin_deactivate()
     }
 }
 
+// Include debug helper
+require_once __DIR__ . '/debug.php';
+
 /**
  * Main addon output function
  * 
@@ -237,13 +259,17 @@ function renderDashboard($vars)
     
     // Check database connection
     try {
-        $dbManager = new DatabaseManager();
-        $isConnected = $dbManager->testConnection();
-        $content .= '<p><i class="fa fa-database"></i> ShadowSocks Database: ';
-        $content .= $isConnected ? '<span class="text-success">Connected</span>' : '<span class="text-danger">Not Connected</span>';
-        $content .= '</p>';
+        if (class_exists('OrrisDatabaseManager')) {
+            $dbManager = new OrrisDatabaseManager();
+            $isConnected = $dbManager->testConnection();
+            $content .= '<p><i class="fa fa-database"></i> ShadowSocks Database: ';
+            $content .= $isConnected ? '<span class="text-success">Connected</span>' : '<span class="text-danger">Not Connected</span>';
+            $content .= '</p>';
+        } else {
+            $content .= '<p><i class="fa fa-database"></i> ShadowSocks Database: <span class="text-warning">Manager Not Loaded</span></p>';
+        }
     } catch (Exception $e) {
-        $content .= '<p><i class="fa fa-database"></i> ShadowSocks Database: <span class="text-danger">Error</span></p>';
+        $content .= '<p><i class="fa fa-database"></i> ShadowSocks Database: <span class="text-danger">Error: ' . $e->getMessage() . '</span></p>';
     }
     
     // Check Redis connection
@@ -271,21 +297,28 @@ function renderDashboard($vars)
     $content .= '<div class="panel-body">';
     
     try {
-        $whmcsDb = new WhmcsDatabase();
-        $totalServices = $whmcsDb->getActiveServiceCount('orrism');
-        $content .= '<p>Active Services: <strong>' . $totalServices . '</strong></p>';
+        if (class_exists('OrrisDatabase')) {
+            $whmcsDb = new OrrisDatabase();
+            $totalServices = $whmcsDb->getActiveServiceCount('orrism');
+            $content .= '<p>Active Services: <strong>' . $totalServices . '</strong></p>';
+        }
         
         // Try to get ShadowSocks stats if database is connected
-        if (isset($isConnected) && $isConnected) {
+        if (isset($isConnected) && $isConnected && isset($dbManager)) {
             $userCount = $dbManager->getUserCount();
             $content .= '<p>ShadowSocks Users: <strong>' . $userCount . '</strong></p>';
         }
     } catch (Exception $e) {
-        $content .= '<p class="text-muted">Statistics unavailable</p>';
+        $content .= '<p class="text-muted">Statistics unavailable: ' . $e->getMessage() . '</p>';
     }
     
     $content .= '</div></div></div></div>';
     $content .= '</div>';
+    
+    // Add debug information if in development mode or if there are loading issues
+    if (isset($_GET['debug']) || !class_exists('OrrisDatabaseManager')) {
+        $content .= orrism_debug_output_html();
+    }
     
     return $content;
 }
