@@ -1,9 +1,9 @@
 <?php
 /**
- * ORRIS - ShadowSocks Manager Module for WHMCS
+ * ORRISM - ShadowSocks Manager Module for WHMCS
  *
  * @package    WHMCS
- * @author     ORRIS Development Team
+ * @author     ORRISM Development Team
  * @copyright  Copyright (c) 2022-2024
  * @version    1.0
  */
@@ -14,7 +14,7 @@
  * @param int $digits
  * @return string
  */
-function orris_convert_byte($size, $digits=2) {
+function orrism_convert_byte($size, $digits=2) {
     if ($size == 0) {
         return '0 B';
     }
@@ -62,7 +62,7 @@ function generate_uuid() {
  * @param int $length
  * @return string
  */
-function orris_get_server_key($timestamp, $length) {
+function orrism_get_server_key($timestamp, $length) {
     return base64_encode(substr(md5($timestamp), 0, $length));
 }
 
@@ -72,7 +72,7 @@ function orris_get_server_key($timestamp, $length) {
  * @param int $length
  * @return string
  */
-function orris_uuidToBase64($uuid, $length) {
+function orrism_uuidToBase64($uuid, $length) {
     return base64_encode(substr($uuid, 0, $length));
 }
 
@@ -80,6 +80,6 @@ function orris_uuidToBase64($uuid, $length) {
  * 生成一个32位的MD5 Token
  * @return string
  */
-function orris_generate_md5_token() {
+function orrism_generate_md5_token() {
     return md5(uniqid(rand(), true));
 } 

@@ -1,14 +1,14 @@
-# ORRIS WHMCS Module - Installation Guide
+# ORRISM WHMCS Module - Installation Guide
 
 ## Overview
 
-The ORRIS WHMCS Module has been completely refactored to follow WHMCS standards and eliminate external database dependencies. This guide covers the installation process for the new version.
+The ORRISM WHMCS Module has been completely refactored to follow WHMCS standards and eliminate external database dependencies. This guide covers the installation process for the new version.
 
 ## Key Changes in Version 2.0
 
 ### Database Architecture
 - **Before**: Required separate ShadowSocks database with manual configuration
-- **After**: Uses WHMCS native database with `mod_orris_` table prefix
+- **After**: Uses WHMCS native database with `mod_orrism_` table prefix
 - **Benefits**: Better integration, automatic backups, simplified maintenance
 
 ### Installation Process
@@ -27,16 +27,16 @@ The ORRIS WHMCS Module has been completely refactored to follow WHMCS standards 
 
 ### 1. Upload Module Files
 
-Upload the `orris` folder to your WHMCS installation:
+Upload the `orrism` folder to your WHMCS installation:
 ```
-/path/to/whmcs/modules/servers/orris/
+/path/to/whmcs/modules/servers/orrism/
 ```
 
 ### 2. Run Setup Wizard
 
 1. Access the setup page in your WHMCS admin panel:
    ```
-   https://your-whmcs-domain.com/admin/modules/servers/orris/admin/setup.php
+   https://your-whmcs-domain.com/admin/modules/servers/orrism/admin/setup.php
    ```
 
 2. The setup wizard will:
@@ -49,14 +49,14 @@ Upload the `orris` folder to your WHMCS installation:
 
 1. Go to **Setup → Products/Services → Servers**
 2. Add a new server or edit existing one
-3. Set **Type** to "ORRIS ShadowSocks Manager"
+3. Set **Type** to "ORRISM ShadowSocks Manager"
 4. Configure server details (these are now used for API endpoints, not database)
 
 ### 4. Create Product/Service
 
 1. Go to **Setup → Products/Services → Products/Services**
 2. Create a new product
-3. Set **Module** to "ORRIS ShadowSocks Manager"
+3. Set **Module** to "ORRISM ShadowSocks Manager"
 4. Configure module settings:
    - **Reset Strategy**: How traffic should be reset
    - **Node List**: Available node IDs (deprecated in v2.0)
@@ -69,37 +69,37 @@ Upload the `orris` folder to your WHMCS installation:
 
 The new schema includes the following tables:
 
-### mod_orris_users
+### mod_orrism_users
 Stores user accounts linked to WHMCS services
 - Replaces old `user` table
 - Links directly to WHMCS services and clients
 - Tracks bandwidth usage and limits
 
-### mod_orris_nodes
+### mod_orrism_nodes
 Stores ShadowSocks node configurations
 - Replaces old `nodes` table
 - Enhanced with status tracking and grouping
 - Better organization and management
 
-### mod_orris_user_usage
+### mod_orrism_user_usage
 Detailed usage logging (optional)
 - Replaces old `user_usage` table
 - Enhanced with session tracking
 - Better analytics capabilities
 
-### mod_orris_node_groups
+### mod_orrism_node_groups
 Node access control groups
 - New feature for better access management
 - Allows different service tiers
 - Bandwidth multipliers per group
 
-### mod_orris_config
+### mod_orrism_config
 Module configuration storage
 - Centralized configuration management
 - Type-safe value storage
 - System vs user settings separation
 
-### mod_orris_migrations
+### mod_orrism_migrations
 Database version tracking
 - Automatic migration support
 - Version history tracking
@@ -124,7 +124,7 @@ Follow the installation steps above to install the new version.
 ### 3. Run Migration Script
 ```php
 // Include migration script
-require_once '/path/to/whmcs/modules/servers/orris/migration/legacy_data_migration.php';
+require_once '/path/to/whmcs/modules/servers/orrism/migration/legacy_data_migration.php';
 
 // Configure legacy database connection
 $legacyConfig = [
@@ -136,7 +136,7 @@ $legacyConfig = [
 ];
 
 // Run migration
-$result = orris_run_legacy_migration($legacyConfig);
+$result = orrism_run_legacy_migration($legacyConfig);
 
 if ($result['success']) {
     echo "Migration completed successfully!";
@@ -180,9 +180,9 @@ Access via admin setup page or database configuration table:
 
 ### Adding Nodes
 1. Use the WHMCS admin panel or direct database access
-2. Insert into `mod_orris_nodes` table:
+2. Insert into `mod_orrism_nodes` table:
 ```sql
-INSERT INTO mod_orris_nodes (
+INSERT INTO mod_orrism_nodes (
     node_name, address, port, node_method, 
     group_id, status, sort_order
 ) VALUES (
@@ -194,7 +194,7 @@ INSERT INTO mod_orris_nodes (
 ### Node Groups
 Create different service tiers using node groups:
 ```sql
-INSERT INTO mod_orris_node_groups (
+INSERT INTO mod_orrism_node_groups (
     name, description, bandwidth_ratio, max_devices
 ) VALUES (
     'Premium', 'High-speed premium nodes', 1.5, 5
@@ -294,14 +294,14 @@ Check these locations for error information:
 ## API Reference
 
 ### Core Functions
-- `orris_CreateAccount()` - Create new user account
-- `orris_SuspendAccount()` - Suspend user access
-- `orris_TerminateAccount()` - Delete user account
-- `orris_ResetTraffic()` - Reset user bandwidth usage
+- `orrism_CreateAccount()` - Create new user account
+- `orrism_SuspendAccount()` - Suspend user access
+- `orrism_TerminateAccount()` - Delete user account
+- `orrism_ResetTraffic()` - Reset user bandwidth usage
 
 ### Database Helper
-- `orris_db()` - Get database helper instance
-- `orris_db_manager()` - Get database manager instance
+- `orrism_db()` - Get database helper instance
+- `orrism_db_manager()` - Get database manager instance
 
 ### Configuration
 - Module configuration via WHMCS admin panel

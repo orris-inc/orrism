@@ -1,9 +1,9 @@
 <?php
 /**
- * ORRIS - ShadowSocks Manager Module for WHMCS
+ * ORRISM - ShadowSocks Manager Module for WHMCS
  *
  * @package    WHMCS
- * @author     ORRIS Development Team
+ * @author     ORRISM Development Team
  * @copyright  Copyright (c) 2022-2024
  * @version    1.0
  */
@@ -15,7 +15,7 @@ require_once __DIR__ . '/../helper.php';
 require_once __DIR__ . '/database.php';
 require_once __DIR__ . '/user.php';
 
-function orris_product_change_package($params) {
+function orrism_product_change_package($params) {
     $sid = $params['serviceid'] ?? 0;
     $data = [
         'sid'           => $sid,
@@ -23,7 +23,7 @@ function orris_product_change_package($params) {
         'bandwidth'     => $params['configoption4'] ?? 0,
         'node_group_id' => $params['configoption7'] ?? 0
     ];
-    return orris_change_package($data);
+    return orrism_change_package($data);
 }
 
 /**
@@ -31,8 +31,8 @@ function orris_product_change_package($params) {
  * @param int $sid
  * @return array
  */
-function orris_get_client_products($sid) {
-    $adminUsername = orris_get_config()['admin_username'];
+function orrism_get_client_products($sid) {
+    $adminUsername = orrism_get_config()['admin_username'];
     $data = array(
         'serviceid' => $sid
     );
@@ -45,13 +45,13 @@ function orris_get_client_products($sid) {
  * @param int $sid
  * @return array
  */
-function orris_get_invoice($sid) {
+function orrism_get_invoice($sid) {
     try {
         $command = 'GetInvoice';
         $postData = [
             'invoiceid' => $sid,
         ];
-        $adminUsername = orris_get_config()['admin_username'];
+        $adminUsername = orrism_get_config()['admin_username'];
         $results = localAPI($command, $postData, $adminUsername);
         return $results;
     } catch (Exception $e) {
@@ -66,10 +66,10 @@ function orris_get_invoice($sid) {
  * @param array $data
  * @return bool|string|Exception
  */
-function orris_change_package($data){
+function orrism_change_package($data){
     try {
-        if (count(orris_get_user($data['sid'])) > 0) {
-            $conn = orris_get_db_connection();
+        if (count(orrism_get_user($data['sid'])) > 0) {
+            $conn = orrism_get_db_connection();
             $db = $conn->prepare('UPDATE `user` SET `bandwidth` = :bandwidth,`package_id` = :package_id, `u` = 0, `d` = 0, `node_group_id` = :node_group_id WHERE `sid` = :sid');
             $db->bindValue(':bandwidth', $data['bandwidth']);
             $db->bindValue(':sid', $data['sid']);
@@ -77,16 +77,16 @@ function orris_change_package($data){
             $db->bindValue(':node_group_id', $data['node_group_id']);
             return $db->execute();
         }else{
-            return ORRIS_L::error_account_not_found;
+            return ORRISM_L::error_account_not_found;
         }
     } catch (Exception $e){
         return $e;
     }
 }
 
-function orris_get_product($pid) {
+function orrism_get_product($pid) {
     try {
-        $conn = orris_get_db_connection();
+        $conn = orrism_get_db_connection();
         $action = $conn->prepare('SELECT * FROM products WHERE id = :pid');
         $action->bindValue(':pid', $pid);
         $action->execute();
@@ -97,9 +97,9 @@ function orris_get_product($pid) {
     }
 }
 
-function orris_get_client_product_config($params) {
+function orrism_get_client_product_config($params) {
     try {
-        $conn = orris_get_db_connection();
+        $conn = orrism_get_db_connection();
         $action = $conn->prepare('SELECT * FROM product_configs WHERE serviceid = :sid');
         $action->bindValue(':sid', $params['serviceid'] ?? 0);
         $action->execute();

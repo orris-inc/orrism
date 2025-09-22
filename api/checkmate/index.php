@@ -1,9 +1,9 @@
 <?php
 /**
- * ORRIS - ShadowSocks Manager Module for WHMCS
+ * ORRISM - ShadowSocks Manager Module for WHMCS
  *
  * @package    WHMCS
- * @author     ORRIS Development Team
+ * @author     ORRISM Development Team
  * @copyright  Copyright (c) 2022-2024
  * @version    1.0
  */
@@ -90,7 +90,7 @@ class SubscriptionService {
      * @return array 产品信息
      */
     private function getClientProducts() {
-        $clientProductResult = orris_get_client_products($this->sid);
+        $clientProductResult = orrism_get_client_products($this->sid);
         
         // 对API调用结果进行健壮的错误处理
         if (isset($clientProductResult['result']) && $clientProductResult['result'] === 'error') {
@@ -128,22 +128,22 @@ class SubscriptionService {
      */
     private function authenticateUser() {
         // 获取用户 UUID
-        $userUuid = orris_get_uuid($this->sid);
+        $userUuid = orrism_get_uuid($this->sid);
         if ($userUuid === null) {
             RequestHandler::handleError(
                 '500 Internal Server Error', 
-                "(orris_get_uuid for SID: {$this->sid}): UUID not found for user.", 
+                "(orrism_get_uuid for SID: {$this->sid}): UUID not found for user.", 
                 $this->clientIp, 
                 'Error: Authentication failed. Please contact support.'
             );
         }
         
         // 获取用户 TOKEN
-        $userToken = orris_get_token($this->sid);
+        $userToken = orrism_get_token($this->sid);
         if ($userToken === null) {
             RequestHandler::handleError(
                 '500 Internal Server Error', 
-                "(orris_get_token for SID: {$this->sid}): Token not found for user.", 
+                "(orrism_get_token for SID: {$this->sid}): Token not found for user.", 
                 $this->clientIp, 
                 'Error: Authentication failed. Please contact support.'
             );
@@ -160,17 +160,17 @@ class SubscriptionService {
         }
         
         // 记录成功的请求
-        error_log("ORRIS API Services Access [IP: {$this->clientIp}]: Successful request for SID: {$this->sid}, App: {$this->app}");
+        error_log("ORRISM API Services Access [IP: {$this->clientIp}]: Successful request for SID: {$this->sid}, App: {$this->app}");
         
         // 记录IP到Redis
         Security::recordIpToRedis($this->sid, $this->clientIp, $this->app);
         
         // 获取用户数据
-        $userDataArray = orris_get_user($this->sid);
+        $userDataArray = orrism_get_user($this->sid);
         if (empty($userDataArray) || !isset($userDataArray[0])) {
             RequestHandler::handleError(
                 '500 Internal Server Error', 
-                "(orris_get_user for SID: {$this->sid}): User data not found.", 
+                "(orrism_get_user for SID: {$this->sid}): User data not found.", 
                 $this->clientIp, 
                 'Error: User data unavailable. Please contact support.'
             );
@@ -196,11 +196,11 @@ class SubscriptionService {
      * @return array 节点数据
      */
     private function getNodeData() {
-        $data = orris_get_nodes($this->sid);
+        $data = orrism_get_nodes($this->sid);
         if (empty($data)) {
             RequestHandler::handleError(
                 '404 Not Found', 
-                "(orris_get_nodes for SID: {$this->sid}): No nodes available.", 
+                "(orrism_get_nodes for SID: {$this->sid}): No nodes available.", 
                 $this->clientIp, 
                 'Error: No service nodes available. Please contact support.'
             );

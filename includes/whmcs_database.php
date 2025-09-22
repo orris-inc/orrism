@@ -1,10 +1,10 @@
 <?php
 /**
- * ORRIS WHMCS Database Helper
+ * ORRISM WHMCS Database Helper
  * Provides database access using WHMCS native connections
  *
  * @package    WHMCS
- * @author     ORRIS Development Team
+ * @author     ORRISM Development Team
  * @copyright  Copyright (c) 2024
  * @version    2.0
  */
@@ -16,7 +16,7 @@ if (!defined('WHMCS')) {
 use WHMCS\Database\Capsule;
 
 /**
- * ORRIS Database Helper Class
+ * ORRISM Database Helper Class
  */
 class OrrisDatabase
 {
@@ -64,7 +64,7 @@ class OrrisDatabase
             $uuid = $this->generateUUID();
             
             // Check if user already exists
-            $existingUser = Capsule::table('mod_orris_users')
+            $existingUser = Capsule::table('mod_orrism_users')
                 ->where('service_id', $serviceid)
                 ->first();
                 
@@ -76,7 +76,7 @@ class OrrisDatabase
             }
             
             // Create new user
-            $userId = Capsule::table('mod_orris_users')->insertGetId([
+            $userId = Capsule::table('mod_orrism_users')->insertGetId([
                 'service_id' => $serviceid,
                 'client_id' => $clientid,
                 'email' => $email,
@@ -102,7 +102,7 @@ class OrrisDatabase
             ];
             
         } catch (Exception $e) {
-            logModuleCall('orris', __METHOD__, $params, 'Error: ' . $e->getMessage());
+            logModuleCall('orrism', __METHOD__, $params, 'Error: ' . $e->getMessage());
             return [
                 'success' => false,
                 'message' => 'Failed to create user: ' . $e->getMessage()
@@ -119,11 +119,11 @@ class OrrisDatabase
     public function getUser($serviceid)
     {
         try {
-            return Capsule::table('mod_orris_users')
+            return Capsule::table('mod_orrism_users')
                 ->where('service_id', $serviceid)
                 ->first();
         } catch (Exception $e) {
-            logModuleCall('orris', __METHOD__, ['serviceid' => $serviceid], 'Error: ' . $e->getMessage());
+            logModuleCall('orrism', __METHOD__, ['serviceid' => $serviceid], 'Error: ' . $e->getMessage());
             return null;
         }
     }
@@ -138,7 +138,7 @@ class OrrisDatabase
     public function updateUserStatus($serviceid, $status)
     {
         try {
-            $updated = Capsule::table('mod_orris_users')
+            $updated = Capsule::table('mod_orrism_users')
                 ->where('service_id', $serviceid)
                 ->update([
                     'status' => $status,
@@ -148,7 +148,7 @@ class OrrisDatabase
             return $updated > 0;
             
         } catch (Exception $e) {
-            logModuleCall('orris', __METHOD__, ['serviceid' => $serviceid, 'status' => $status], 'Error: ' . $e->getMessage());
+            logModuleCall('orrism', __METHOD__, ['serviceid' => $serviceid, 'status' => $status], 'Error: ' . $e->getMessage());
             return false;
         }
     }
@@ -162,12 +162,12 @@ class OrrisDatabase
     public function deleteUser($serviceid)
     {
         try {
-            return Capsule::table('mod_orris_users')
+            return Capsule::table('mod_orrism_users')
                 ->where('service_id', $serviceid)
                 ->delete() > 0;
                 
         } catch (Exception $e) {
-            logModuleCall('orris', __METHOD__, ['serviceid' => $serviceid], 'Error: ' . $e->getMessage());
+            logModuleCall('orrism', __METHOD__, ['serviceid' => $serviceid], 'Error: ' . $e->getMessage());
             return false;
         }
     }
@@ -181,7 +181,7 @@ class OrrisDatabase
     public function resetUserTraffic($serviceid)
     {
         try {
-            $updated = Capsule::table('mod_orris_users')
+            $updated = Capsule::table('mod_orrism_users')
                 ->where('service_id', $serviceid)
                 ->update([
                     'upload_bytes' => 0,
@@ -193,7 +193,7 @@ class OrrisDatabase
             return $updated > 0;
             
         } catch (Exception $e) {
-            logModuleCall('orris', __METHOD__, ['serviceid' => $serviceid], 'Error: ' . $e->getMessage());
+            logModuleCall('orrism', __METHOD__, ['serviceid' => $serviceid], 'Error: ' . $e->getMessage());
             return false;
         }
     }
@@ -209,7 +209,7 @@ class OrrisDatabase
         try {
             $newUuid = $this->generateUUID();
             
-            $updated = Capsule::table('mod_orris_users')
+            $updated = Capsule::table('mod_orrism_users')
                 ->where('service_id', $serviceid)
                 ->update([
                     'uuid' => $newUuid,
@@ -233,7 +233,7 @@ class OrrisDatabase
             }
             
         } catch (Exception $e) {
-            logModuleCall('orris', __METHOD__, ['serviceid' => $serviceid], 'Error: ' . $e->getMessage());
+            logModuleCall('orrism', __METHOD__, ['serviceid' => $serviceid], 'Error: ' . $e->getMessage());
             return [
                 'success' => false,
                 'message' => 'Failed to regenerate UUID: ' . $e->getMessage()
@@ -254,7 +254,7 @@ class OrrisDatabase
             $bandwidth = ($params['configoption4'] ?: 100) * 1024 * 1024 * 1024; // Convert GB to bytes
             $nodeGroup = $params['configoption7'] ?: 1;
             
-            $updated = Capsule::table('mod_orris_users')
+            $updated = Capsule::table('mod_orrism_users')
                 ->where('service_id', $serviceid)
                 ->update([
                     'bandwidth_limit' => $bandwidth,
@@ -265,7 +265,7 @@ class OrrisDatabase
             return $updated > 0;
             
         } catch (Exception $e) {
-            logModuleCall('orris', __METHOD__, ['serviceid' => $serviceid], 'Error: ' . $e->getMessage());
+            logModuleCall('orrism', __METHOD__, ['serviceid' => $serviceid], 'Error: ' . $e->getMessage());
             return false;
         }
     }
@@ -301,7 +301,7 @@ class OrrisDatabase
             ];
             
         } catch (Exception $e) {
-            logModuleCall('orris', __METHOD__, ['serviceid' => $serviceid], 'Error: ' . $e->getMessage());
+            logModuleCall('orrism', __METHOD__, ['serviceid' => $serviceid], 'Error: ' . $e->getMessage());
             return [];
         }
     }
@@ -315,7 +315,7 @@ class OrrisDatabase
     public function getNodesForGroup($nodeGroupId)
     {
         try {
-            return Capsule::table('mod_orris_nodes')
+            return Capsule::table('mod_orrism_nodes')
                 ->where('group_id', $nodeGroupId)
                 ->where('status', 1)
                 ->orderBy('sort_order')
@@ -324,7 +324,7 @@ class OrrisDatabase
                 ->toArray();
                 
         } catch (Exception $e) {
-            logModuleCall('orris', __METHOD__, ['group_id' => $nodeGroupId], 'Error: ' . $e->getMessage());
+            logModuleCall('orrism', __METHOD__, ['group_id' => $nodeGroupId], 'Error: ' . $e->getMessage());
             return [];
         }
     }
@@ -348,7 +348,7 @@ class OrrisDatabase
             }
             
             // Insert usage record
-            Capsule::table('mod_orris_user_usage')->insert([
+            Capsule::table('mod_orrism_user_usage')->insert([
                 'user_id' => $user->id,
                 'service_id' => $serviceid,
                 'node_id' => $nodeId,
@@ -360,18 +360,18 @@ class OrrisDatabase
             ]);
             
             // Update user totals
-            Capsule::table('mod_orris_users')
+            Capsule::table('mod_orrism_users')
                 ->where('id', $user->id)
                 ->increment('upload_bytes', $uploadBytes);
                 
-            Capsule::table('mod_orris_users')
+            Capsule::table('mod_orrism_users')
                 ->where('id', $user->id)
                 ->increment('download_bytes', $downloadBytes);
             
             return true;
             
         } catch (Exception $e) {
-            logModuleCall('orris', __METHOD__, ['serviceid' => $serviceid], 'Error: ' . $e->getMessage());
+            logModuleCall('orrism', __METHOD__, ['serviceid' => $serviceid], 'Error: ' . $e->getMessage());
             return false;
         }
     }
@@ -419,7 +419,7 @@ class OrrisDatabase
             }
             
         } catch (Exception $e) {
-            logModuleCall('orris', __METHOD__, ['serviceid' => $serviceid, 'field' => $fieldname], 'Error: ' . $e->getMessage());
+            logModuleCall('orrism', __METHOD__, ['serviceid' => $serviceid, 'field' => $fieldname], 'Error: ' . $e->getMessage());
         }
     }
     
@@ -433,7 +433,7 @@ class OrrisDatabase
     public function getConfig($key, $default = null)
     {
         try {
-            $config = Capsule::table('mod_orris_config')
+            $config = Capsule::table('mod_orrism_config')
                 ->where('config_key', $key)
                 ->first();
                 
@@ -454,7 +454,7 @@ class OrrisDatabase
             }
             
         } catch (Exception $e) {
-            logModuleCall('orris', __METHOD__, ['key' => $key], 'Error: ' . $e->getMessage());
+            logModuleCall('orrism', __METHOD__, ['key' => $key], 'Error: ' . $e->getMessage());
             return $default;
         }
     }
@@ -482,7 +482,7 @@ class OrrisDatabase
                     $value = strval($value);
             }
             
-            $updated = Capsule::table('mod_orris_config')
+            $updated = Capsule::table('mod_orrism_config')
                 ->where('config_key', $key)
                 ->update([
                     'config_value' => $value,
@@ -492,7 +492,7 @@ class OrrisDatabase
             
             // If no rows updated, insert new config
             if ($updated === 0) {
-                Capsule::table('mod_orris_config')->insert([
+                Capsule::table('mod_orrism_config')->insert([
                     'config_key' => $key,
                     'config_value' => $value,
                     'config_type' => $type,
@@ -504,7 +504,7 @@ class OrrisDatabase
             return true;
             
         } catch (Exception $e) {
-            logModuleCall('orris', __METHOD__, ['key' => $key], 'Error: ' . $e->getMessage());
+            logModuleCall('orrism', __METHOD__, ['key' => $key], 'Error: ' . $e->getMessage());
             return false;
         }
     }
@@ -515,7 +515,7 @@ class OrrisDatabase
  * 
  * @return OrrisDatabase
  */
-function orris_db()
+function orrism_db()
 {
     return OrrisDatabase::getInstance();
 }

@@ -1,12 +1,12 @@
 <?php
 /**
- * ORRIS Configuration for WHMCS Module
+ * ORRISM Configuration for WHMCS Module
  *
  * @package    WHMCS
- * @author     ORRIS Development Team
+ * @author     ORRISM Development Team
  * @copyright  Copyright (c) 2024
  * @version    2.0
- * @link       https://github.com/your-org/orris-whmcs-module
+ * @link       https://github.com/your-org/orrism-whmcs-module
  */
 
 if (!defined('WHMCS')) {
@@ -14,9 +14,9 @@ if (!defined('WHMCS')) {
 }
 
 // Module configuration constants
-define('ORRIS_MODULE_VERSION', '2.0');
-define('ORRIS_API_VERSION', '1.1');
-define('ORRIS_MIN_PHP_VERSION', '7.4');
+define('ORRISM_MODULE_VERSION', '2.0');
+define('ORRISM_API_VERSION', '1.1');
+define('ORRISM_MIN_PHP_VERSION', '7.4');
 
 /**
  * Get module configuration
@@ -24,13 +24,13 @@ define('ORRIS_MIN_PHP_VERSION', '7.4');
  * @param string|null $key Optional specific configuration key to retrieve
  * @return array|mixed Configuration array or specific value
  */
-function orris_get_config($key = null)
+function orrism_get_config($key = null)
 {
     static $config = null;
     
     // Initialize configuration once
     if ($config === null) {
-        $config = orris_load_configuration();
+        $config = orrism_load_configuration();
     }
     
     // Return specific key if requested
@@ -46,34 +46,34 @@ function orris_get_config($key = null)
  * 
  * @return array Complete configuration array
  */
-function orris_load_configuration()
+function orrism_load_configuration()
 {
     // Default configuration
     $defaultConfig = [
         // API Settings
-        'api_key' => getenv('ORRIS_API_KEY') ?: '',
+        'api_key' => getenv('ORRISM_API_KEY') ?: '',
         'api_timeout' => 30,
         'api_retries' => 3,
         
         // Database Settings (fallback for legacy systems)
-        'mysql_host' => getenv('ORRIS_MYSQL_HOST') ?: 'localhost',
-        'mysql_db' => getenv('ORRIS_MYSQL_DB') ?: 'shadowsocks',        
-        'mysql_user' => getenv('ORRIS_MYSQL_USER') ?: '',
-        'mysql_pass' => getenv('ORRIS_MYSQL_PASS') ?: '',
-        'mysql_port' => getenv('ORRIS_MYSQL_PORT') ?: '3306',
+        'mysql_host' => getenv('ORRISM_MYSQL_HOST') ?: 'localhost',
+        'mysql_db' => getenv('ORRISM_MYSQL_DB') ?: 'shadowsocks',        
+        'mysql_user' => getenv('ORRISM_MYSQL_USER') ?: '',
+        'mysql_pass' => getenv('ORRISM_MYSQL_PASS') ?: '',
+        'mysql_port' => getenv('ORRISM_MYSQL_PORT') ?: '3306',
         'mysql_charset' => 'utf8mb4',
         
         // Redis Settings (optional cache layer)
         'redis_enabled' => false,
-        'redis_host' => getenv('ORRIS_REDIS_HOST') ?: '127.0.0.1',
-        'redis_port' => getenv('ORRIS_REDIS_PORT') ?: '6379',
-        'redis_pass' => getenv('ORRIS_REDIS_PASS') ?: '',
+        'redis_host' => getenv('ORRISM_REDIS_HOST') ?: '127.0.0.1',
+        'redis_port' => getenv('ORRISM_REDIS_PORT') ?: '6379',
+        'redis_pass' => getenv('ORRISM_REDIS_PASS') ?: '',
         'redis_database' => 0,
-        'redis_prefix' => 'orris:',
+        'redis_prefix' => 'orrism:',
         
         // Module Settings
-        'debug_mode' => getenv('ORRIS_DEBUG') === 'true',
-        'log_level' => getenv('ORRIS_LOG_LEVEL') ?: 'info',
+        'debug_mode' => getenv('ORRISM_DEBUG') === 'true',
+        'log_level' => getenv('ORRISM_LOG_LEVEL') ?: 'info',
         'cache_ttl' => 300, // 5 minutes
         
         // Security Settings
@@ -104,13 +104,13 @@ function orris_load_configuration()
     ];
     
     // Load local configuration if exists
-    $localConfig = orris_load_local_config();
+    $localConfig = orrism_load_local_config();
     
     // Merge configurations (local overrides default)
     $config = array_merge($defaultConfig, $localConfig);
     
     // Post-process configuration
-    $config = orris_process_configuration($config);
+    $config = orrism_process_configuration($config);
     
     return $config;
 }
@@ -120,7 +120,7 @@ function orris_load_configuration()
  * 
  * @return array Local configuration array
  */
-function orris_load_local_config()
+function orrism_load_local_config()
 {
     $configFile = __DIR__ . '/config.local.php';
     
@@ -132,7 +132,7 @@ function orris_load_local_config()
         $localConfig = include $configFile;
         return is_array($localConfig) ? $localConfig : [];
     } catch (Exception $e) {
-        error_log("ORRIS: Failed to load local config - " . $e->getMessage());
+        error_log("ORRISM: Failed to load local config - " . $e->getMessage());
         return [];
     }
 }
@@ -143,11 +143,11 @@ function orris_load_local_config()
  * @param array $config Raw configuration
  * @return array Processed configuration
  */
-function orris_process_configuration(array $config)
+function orrism_process_configuration(array $config)
 {
     // Validate PHP version
-    if (version_compare(PHP_VERSION, ORRIS_MIN_PHP_VERSION, '<')) {
-        error_log("ORRIS: PHP version " . ORRIS_MIN_PHP_VERSION . " or higher required");
+    if (version_compare(PHP_VERSION, ORRISM_MIN_PHP_VERSION, '<')) {
+        error_log("ORRISM: PHP version " . ORRISM_MIN_PHP_VERSION . " or higher required");
     }
     
     // Process subscription URL
@@ -155,11 +155,11 @@ function orris_process_configuration(array $config)
         global $_SERVER;
         $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
         $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-        $config['subscription_base_url'] = "{$protocol}://{$host}/modules/servers/orris/api/subscribe";
+        $config['subscription_base_url'] = "{$protocol}://{$host}/modules/servers/orrism/api/subscribe";
     }
     
     // Ensure required directories exist
-    orris_ensure_directories();
+    orrism_ensure_directories();
     
     return $config;
 }
@@ -167,7 +167,7 @@ function orris_process_configuration(array $config)
 /**
  * Ensure required directories exist
  */
-function orris_ensure_directories()
+function orrism_ensure_directories()
 {
     $directories = [
         __DIR__ . '/logs',
@@ -189,7 +189,7 @@ function orris_ensure_directories()
  * @param mixed $value Configuration value
  * @return bool Success status
  */
-function orris_set_config($key, $value)
+function orrism_set_config($key, $value)
 {
     static $runtimeConfig = [];
     
@@ -200,8 +200,8 @@ function orris_set_config($key, $value)
     $runtimeConfig[$key] = $value;
     
     // Log configuration changes in debug mode
-    if (orris_get_config('debug_mode')) {
-        error_log("ORRIS: Runtime config set - {$key}");
+    if (orrism_get_config('debug_mode')) {
+        error_log("ORRISM: Runtime config set - {$key}");
     }
     
     return true;
@@ -214,7 +214,7 @@ function orris_set_config($key, $value)
  * @param mixed $default Default value if key not found
  * @return mixed Configuration value
  */
-function orris_get_runtime_config($key, $default = null)
+function orrism_get_runtime_config($key, $default = null)
 {
     static $runtimeConfig = [];
     return $runtimeConfig[$key] ?? $default;
@@ -225,9 +225,9 @@ function orris_get_runtime_config($key, $default = null)
  * 
  * @return array Configuration status
  */
-function orris_check_configuration()
+function orrism_check_configuration()
 {
-    $config = orris_get_config();
+    $config = orrism_get_config();
     $issues = [];
     
     // Check required settings
@@ -267,7 +267,7 @@ function orris_check_configuration()
  * @param array $params WHMCS module parameters
  * @return array Database connection parameters
  */
-function orris_get_database_config(array $params = [])
+function orrism_get_database_config(array $params = [])
 {
     // Try to get from WHMCS parameters first
     if (!empty($params['serverhostname']) || !empty($params['serverip'])) {
@@ -275,14 +275,14 @@ function orris_get_database_config(array $params = [])
             'host' => $params['serverhostname'] ?: $params['serverip'],
             'username' => $params['serverusername'] ?? '',
             'password' => $params['serverpassword'] ?? '',
-            'database' => $params['configoption1'] ?: orris_get_config('mysql_db'),
-            'port' => orris_get_config('mysql_port'),
-            'charset' => orris_get_config('mysql_charset')
+            'database' => $params['configoption1'] ?: orrism_get_config('mysql_db'),
+            'port' => orrism_get_config('mysql_port'),
+            'charset' => orrism_get_config('mysql_charset')
         ];
     }
     
     // Fallback to module configuration
-    $config = orris_get_config();
+    $config = orrism_get_config();
     return [
         'host' => $config['mysql_host'],
         'username' => $config['mysql_user'],

@@ -9,7 +9,7 @@ require_once $base_dir . '/api/traffic.php';
 header('Content-Type: application/json');
 
 // 获取API密钥
-$api_token = orris_get_config('api_key');
+$api_token = orrism_get_config('api_key');
 if (!$api_token) {
     http_response_code(500);
     echo json_encode(['error' => 'API密钥未配置或过短']);
@@ -22,7 +22,7 @@ if (!$api_token) {
  * @return bool 验证是否通过
  */
 function verify_token($token) {
-    $api_token = orris_get_config('api_key') ?: '123456789';
+    $api_token = orrism_get_config('api_key') ?: '123456789';
     return $token === $api_token;
 }
 
@@ -64,24 +64,24 @@ function handleGetRequest($act, $node_id, $node_type) {
     switch ($act) {
         case 'user':
             // 获取指定节点的用户列表
-            $users = orris_get_node_users($node_id, $node_type);
+            $users = orrism_get_node_users($node_id, $node_type);
             echo json_encode(['data' => $users]);
             break;
             
         case 'node_info':
             // 获取指定节点信息
-            $node = orris_get_node_info($node_id);
+            $node = orrism_get_node_info($node_id);
             echo json_encode($node);
             break;
             
         case 'config':
             // 获取节点配置
             if ($node_id > 0) {
-                $nodes = orris_get_node_by_id($node_id);
+                $nodes = orrism_get_node_by_id($node_id);
             } else {
-                $nodes = orris_get_all_nodes();
+                $nodes = orrism_get_all_nodes();
             }
-            $config = orris_format_config($nodes);
+            $config = orrism_format_config($nodes);
             echo json_encode($config);
             break;            
             
@@ -104,9 +104,9 @@ function handlePostRequest($act, $node_id) {
     switch ($act) {
         case 'submit':
             // 处理流量上报
-            $result = orris_handle_traffic_report($data, $node_id);
+            $result = orrism_handle_traffic_report($data, $node_id);
             foreach ($data as $user_data) {
-                orris_report_traffic($user_data);
+                orrism_report_traffic($user_data);
             }
             echo json_encode($result);
             break;
@@ -118,7 +118,7 @@ function handlePostRequest($act, $node_id) {
             
         case 'sync_state_to_mysql':
             // 同步Redis中的状态到MySQL
-            $result = orris_sync_state_to_mysql();
+            $result = orrism_sync_state_to_mysql();
             echo json_encode($result);
             break;
             
@@ -142,7 +142,7 @@ function handleNodeStatusReport($data, $node_id) {
         return;
     }
     
-    $redis = orris_get_redis_connection();
+    $redis = orrism_get_redis_connection();
     if (!$redis) {
         http_response_code(500);
         echo json_encode(['success' => false, 'message' => 'Redis connection failed']);
@@ -158,10 +158,10 @@ function handleNodeStatusReport($data, $node_id) {
  * 获取所有节点信息
  * @return array 节点列表
  */
-function orris_get_all_nodes() {
+function orrism_get_all_nodes() {
     try {
         // 使用PDO获取所有节点
-        $conn = orris_get_db_connection();
+        $conn = orrism_get_db_connection();
         $query = "SELECT * FROM `nodes`";
         $stmt = $conn->prepare($query);
         $stmt->execute();
@@ -175,11 +175,11 @@ function orris_get_all_nodes() {
 /**
  * 获取指定ID的节点
  * @param int $node_id 节点ID
- * @return array 节点数组（为了与orris_get_all_nodes格式一致，返回数组）
+ * @return array 节点数组（为了与orrism_get_all_nodes格式一致，返回数组）
  */
-function orris_get_node_by_id($node_id) {
+function orrism_get_node_by_id($node_id) {
     try {
-        $conn = orris_get_db_connection();
+        $conn = orrism_get_db_connection();
         $query = "SELECT * FROM `nodes` WHERE `id` = :node_id";
         $stmt = $conn->prepare($query);
         $stmt->bindValue(':node_id', $node_id, PDO::PARAM_INT);
@@ -198,10 +198,10 @@ function orris_get_node_by_id($node_id) {
  * @param int $node_id 节点ID
  * @return array 节点信息
  */
-function orris_get_node_info($node_id) {
+function orrism_get_node_info($node_id) {
     try {
         // 获取节点基本信息
-        $conn = orris_get_db_connection();
+        $conn = orrism_get_db_connection();
         $query = "SELECT * FROM `nodes` WHERE `id` = :node_id";
         $stmt = $conn->prepare($query);
         $stmt->bindValue(':node_id', $node_id, PDO::PARAM_INT);
@@ -260,10 +260,10 @@ function orris_get_node_info($node_id) {
  * @param string $node_type 节点类型
  * @return array 用户列表
  */
-function orris_get_node_users($node_id, $node_type) {
+function orrism_get_node_users($node_id, $node_type) {
     try {
         // 获取节点信息，检查group_id和node_method
-        $conn = orris_get_db_connection();
+        $conn = orrism_get_db_connection();
         $query = "SELECT `group_id`, `node_method` FROM `nodes` WHERE `id` = :node_id";
         $stmt = $conn->prepare($query);
         $stmt->bindValue(':node_id', $node_id, PDO::PARAM_INT);
@@ -296,10 +296,10 @@ function orris_get_node_users($node_id, $node_type) {
             $password = null;
             switch ($cipher) {
                 case '2022-blake3-aes-128-gcm':
-                    $password = orris_uuidToBase64($user['uuid'], 16);
+                    $password = orrism_uuidToBase64($user['uuid'], 16);
                     break;
                 case '2022-blake3-aes-256-gcm':
-                    $password = orris_uuidToBase64($user['uuid'], 32);
+                    $password = orrism_uuidToBase64($user['uuid'], 32);
                     break;
                 default:
                     $password = null;
@@ -326,13 +326,13 @@ function orris_get_node_users($node_id, $node_type) {
  * @param int $node_id 节点ID
  * @return array 处理结果
  */
-function orris_handle_traffic_report($data, $node_id) {
+function orrism_handle_traffic_report($data, $node_id) {
     if (!is_array($data)) {
         return ['success' => false, 'message' => 'Invalid data format'];
     }
     
     try {
-        $redis = orris_get_redis_connection();
+        $redis = orrism_get_redis_connection();
         if (!$redis) {
             return ['success' => false, 'message' => 'Redis connection failed'];
         }
@@ -387,7 +387,7 @@ function orris_handle_traffic_report($data, $node_id) {
  * @param array $nodes 节点数据
  * @return array 格式化后的配置
  */
-function orris_format_config($nodes) {
+function orrism_format_config($nodes) {
     $config = [
         'inbounds' => []
     ];
@@ -404,11 +404,11 @@ function orris_format_config($nodes) {
             switch ($node['node_method']) {
                 case '2022-blake3-aes-128-gcm':
                     $ctime_ts = is_numeric($node['ctime']) ? intval($node['ctime']) : strtotime($node['ctime']);
-                    $inbound['settings']['password'] = orris_get_server_key($ctime_ts, 16);
+                    $inbound['settings']['password'] = orrism_get_server_key($ctime_ts, 16);
                     break;
                 case '2022-blake3-aes-256-gcm':
                     $ctime_ts = is_numeric($node['ctime']) ? intval($node['ctime']) : strtotime($node['ctime']);
-                    $inbound['settings']['password'] = orris_get_server_key('1743405847', 32);
+                    $inbound['settings']['password'] = orrism_get_server_key('1743405847', 32);
                     break;
             }
         } else if (isset($node['method']) && !empty($node['method'])) {
@@ -429,13 +429,13 @@ function orris_format_config($nodes) {
  * 同步Redis中的user_state和server_state到MySQL
  * @return array 同步结果
  */
-function orris_sync_state_to_mysql() {
+function orrism_sync_state_to_mysql() {
     $date = date('Ymd');
     $rtime = date('Y-m-d 00:00:00');
     $now = date('Y-m-d H:i:s'); // 东八区当前时间
     
-    $redis = orris_get_redis_connection();
-    $conn = orris_get_db_connection();
+    $redis = orrism_get_redis_connection();
+    $conn = orrism_get_db_connection();
     
     $user_state_key = "traffic_report:users:{$date}";
     $node_state_key = "traffic_report:nodes:{$date}";

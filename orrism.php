@@ -1,12 +1,12 @@
 <?php
 /**
- * ORRIS Provisioning Module for WHMCS
+ * ORRISM Provisioning Module for WHMCS
  *
  * @package    WHMCS
- * @author     ORRIS Development Team
+ * @author     ORRISM Development Team
  * @copyright  Copyright (c) 2024
  * @version    2.0
- * @link       https://github.com/your-org/orris-whmcs-module
+ * @link       https://github.com/your-org/orrism-whmcs-module
  */
 
 if (!defined('WHMCS')) {
@@ -28,10 +28,10 @@ require_once __DIR__ . '/helper.php';
  * 
  * @return array
  */
-function orris_MetaData()
+function orrism_MetaData()
 {
     return [
-        'DisplayName' => 'ORRIS ShadowSocks Manager',
+        'DisplayName' => 'ORRISM ShadowSocks Manager',
         'APIVersion' => '1.1',
         'RequiresServer' => true,
         'DefaultNonSSLPort' => '80',
@@ -46,7 +46,7 @@ function orris_MetaData()
  * 
  * @return array
  */
-function orris_ConfigOptions()
+function orrism_ConfigOptions()
 {
     return [
         'database' => [
@@ -103,28 +103,28 @@ function orris_ConfigOptions()
  * @param array $params Module parameters
  * @return array
  */
-function orris_TestConnection(array $params)
+function orrism_TestConnection(array $params)
 {
     try {
-        $dbManager = orris_db_manager();
+        $dbManager = orrism_db_manager();
         $result = $dbManager->testConnection();
         
         if (!$result['success']) {
             return ['success' => false, 'error' => $result['message']];
         }
         
-        // Check if ORRIS tables are installed
+        // Check if ORRISM tables are installed
         if (!$dbManager->isInstalled()) {
             return [
                 'success' => false, 
-                'error' => 'ORRIS database tables not installed. Please run the setup wizard.'
+                'error' => 'ORRISM database tables not installed. Please run the setup wizard.'
             ];
         }
         
         return ['success' => true, 'error' => ''];
         
     } catch (Exception $e) {
-        logModuleCall('orris', __FUNCTION__, $params, $e->getMessage());
+        logModuleCall('orrism', __FUNCTION__, $params, $e->getMessage());
         return ['success' => false, 'error' => $e->getMessage()];
     }
 }
@@ -135,12 +135,12 @@ function orris_TestConnection(array $params)
  * @param array $params Module parameters
  * @return string "success" or error message
  */
-function orris_CreateAccount(array $params)
+function orrism_CreateAccount(array $params)
 {
     try {
-        logModuleCall('orris', __FUNCTION__, $params, '', '');
+        logModuleCall('orrism', __FUNCTION__, $params, '', '');
         
-        $db = orris_db();
+        $db = orrism_db();
         $result = $db->createUser($params);
         
         if (!$result['success']) {
@@ -149,7 +149,7 @@ function orris_CreateAccount(array $params)
         
         // Update WHMCS service with credentials
         $username = $params['username'] ?: 'user' . $params['serviceid'];
-        $password = $params['password'] ?: orris_generate_password(12);
+        $password = $params['password'] ?: orrism_generate_password(12);
         $domain = $params['domain'] ?: $params['customfields']['domain'] ?: '';
         
         Capsule::table('tblhosting')
@@ -163,7 +163,7 @@ function orris_CreateAccount(array $params)
         return 'success';
         
     } catch (Exception $e) {
-        logModuleCall('orris', __FUNCTION__, $params, $e->getMessage());
+        logModuleCall('orrism', __FUNCTION__, $params, $e->getMessage());
         return 'Error: ' . $e->getMessage();
     }
 }
@@ -174,12 +174,12 @@ function orris_CreateAccount(array $params)
  * @param array $params Module parameters
  * @return string "success" or error message
  */
-function orris_SuspendAccount(array $params)
+function orrism_SuspendAccount(array $params)
 {
     try {
-        logModuleCall('orris', __FUNCTION__, $params, '', '');
+        logModuleCall('orrism', __FUNCTION__, $params, '', '');
         
-        $db = orris_db();
+        $db = orrism_db();
         $success = $db->updateUserStatus($params['serviceid'], 'suspended');
         
         if (!$success) {
@@ -189,7 +189,7 @@ function orris_SuspendAccount(array $params)
         return 'success';
         
     } catch (Exception $e) {
-        logModuleCall('orris', __FUNCTION__, $params, $e->getMessage());
+        logModuleCall('orrism', __FUNCTION__, $params, $e->getMessage());
         return 'Error: ' . $e->getMessage();
     }
 }
@@ -200,12 +200,12 @@ function orris_SuspendAccount(array $params)
  * @param array $params Module parameters
  * @return string "success" or error message
  */
-function orris_UnsuspendAccount(array $params)
+function orrism_UnsuspendAccount(array $params)
 {
     try {
-        logModuleCall('orris', __FUNCTION__, $params, '', '');
+        logModuleCall('orrism', __FUNCTION__, $params, '', '');
         
-        $db = orris_db();
+        $db = orrism_db();
         $success = $db->updateUserStatus($params['serviceid'], 'active');
         
         if (!$success) {
@@ -215,7 +215,7 @@ function orris_UnsuspendAccount(array $params)
         return 'success';
         
     } catch (Exception $e) {
-        logModuleCall('orris', __FUNCTION__, $params, $e->getMessage());
+        logModuleCall('orrism', __FUNCTION__, $params, $e->getMessage());
         return 'Error: ' . $e->getMessage();
     }
 }
@@ -226,23 +226,23 @@ function orris_UnsuspendAccount(array $params)
  * @param array $params Module parameters
  * @return string "success" or error message
  */
-function orris_TerminateAccount(array $params)
+function orrism_TerminateAccount(array $params)
 {
     try {
-        logModuleCall('orris', __FUNCTION__, $params, '', '');
+        logModuleCall('orrism', __FUNCTION__, $params, '', '');
         
-        $db = orris_db();
+        $db = orrism_db();
         $success = $db->deleteUser($params['serviceid']);
         
         if (!$success) {
             // User might already be deleted, consider it success
-            logModuleCall('orris', __FUNCTION__, $params, 'User not found, might be already deleted');
+            logModuleCall('orrism', __FUNCTION__, $params, 'User not found, might be already deleted');
         }
         
         return 'success';
         
     } catch (Exception $e) {
-        logModuleCall('orris', __FUNCTION__, $params, $e->getMessage());
+        logModuleCall('orrism', __FUNCTION__, $params, $e->getMessage());
         return 'Error: ' . $e->getMessage();
     }
 }
@@ -253,16 +253,16 @@ function orris_TerminateAccount(array $params)
  * @param array $params Module parameters
  * @return string "success" or error message
  */
-function orris_ChangePassword(array $params)
+function orrism_ChangePassword(array $params)
 {
     try {
-        logModuleCall('orris', __FUNCTION__, $params, '', '');
+        logModuleCall('orrism', __FUNCTION__, $params, '', '');
         
         $serviceid = $params['serviceid'];
         $password = $params['password'];
         
-        // Update password hash in ORRIS database
-        $updated = Capsule::table('mod_orris_users')
+        // Update password hash in ORRISM database
+        $updated = Capsule::table('mod_orrism_users')
             ->where('service_id', $serviceid)
             ->update([
                 'password_hash' => password_hash($password, PASSWORD_DEFAULT),
@@ -276,7 +276,7 @@ function orris_ChangePassword(array $params)
         return 'success';
         
     } catch (Exception $e) {
-        logModuleCall('orris', __FUNCTION__, $params, $e->getMessage());
+        logModuleCall('orrism', __FUNCTION__, $params, $e->getMessage());
         return 'Error: ' . $e->getMessage();
     }
 }
@@ -287,12 +287,12 @@ function orris_ChangePassword(array $params)
  * @param array $params Module parameters
  * @return string "success" or error message
  */
-function orris_ChangePackage(array $params)
+function orrism_ChangePackage(array $params)
 {
     try {
-        logModuleCall('orris', __FUNCTION__, $params, '', '');
+        logModuleCall('orrism', __FUNCTION__, $params, '', '');
         
-        $db = orris_db();
+        $db = orrism_db();
         $success = $db->updateUserPackage($params['serviceid'], $params);
         
         if (!$success) {
@@ -302,7 +302,7 @@ function orris_ChangePackage(array $params)
         return 'success';
         
     } catch (Exception $e) {
-        logModuleCall('orris', __FUNCTION__, $params, $e->getMessage());
+        logModuleCall('orrism', __FUNCTION__, $params, $e->getMessage());
         return 'Error: ' . $e->getMessage();
     }
 }
@@ -313,28 +313,28 @@ function orris_ChangePackage(array $params)
  * @param array $params Module parameters
  * @return string "success" or error message
  */
-function orris_Renew(array $params)
+function orrism_Renew(array $params)
 {
     try {
-        logModuleCall('orris', __FUNCTION__, $params, '', '');
+        logModuleCall('orrism', __FUNCTION__, $params, '', '');
         
         $serviceid = $params['serviceid'];
         $resetStrategy = $params['configoption2'] ?: 0;
         
         // Handle traffic reset based on strategy
         if ($resetStrategy > 0) {
-            $db = orris_db();
+            $db = orrism_db();
             $success = $db->resetUserTraffic($serviceid);
             
             if (!$success) {
-                logModuleCall('orris', __FUNCTION__, $params, 'Failed to reset traffic for renewal');
+                logModuleCall('orrism', __FUNCTION__, $params, 'Failed to reset traffic for renewal');
             }
         }
         
         return 'success';
         
     } catch (Exception $e) {
-        logModuleCall('orris', __FUNCTION__, $params, $e->getMessage());
+        logModuleCall('orrism', __FUNCTION__, $params, $e->getMessage());
         return 'Error: ' . $e->getMessage();
     }
 }
@@ -344,7 +344,7 @@ function orris_Renew(array $params)
  *
  * @return array
  */
-function orris_AdminCustomButtonArray()
+function orrism_AdminCustomButtonArray()
 {
     return [
         'Reset Traffic' => 'ResetTraffic',
@@ -359,12 +359,12 @@ function orris_AdminCustomButtonArray()
  * @param array $params Module parameters
  * @return string "success" or error message
  */
-function orris_ResetTraffic(array $params)
+function orrism_ResetTraffic(array $params)
 {
     try {
-        logModuleCall('orris', __FUNCTION__, $params, '', '');
+        logModuleCall('orrism', __FUNCTION__, $params, '', '');
         
-        $db = orris_db();
+        $db = orrism_db();
         $success = $db->resetUserTraffic($params['serviceid']);
         
         if (!$success) {
@@ -374,7 +374,7 @@ function orris_ResetTraffic(array $params)
         return 'success';
         
     } catch (Exception $e) {
-        logModuleCall('orris', __FUNCTION__, $params, $e->getMessage());
+        logModuleCall('orrism', __FUNCTION__, $params, $e->getMessage());
         return 'Error: ' . $e->getMessage();
     }
 }
@@ -385,12 +385,12 @@ function orris_ResetTraffic(array $params)
  * @param array $params Module parameters
  * @return string "success" or error message
  */
-function orris_ResetUUID(array $params)
+function orrism_ResetUUID(array $params)
 {
     try {
-        logModuleCall('orris', __FUNCTION__, $params, '', '');
+        logModuleCall('orrism', __FUNCTION__, $params, '', '');
         
-        $db = orris_db();
+        $db = orrism_db();
         $result = $db->regenerateUUID($params['serviceid']);
         
         if (!$result['success']) {
@@ -400,7 +400,7 @@ function orris_ResetUUID(array $params)
         return 'success';
         
     } catch (Exception $e) {
-        logModuleCall('orris', __FUNCTION__, $params, $e->getMessage());
+        logModuleCall('orrism', __FUNCTION__, $params, $e->getMessage());
         return 'Error: ' . $e->getMessage();
     }
 }
@@ -411,10 +411,10 @@ function orris_ResetUUID(array $params)
  * @param array $params Module parameters
  * @return array
  */
-function orris_ViewUsage(array $params)
+function orrism_ViewUsage(array $params)
 {
     try {
-        $db = orris_db();
+        $db = orrism_db();
         $usage = $db->getUserUsage($params['serviceid']);
         
         if (empty($usage)) {
@@ -433,7 +433,7 @@ function orris_ViewUsage(array $params)
         ];
         
     } catch (Exception $e) {
-        logModuleCall('orris', __FUNCTION__, $params, $e->getMessage());
+        logModuleCall('orrism', __FUNCTION__, $params, $e->getMessage());
         return ['error' => $e->getMessage()];
     }
 }
@@ -444,11 +444,11 @@ function orris_ViewUsage(array $params)
  * @param array $params Module parameters
  * @return array
  */
-function orris_ClientArea(array $params)
+function orrism_ClientArea(array $params)
 {
     try {
         $serviceid = $params['serviceid'];
-        $db = orris_db();
+        $db = orrism_db();
         
         // Get user data
         $user = $db->getUser($serviceid);
@@ -466,7 +466,7 @@ function orris_ClientArea(array $params)
         $nodes = $db->getNodesForGroup($user->node_group_id);
         
         // Generate subscription URL
-        $subscriptionUrl = orris_generate_subscription_url($params, $user->uuid);
+        $subscriptionUrl = orrism_generate_subscription_url($params, $user->uuid);
         
         return [
             'templatefile' => 'clientarea',
@@ -490,7 +490,7 @@ function orris_ClientArea(array $params)
         ];
         
     } catch (Exception $e) {
-        logModuleCall('orris', __FUNCTION__, $params, $e->getMessage());
+        logModuleCall('orrism', __FUNCTION__, $params, $e->getMessage());
         return [
             'templatefile' => 'error',
             'vars' => ['errormessage' => $e->getMessage()]
@@ -503,7 +503,7 @@ function orris_ClientArea(array $params)
  *
  * @return array
  */
-function orris_ClientAreaCustomButtonArray()
+function orrism_ClientAreaCustomButtonArray()
 {
     return [
         'Reset Traffic' => 'ClientResetTraffic'
@@ -516,7 +516,7 @@ function orris_ClientAreaCustomButtonArray()
  * @param array $params Module parameters
  * @return string
  */
-function orris_ClientResetTraffic(array $params)
+function orrism_ClientResetTraffic(array $params)
 {
     try {
         // Check if manual reset is allowed
@@ -524,7 +524,7 @@ function orris_ClientResetTraffic(array $params)
             return 'Manual traffic reset is not allowed';
         }
         
-        $db = orris_db();
+        $db = orrism_db();
         $success = $db->resetUserTraffic($params['serviceid']);
         
         if (!$success) {
@@ -542,7 +542,7 @@ function orris_ClientResetTraffic(array $params)
         return 'success';
         
     } catch (Exception $e) {
-        logModuleCall('orris', __FUNCTION__, $params, $e->getMessage());
+        logModuleCall('orrism', __FUNCTION__, $params, $e->getMessage());
         return 'Error: ' . $e->getMessage();
     }
 }
@@ -553,10 +553,10 @@ function orris_ClientResetTraffic(array $params)
  * @param array $params Module parameters
  * @return array
  */
-function orris_AdminServicesTabFields(array $params)
+function orrism_AdminServicesTabFields(array $params)
 {
     try {
-        $db = orris_db();
+        $db = orrism_db();
         $user = $db->getUser($params['serviceid']);
         
         if (!$user) {
@@ -581,7 +581,7 @@ function orris_AdminServicesTabFields(array $params)
         ];
         
     } catch (Exception $e) {
-        logModuleCall('orris', __FUNCTION__, $params, $e->getMessage());
+        logModuleCall('orrism', __FUNCTION__, $params, $e->getMessage());
         return ['Error' => $e->getMessage()];
     }
 }
@@ -592,7 +592,7 @@ function orris_AdminServicesTabFields(array $params)
  * @param array $params Module parameters
  * @return string
  */
-function orris_LoginLink(array $params)
+function orrism_LoginLink(array $params)
 {
     $serverHost = $params['serverhostname'] ?: $params['serverip'];
     $serverPort = $params['serversecure'] ? $params['configoption3'] : $params['configoption2'];
@@ -607,11 +607,11 @@ function orris_LoginLink(array $params)
  * @param array $params Module parameters
  * @return array
  */
-function orris_ServiceSingleSignOn(array $params)
+function orrism_ServiceSingleSignOn(array $params)
 {
     try {
         $serviceid = $params['serviceid'];
-        $db = orris_get_database($params);
+        $db = orrism_get_database($params);
         
         // Get user data
         $user = Capsule::table($db . '.user')
@@ -623,7 +623,7 @@ function orris_ServiceSingleSignOn(array $params)
         }
         
         // Generate SSO token
-        $token = orris_generate_sso_token($params, $user);
+        $token = orrism_generate_sso_token($params, $user);
         
         $serverHost = $params['serverhostname'] ?: $params['serverip'];
         $protocol = $params['serversecure'] ? 'https' : 'http';
@@ -634,7 +634,7 @@ function orris_ServiceSingleSignOn(array $params)
         ];
         
     } catch (Exception $e) {
-        logModuleCall('orris', __FUNCTION__, $params, $e->getMessage());
+        logModuleCall('orrism', __FUNCTION__, $params, $e->getMessage());
         return ['success' => false, 'errorMsg' => $e->getMessage()];
     }
 }
@@ -645,11 +645,11 @@ function orris_ServiceSingleSignOn(array $params)
  * @param array $params Module parameters
  * @return array
  */
-function orris_AdminSingleSignOn(array $params)
+function orrism_AdminSingleSignOn(array $params)
 {
     try {
         // Generate admin SSO token
-        $token = orris_generate_admin_sso_token($params);
+        $token = orrism_generate_admin_sso_token($params);
         
         $serverHost = $params['serverhostname'] ?: $params['serverip'];
         $protocol = $params['serversecure'] ? 'https' : 'http';
@@ -660,7 +660,7 @@ function orris_AdminSingleSignOn(array $params)
         ];
         
     } catch (Exception $e) {
-        logModuleCall('orris', __FUNCTION__, $params, $e->getMessage());
+        logModuleCall('orrism', __FUNCTION__, $params, $e->getMessage());
         return ['success' => false, 'errorMsg' => $e->getMessage()];
     }
 }
@@ -671,10 +671,10 @@ function orris_AdminSingleSignOn(array $params)
  * @param array $params Module parameters
  * @return array
  */
-function orris_UsageUpdate(array $params)
+function orrism_UsageUpdate(array $params)
 {
     try {
-        $db = orris_db();
+        $db = orrism_db();
         $usage = $db->getUserUsage($params['serviceid']);
         
         if (empty($usage)) {
@@ -692,7 +692,7 @@ function orris_UsageUpdate(array $params)
         ];
         
     } catch (Exception $e) {
-        logModuleCall('orris', __FUNCTION__, $params, $e->getMessage());
+        logModuleCall('orrism', __FUNCTION__, $params, $e->getMessage());
         return [];
     }
 }
@@ -705,7 +705,7 @@ function orris_UsageUpdate(array $params)
  * @param int $length Password length
  * @return string
  */
-function orris_generate_password($length = 12)
+function orrism_generate_password($length = 12)
 {
     $chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()';
     $password = '';
@@ -723,7 +723,7 @@ function orris_generate_password($length = 12)
  * @param string $value Field value
  * @return void
  */
-function orris_save_custom_field($serviceid, $fieldname, $value)
+function orrism_save_custom_field($serviceid, $fieldname, $value)
 {
     try {
         // Get custom field ID
@@ -744,7 +744,7 @@ function orris_save_custom_field($serviceid, $fieldname, $value)
             );
             
     } catch (Exception $e) {
-        logModuleCall('orris', __FUNCTION__, ['serviceid' => $serviceid, 'field' => $fieldname], $e->getMessage());
+        logModuleCall('orrism', __FUNCTION__, ['serviceid' => $serviceid, 'field' => $fieldname], $e->getMessage());
     }
 }
 
@@ -755,7 +755,7 @@ function orris_save_custom_field($serviceid, $fieldname, $value)
  * @param string $uuid User UUID
  * @return string
  */
-function orris_generate_subscription_url(array $params, $uuid)
+function orrism_generate_subscription_url(array $params, $uuid)
 {
     $serverHost = $params['serverhostname'] ?: $params['serverip'];
     $protocol = $params['serversecure'] ? 'https' : 'http';
@@ -769,7 +769,7 @@ function orris_generate_subscription_url(array $params, $uuid)
  * @param object $user User data
  * @return string
  */
-function orris_generate_sso_token(array $params, $user)
+function orrism_generate_sso_token(array $params, $user)
 {
     $data = [
         'user_id' => $user->id,
@@ -786,7 +786,7 @@ function orris_generate_sso_token(array $params, $user)
  * @param array $params Module parameters
  * @return string
  */
-function orris_generate_admin_sso_token(array $params)
+function orrism_generate_admin_sso_token(array $params)
 {
     $data = [
         'admin' => true,

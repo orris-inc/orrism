@@ -1,9 +1,9 @@
 <?php
 /**
- * ORRIS - ShadowSocks Manager Module for WHMCS
+ * ORRISM - ShadowSocks Manager Module for WHMCS
  *
  * @package    WHMCS
- * @author     ORRIS Development Team
+ * @author     ORRISM Development Team
  * @copyright  Copyright (c) 2022-2024
  * @version    1.0
  */
@@ -15,8 +15,8 @@ require_once __DIR__ . '/../config.php';
  * @return PDO
  * @throws Exception 当数据库连接失败时抛出
  */
-function orris_get_db_connection() {
-    $config = orris_get_config();
+function orrism_get_db_connection() {
+    $config = orrism_get_config();
     
     try {
         $conn = new PDO(
@@ -41,10 +41,10 @@ function orris_get_db_connection() {
  * @param int $index
  * @return Redis|null
  */
-function orris_get_redis_connection($index = 0) {
+function orrism_get_redis_connection($index = 0) {
     static $redis_connections = [];
     if (!isset($redis_connections[$index])) {
-        $config = orris_get_config();
+        $config = orrism_get_config();
         $redis = new Redis();
         try {
             $redis->connect($config['redis_host'], $config['redis_port'], 2.0); // 2秒超时
@@ -70,9 +70,9 @@ function orris_get_redis_connection($index = 0) {
  * @param int $ttl 过期时间(秒)，仅对set操作有效，0表示使用默认值
  * @return mixed 操作结果
  */
-function orris_set_redis($key, $value, $action, $index = 0, $ttl = 0) {
+function orrism_set_redis($key, $value, $action, $index = 0, $ttl = 0) {
     try {
-        $redis = orris_get_redis_connection($index);
+        $redis = orrism_get_redis_connection($index);
         if (!$redis) {
             return false;
         }
@@ -117,8 +117,8 @@ function orris_set_redis($key, $value, $action, $index = 0, $ttl = 0) {
  * @return bool
  * @throws Exception 当数据库操作失败时抛出
  */
-function orris_check_and_init_tables() {
-    $conn = orris_get_db_connection();
+function orrism_check_and_init_tables() {
+    $conn = orrism_get_db_connection();
     try {
         // 检查nodes表是否存在
         $stmt = $conn->query("SHOW TABLES LIKE 'nodes'");
@@ -162,9 +162,9 @@ function orris_check_and_init_tables() {
 }
 
 // 仅在必要时检查表结构
-if (defined('ORRIS_AUTO_CHECK_TABLES') && ORRIS_AUTO_CHECK_TABLES) {
+if (defined('ORRISM_AUTO_CHECK_TABLES') && ORRISM_AUTO_CHECK_TABLES) {
     try {
-        orris_check_and_init_tables();
+        orrism_check_and_init_tables();
     } catch (Exception $e) {
         error_log("自动检查表失败: " . $e->getMessage());
         // 不终止执行，让错误在需要时显示
@@ -176,7 +176,7 @@ if (defined('ORRIS_AUTO_CHECK_TABLES') && ORRIS_AUTO_CHECK_TABLES) {
  * @param string $sid 用户SID
  * @return array 用户统计数据
  */
-function orris_get_user_redis_stats($sid) {
+function orrism_get_user_redis_stats($sid) {
     $result = [
         'last_ip' => '',
         'last_access' => 0,
@@ -190,13 +190,13 @@ function orris_get_user_redis_stats($sid) {
         $user_key = "user_data:{$sid}";
         
         // 检查键是否存在
-        $exists = orris_set_redis($user_key, null, 'exists', 0);
+        $exists = orrism_set_redis($user_key, null, 'exists', 0);
         if (!$exists) {
             return $result; // 返回默认空数据
         }
         
         // 获取所有用户数据
-        $user_data = orris_set_redis($user_key, null, 'hGetAll', 0);
+        $user_data = orrism_set_redis($user_key, null, 'hGetAll', 0);
         if (!$user_data) {
             return $result;
         }
@@ -211,7 +211,7 @@ function orris_get_user_redis_stats($sid) {
         $result['app_stats'] = isset($user_data['app_stats']) ? json_decode($user_data['app_stats'], true) : [];
         
         // 获取过期时间
-        $result['ttl'] = orris_set_redis($user_key, null, 'ttl', 0);
+        $result['ttl'] = orrism_set_redis($user_key, null, 'ttl', 0);
         
         // 计算最后一次访问距今天数
         if ($result['last_access'] > 0) {
@@ -235,7 +235,7 @@ function orris_get_user_redis_stats($sid) {
  * @param string $ip 要查询的IP地址
  * @return array IP使用统计
  */
-function orris_get_ip_stats($ip) {
+function orrism_get_ip_stats($ip) {
     $result = [
         'used_by' => [],
         'detailed_info' => []
@@ -244,7 +244,7 @@ function orris_get_ip_stats($ip) {
     try {
         // 从全局IP映射获取数据
         $ip_key = "ip_sid_map";
-        $ip_map_json = orris_set_redis($ip_key, null, 'get', 0);
+        $ip_map_json = orrism_set_redis($ip_key, null, 'get', 0);
         
         if (!$ip_map_json) {
             return $result;
@@ -258,7 +258,7 @@ function orris_get_ip_stats($ip) {
         
         // 获取每个用户的详细信息
         foreach ($result['used_by'] as $sid) {
-            $user_stats = orris_get_user_redis_stats($sid);
+            $user_stats = orrism_get_user_redis_stats($sid);
             
             // 查找此IP最后一次被此用户使用的时间
             $last_used = null;
@@ -290,7 +290,7 @@ function orris_get_ip_stats($ip) {
  * @param int $days 要获取的天数，默认为7天
  * @return array 每日访问统计
  */
-function orris_get_daily_stats($days = 7) {
+function orrism_get_daily_stats($days = 7) {
     $result = [];
     
     try {
@@ -298,7 +298,7 @@ function orris_get_daily_stats($days = 7) {
         for ($i = 0; $i < $days; $i++) {
             $date = date('Y-m-d', strtotime("-$i days"));
             $date_key = "stats:daily:" . $date;
-            $visits = orris_set_redis($date_key, null, 'get', 0);
+            $visits = orrism_set_redis($date_key, null, 'get', 0);
             $result[$date] = $visits ? intval($visits) : 0;
         }
         

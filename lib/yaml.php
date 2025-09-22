@@ -9,7 +9,7 @@
  * @param string $input YAML字符串
  * @return array 解析结果
  */
-function orris_yaml_parse($input) {
+function orrism_yaml_parse($input) {
     // 基本YAML解析，仅支持简单结构
     $result = [];
     $lines = explode("\n", $input);
@@ -89,33 +89,33 @@ function orris_yaml_parse($input) {
  * @param array $array PHP数组
  * @return string YAML字符串
  */
-function orris_yaml_dump($array) {
-    return _orris_yaml_dump_array($array);
+function orrism_yaml_dump($array) {
+    return _orrism_yaml_dump_array($array);
 }
 
 /**
  * 递归转换数组为YAML（内部辅助函数）
  */
-function _orris_yaml_dump_array($array, $indent = 0) {
+function _orrism_yaml_dump_array($array, $indent = 0) {
     $result = '';
     $space = str_repeat(' ', $indent);
     
     foreach ($array as $key => $value) {
         if (is_array($value)) {
-            if (_orris_yaml_is_sequential_array($value)) {
+            if (_orrism_yaml_is_sequential_array($value)) {
                 $result .= "{$space}{$key}:\n";
                 foreach ($value as $item) {
                     if (is_array($item)) {
-                        $result .= "{$space}  -\n" . _orris_yaml_dump_array($item, $indent + 4);
+                        $result .= "{$space}  -\n" . _orrism_yaml_dump_array($item, $indent + 4);
                     } else {
-                        $result .= "{$space}  - " . _orris_yaml_dump_scalar($item) . "\n";
+                        $result .= "{$space}  - " . _orrism_yaml_dump_scalar($item) . "\n";
                     }
                 }
             } else {
-                $result .= "{$space}{$key}:\n" . _orris_yaml_dump_array($value, $indent + 2);
+                $result .= "{$space}{$key}:\n" . _orrism_yaml_dump_array($value, $indent + 2);
             }
         } else {
-            $result .= "{$space}{$key}: " . _orris_yaml_dump_scalar($value) . "\n";
+            $result .= "{$space}{$key}: " . _orrism_yaml_dump_scalar($value) . "\n";
         }
     }
     
@@ -125,14 +125,14 @@ function _orris_yaml_dump_array($array, $indent = 0) {
 /**
  * 检查是否为索引数组（内部辅助函数）
  */
-function _orris_yaml_is_sequential_array($array) {
+function _orrism_yaml_is_sequential_array($array) {
     return array_keys($array) === range(0, count($array) - 1);
 }
 
 /**
  * 转换标量值为YAML格式（内部辅助函数）
  */
-function _orris_yaml_dump_scalar($value) {
+function _orrism_yaml_dump_scalar($value) {
     if (is_bool($value)) {
         return $value ? 'true' : 'false';
     } elseif (is_null($value)) {

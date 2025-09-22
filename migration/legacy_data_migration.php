@@ -1,10 +1,10 @@
 <?php
 /**
- * ORRIS Legacy Data Migration Script
+ * ORRISM Legacy Data Migration Script
  * Migrates data from old ShadowSocks database to new WHMCS-integrated structure
  *
  * @package    WHMCS
- * @author     ORRIS Development Team
+ * @author     ORRISM Development Team
  * @copyright  Copyright (c) 2024
  * @version    2.0
  */
@@ -19,20 +19,20 @@ require_once dirname(__DIR__) . '/includes/database_manager.php';
 require_once dirname(__DIR__) . '/includes/whmcs_database.php';
 
 /**
- * ORRIS Legacy Migration Class
+ * ORRISM Legacy Migration Class
  */
 class OrrisLegacyMigration
 {
     private $legacyConfig;
     private $dbManager;
-    private $orrisDb;
+    private $orrismDb;
     private $migrationLog = [];
     
     public function __construct($legacyConfig)
     {
         $this->legacyConfig = $legacyConfig;
-        $this->dbManager = orris_db_manager();
-        $this->orrisDb = orris_db();
+        $this->dbManager = orrism_db_manager();
+        $this->orrismDb = orrism_db();
     }
     
     /**
@@ -43,7 +43,7 @@ class OrrisLegacyMigration
     public function migrate()
     {
         try {
-            $this->log('Starting ORRIS legacy data migration...');
+            $this->log('Starting ORRISM legacy data migration...');
             
             // Step 1: Validate prerequisites
             $this->validatePrerequisites();
@@ -89,9 +89,9 @@ class OrrisLegacyMigration
     {
         $this->log('Validating prerequisites...');
         
-        // Check if ORRIS tables are installed
+        // Check if ORRISM tables are installed
         if (!$this->dbManager->isInstalled()) {
-            throw new Exception('ORRIS database tables not installed. Please install first.');
+            throw new Exception('ORRISM database tables not installed. Please install first.');
         }
         
         // Check legacy database configuration
@@ -164,7 +164,7 @@ class OrrisLegacyMigration
             
             foreach ($legacyNodes as $node) {
                 // Check if node already exists
-                $existing = Capsule::table('mod_orris_nodes')
+                $existing = Capsule::table('mod_orrism_nodes')
                     ->where('address', $node['address'])
                     ->where('port', $node['port'])
                     ->first();
@@ -175,7 +175,7 @@ class OrrisLegacyMigration
                 }
                 
                 // Insert new node
-                Capsule::table('mod_orris_nodes')->insert([
+                Capsule::table('mod_orrism_nodes')->insert([
                     'node_type' => $node['node_type'] ?: 'shadowsocks',
                     'group_id' => $node['group_id'] ?: 1,
                     'node_name' => $node['node_name'] ?: $node['address'],
@@ -237,7 +237,7 @@ class OrrisLegacyMigration
                 }
                 
                 // Check if user already migrated
-                $existing = Capsule::table('mod_orris_users')
+                $existing = Capsule::table('mod_orrism_users')
                     ->where('service_id', $serviceId)
                     ->first();
                 
@@ -259,7 +259,7 @@ class OrrisLegacyMigration
                 }
                 
                 // Migrate user
-                Capsule::table('mod_orris_users')->insert([
+                Capsule::table('mod_orrism_users')->insert([
                     'service_id' => $serviceId,
                     'client_id' => $service->userid,
                     'email' => $user['email'],
@@ -311,7 +311,7 @@ class OrrisLegacyMigration
             
             foreach ($legacyUsage as $usage) {
                 // Find corresponding user in new system
-                $user = Capsule::table('mod_orris_users')
+                $user = Capsule::table('mod_orrism_users')
                     ->where('service_id', $usage['sid'])
                     ->first();
                 
@@ -320,7 +320,7 @@ class OrrisLegacyMigration
                 }
                 
                 // Find corresponding node
-                $node = Capsule::table('mod_orris_nodes')
+                $node = Capsule::table('mod_orrism_nodes')
                     ->where('id', $usage['node_id'])
                     ->first();
                 
@@ -329,7 +329,7 @@ class OrrisLegacyMigration
                 }
                 
                 // Insert usage record
-                Capsule::table('mod_orris_user_usage')->insert([
+                Capsule::table('mod_orrism_user_usage')->insert([
                     'user_id' => $user->id,
                     'service_id' => $usage['sid'],
                     'node_id' => $usage['node_id'],
@@ -371,11 +371,11 @@ class OrrisLegacyMigration
         if (!empty($user['email'])) {
             $client = Capsule::table('tblclients')->where('email', $user['email'])->first();
             if ($client) {
-                // Find ORRIS service for this client
+                // Find ORRISM service for this client
                 $service = Capsule::table('tblhosting')
                     ->where('userid', $client->id)
                     ->where('producttype', 'server')
-                    ->where('server', 'LIKE', '%orris%')
+                    ->where('server', 'LIKE', '%orrism%')
                     ->first();
                 
                 if ($service) {
@@ -414,8 +414,8 @@ class OrrisLegacyMigration
             // Table might not exist
         }
         
-        $newNodeCount = Capsule::table('mod_orris_nodes')->count();
-        $newUserCount = Capsule::table('mod_orris_users')->count();
+        $newNodeCount = Capsule::table('mod_orrism_nodes')->count();
+        $newUserCount = Capsule::table('mod_orrism_users')->count();
         
         $this->log("Migration verification:");
         $this->log("- Legacy nodes: {$legacyNodeCount}, New nodes: {$newNodeCount}");
@@ -441,7 +441,7 @@ class OrrisLegacyMigration
         
         // Also log to WHMCS activity log for important messages
         if ($level === 'error') {
-            logModuleCall('orris_migration', 'error', [], $message);
+            logModuleCall('orrism_migration', 'error', [], $message);
         }
     }
     
@@ -462,7 +462,7 @@ class OrrisLegacyMigration
  * @param array $legacyConfig Legacy database configuration
  * @return array Migration result
  */
-function orris_run_legacy_migration($legacyConfig)
+function orrism_run_legacy_migration($legacyConfig)
 {
     $migration = new OrrisLegacyMigration($legacyConfig);
     return $migration->migrate();

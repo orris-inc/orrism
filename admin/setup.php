@@ -1,10 +1,10 @@
 <?php
 /**
- * ORRIS Module Setup Page
+ * ORRISM Module Setup Page
  * Database installation and configuration management
  *
  * @package    WHMCS
- * @author     ORRIS Development Team
+ * @author     ORRISM Development Team
  * @copyright  Copyright (c) 2024
  * @version    2.0
  */
@@ -22,7 +22,7 @@ require_once dirname(__DIR__) . '/includes/database_manager.php';
 if (isset($_POST['action'])) {
     header('Content-Type: application/json');
     
-    $dbManager = orris_db_manager();
+    $dbManager = orrism_db_manager();
     $response = ['success' => false, 'message' => 'Unknown action'];
     
     switch ($_POST['action']) {
@@ -54,11 +54,11 @@ if (isset($_POST['action'])) {
 }
 
 // Get current status
-$dbManager = orris_db_manager();
+$dbManager = orrism_db_manager();
 $status = $dbManager->getStatus();
 
 // Page title
-$pagetitle = 'ORRIS Module Setup';
+$pagetitle = 'ORRISM Module Setup';
 
 ?>
 
@@ -67,12 +67,12 @@ $pagetitle = 'ORRIS Module Setup';
         <div class="container-fluid">
             <div class="row mb-2">
                 <div class="col-sm-6">
-                    <h1 class="m-0">ORRIS Module Setup</h1>
+                    <h1 class="m-0">ORRISM Module Setup</h1>
                 </div>
                 <div class="col-sm-6">
                     <ol class="breadcrumb float-sm-right">
                         <li class="breadcrumb-item"><a href="index.php">Home</a></li>
-                        <li class="breadcrumb-item active">ORRIS Setup</li>
+                        <li class="breadcrumb-item active">ORRISM Setup</li>
                     </ol>
                 </div>
             </div>
@@ -214,7 +214,7 @@ $pagetitle = 'ORRIS Module Setup';
                                 <li>Click "Install Database" to create all required tables</li>
                                 <li>Configure your first ShadowSocks nodes</li>
                                 <li>Create product packages in WHMCS</li>
-                                <li>Assign the ORRIS module to your products</li>
+                                <li>Assign the ORRISM module to your products</li>
                             </ol>
                         </div>
                         <div class="col-md-6">
@@ -247,7 +247,7 @@ $pagetitle = 'ORRIS Module Setup';
             <div class="modal-body">
                 <div class="alert alert-warning">
                     <i class="fas fa-exclamation-triangle"></i>
-                    <strong>Warning:</strong> This action will remove ORRIS database tables.
+                    <strong>Warning:</strong> This action will remove ORRISM database tables.
                 </div>
                 <div class="form-group">
                     <div class="custom-control custom-checkbox">
@@ -345,7 +345,7 @@ function testConnection() {
 }
 
 function installDatabase() {
-    if (!confirm('This will create all ORRIS database tables. Continue?')) {
+    if (!confirm('This will create all ORRISM database tables. Continue?')) {
         return;
     }
     
