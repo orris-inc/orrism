@@ -254,6 +254,9 @@ class OrrisDatabaseManager
      */
     public function migrate()
     {
+        // Get appropriate connection for transactions
+        $connection = $this->useOrrisDB ? OrrisDB::connection() : Capsule::connection();
+        
         try {
             $currentVersion = $this->getCurrentVersion();
             
@@ -271,9 +274,9 @@ class OrrisDatabaseManager
             // Run specific migrations based on version
             $migrations = $this->getAvailableMigrations($currentVersion);
             
-            // Get appropriate connection for transactions
-            $connection = $this->useOrrisDB ? OrrisDB::connection() : Capsule::connection();
-            $connection->beginTransaction();
+            if ($connection) {
+                $connection->beginTransaction();
+            }
             
             foreach ($migrations as $migration) {
                 $this->runMigration($migration);
@@ -282,7 +285,9 @@ class OrrisDatabaseManager
             // Update database version
             $this->updateConfig('database_version', $this->currentVersion);
             
-            $connection->commit();
+            if ($connection) {
+                $connection->commit();
+            }
             
             $message = 'Database migrated successfully to version ' . $this->currentVersion;
             logModuleCall('orrism', __METHOD__, [], $message);
@@ -293,7 +298,9 @@ class OrrisDatabaseManager
             ];
             
         } catch (Exception $e) {
-            $connection->rollback();
+            if ($connection) {
+                $connection->rollback();
+            }
             
             $errorMsg = 'Database migration failed: ' . $e->getMessage();
             logModuleCall('orrism', __METHOD__, [], $errorMsg);

@@ -92,13 +92,14 @@ class OrrisDB
         }
         
         try {
-            // Use existing WHMCS Capsule instance instead of creating new one
-            self::$capsule = WhmcsCapsule::getFacadeRoot();
+            // Create a separate Capsule instance for ORRISM
+            // This ensures complete isolation from WHMCS database operations
+            self::$capsule = new Capsule();
             
-            // Add the ORRISM database connection to existing Capsule
+            // Add only the ORRISM database connection
             self::$capsule->addConnection($config, 'orrism');
             
-            // Do NOT set as global or change default connection
+            // Do NOT set as global or boot Eloquent
             // This prevents interfering with WHMCS's database operations
             
             logModuleCall('orrism', __METHOD__, ['host' => $config['host'], 'database' => $config['database']], 'ORRISM database connected');
@@ -123,7 +124,13 @@ class OrrisDB
             return false;
         }
         
-        return $capsule->getConnection('orrism');
+        try {
+            // Get the ORRISM connection from our Capsule instance
+            return $capsule->getConnection('orrism');
+        } catch (Exception $e) {
+            logModuleCall('orrism', __METHOD__, [], 'Failed to get connection: ' . $e->getMessage());
+            return false;
+        }
     }
     
     /**
@@ -138,7 +145,12 @@ class OrrisDB
             return false;
         }
         
-        return $connection->getSchemaBuilder();
+        try {
+            return $connection->getSchemaBuilder();
+        } catch (Exception $e) {
+            logModuleCall('orrism', __METHOD__, [], 'Failed to get schema: ' . $e->getMessage());
+            return false;
+        }
     }
     
     /**
@@ -154,7 +166,12 @@ class OrrisDB
             return false;
         }
         
-        return $connection->table($table);
+        try {
+            return $connection->table($table);
+        } catch (Exception $e) {
+            logModuleCall('orrism', __METHOD__, ['table' => $table], 'Failed to get table: ' . $e->getMessage());
+            return false;
+        }
     }
     
     /**
