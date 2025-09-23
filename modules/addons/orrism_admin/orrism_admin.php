@@ -1392,7 +1392,7 @@ function renderSettings($vars)
         
         // Prepare and send the request with detailed logging
         var params = "test_host=" + encodeURIComponent(host) + 
-                    "&test_port=" + encodeURIComponent(port || '3306') + 
+                    "&test_port=" + encodeURIComponent(port || \"3306\") + 
                     "&test_name=" + encodeURIComponent(name) + 
                     "&test_user=" + encodeURIComponent(user) + 
                     "&test_pass=" + encodeURIComponent(pass);
