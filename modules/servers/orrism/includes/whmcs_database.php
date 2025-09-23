@@ -64,7 +64,7 @@ class OrrisDatabase
             $uuid = $this->generateUUID();
             
             // Check if user already exists
-            $existingUser = Capsule::table('mod_orrism_users')
+            $existingUser = Capsule::table('users')
                 ->where('service_id', $serviceid)
                 ->first();
                 
@@ -76,7 +76,7 @@ class OrrisDatabase
             }
             
             // Create new user
-            $userId = Capsule::table('mod_orrism_users')->insertGetId([
+            $userId = Capsule::table('users')->insertGetId([
                 'service_id' => $serviceid,
                 'client_id' => $clientid,
                 'email' => $email,
@@ -119,7 +119,7 @@ class OrrisDatabase
     public function getUser($serviceid)
     {
         try {
-            return Capsule::table('mod_orrism_users')
+            return Capsule::table('users')
                 ->where('service_id', $serviceid)
                 ->first();
         } catch (Exception $e) {
@@ -138,7 +138,7 @@ class OrrisDatabase
     public function updateUserStatus($serviceid, $status)
     {
         try {
-            $updated = Capsule::table('mod_orrism_users')
+            $updated = Capsule::table('users')
                 ->where('service_id', $serviceid)
                 ->update([
                     'status' => $status,
@@ -162,7 +162,7 @@ class OrrisDatabase
     public function deleteUser($serviceid)
     {
         try {
-            return Capsule::table('mod_orrism_users')
+            return Capsule::table('users')
                 ->where('service_id', $serviceid)
                 ->delete() > 0;
                 
@@ -181,7 +181,7 @@ class OrrisDatabase
     public function resetUserTraffic($serviceid)
     {
         try {
-            $updated = Capsule::table('mod_orrism_users')
+            $updated = Capsule::table('users')
                 ->where('service_id', $serviceid)
                 ->update([
                     'upload_bytes' => 0,
@@ -209,7 +209,7 @@ class OrrisDatabase
         try {
             $newUuid = $this->generateUUID();
             
-            $updated = Capsule::table('mod_orrism_users')
+            $updated = Capsule::table('users')
                 ->where('service_id', $serviceid)
                 ->update([
                     'uuid' => $newUuid,
@@ -254,7 +254,7 @@ class OrrisDatabase
             $bandwidth = ($params['configoption4'] ?: 100) * 1024 * 1024 * 1024; // Convert GB to bytes
             $nodeGroup = $params['configoption7'] ?: 1;
             
-            $updated = Capsule::table('mod_orrism_users')
+            $updated = Capsule::table('users')
                 ->where('service_id', $serviceid)
                 ->update([
                     'bandwidth_limit' => $bandwidth,
@@ -315,7 +315,7 @@ class OrrisDatabase
     public function getNodesForGroup($nodeGroupId)
     {
         try {
-            return Capsule::table('mod_orrism_nodes')
+            return Capsule::table('nodes')
                 ->where('group_id', $nodeGroupId)
                 ->where('status', 1)
                 ->orderBy('sort_order')
@@ -348,7 +348,7 @@ class OrrisDatabase
             }
             
             // Insert usage record
-            Capsule::table('mod_orrism_user_usage')->insert([
+            Capsule::table('user_usage')->insert([
                 'user_id' => $user->id,
                 'service_id' => $serviceid,
                 'node_id' => $nodeId,
@@ -360,11 +360,11 @@ class OrrisDatabase
             ]);
             
             // Update user totals
-            Capsule::table('mod_orrism_users')
+            Capsule::table('users')
                 ->where('id', $user->id)
                 ->increment('upload_bytes', $uploadBytes);
                 
-            Capsule::table('mod_orrism_users')
+            Capsule::table('users')
                 ->where('id', $user->id)
                 ->increment('download_bytes', $downloadBytes);
             
@@ -433,7 +433,7 @@ class OrrisDatabase
     public function getConfig($key, $default = null)
     {
         try {
-            $config = Capsule::table('mod_orrism_config')
+            $config = Capsule::table('config')
                 ->where('config_key', $key)
                 ->first();
                 
@@ -482,7 +482,7 @@ class OrrisDatabase
                     $value = strval($value);
             }
             
-            $updated = Capsule::table('mod_orrism_config')
+            $updated = Capsule::table('config')
                 ->where('config_key', $key)
                 ->update([
                     'config_value' => $value,
@@ -492,7 +492,7 @@ class OrrisDatabase
             
             // If no rows updated, insert new config
             if ($updated === 0) {
-                Capsule::table('mod_orrism_config')->insert([
+                Capsule::table('config')->insert([
                     'config_key' => $key,
                     'config_value' => $value,
                     'config_type' => $type,
@@ -536,7 +536,7 @@ class OrrisDatabase
  * 
  * @return OrrisDatabase
  */
-function orrism_db()
+function db()
 {
     return OrrisDatabase::getInstance();
 }

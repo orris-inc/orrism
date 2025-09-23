@@ -645,8 +645,37 @@ function renderDashboard($vars)
         try {
             $redis = new Redis();
             $connected = $redis->connect($vars['redis_host'] ?? 'localhost', $vars['redis_port'] ?? 6379);
-            $content .= $connected ? '<span class="orrism-text-success">Connected</span>' : '<span class="orrism-text-danger">Not Connected</span>';
-            if ($connected) $redis->close();
+            
+            if ($connected) {
+                // Handle authentication if configured
+                $authSuccess = true;
+                $redisUsername = $vars['redis_username'] ?? '';
+                $redisPassword = $vars['redis_password'] ?? '';
+                
+                try {
+                    if (!empty($redisUsername) && !empty($redisPassword)) {
+                        // Redis 6.0+ ACL with username and password
+                        $authSuccess = $redis->auth([$redisUsername, $redisPassword]);
+                    } elseif (!empty($redisPassword)) {
+                        // Traditional Redis auth with password only
+                        $authSuccess = $redis->auth($redisPassword);
+                    }
+                    
+                    if ($authSuccess) {
+                        // Test with ping
+                        $pong = $redis->ping();
+                        $content .= $pong ? '<span class="orrism-text-success">Connected</span>' : '<span class="orrism-text-warning">Connected (No Ping)</span>';
+                    } else {
+                        $content .= '<span class="orrism-text-danger">Auth Failed</span>';
+                    }
+                } catch (Exception $authException) {
+                    $content .= '<span class="orrism-text-danger">Auth Error</span>';
+                }
+                
+                $redis->close();
+            } else {
+                $content .= '<span class="orrism-text-danger">Not Connected</span>';
+            }
         } catch (Exception $e) {
             $content .= '<span class="orrism-text-danger">Error</span>';
         }
@@ -1044,6 +1073,18 @@ function renderSettings($vars)
     $content .= '<small class="form-text text-muted">Redis server port</small>';
     $content .= '</div>';
     
+    $content .= '<div class="form-group">';
+    $content .= '<label for="redis_username">Redis Username</label>';
+    $content .= '<input type="text" class="form-control" id="redis_username" name="redis_username" value="' . htmlspecialchars($settings['redis_username'] ?? '') . '">';
+    $content .= '<small class="form-text text-muted">Redis username (optional, for Redis 6.0+ ACL)</small>';
+    $content .= '</div>';
+    
+    $content .= '<div class="form-group">';
+    $content .= '<label for="redis_password">Redis Password</label>';
+    $content .= '<input type="password" class="form-control" id="redis_password" name="redis_password" value="' . htmlspecialchars($settings['redis_password'] ?? '') . '">';
+    $content .= '<small class="form-text text-muted">Redis password (optional)</small>';
+    $content .= '</div>';
+    
     $content .= '<button type="submit" class="btn btn-primary btn-sm">Save Redis Settings</button>';
     $content .= ' <button type="button" class="btn btn-info btn-sm" onclick="testRedisConnection()">';
     $content .= '<i class="fa fa-server"></i> Test Redis</button>';
@@ -1322,6 +1363,8 @@ function renderSettings($vars)
         var resultDiv = document.getElementById("redisTestResult");
         var host = document.getElementById("redis_host").value;
         var port = document.getElementById("redis_port").value;
+        var username = document.getElementById("redis_username").value;
+        var password = document.getElementById("redis_password").value;
         
         if (!host || !port) {
             resultDiv.innerHTML = \'<div class="alert alert-warning"><i class="fa fa-exclamation-triangle"></i> Please fill in Redis host and port</div>\';
@@ -1340,17 +1383,36 @@ function renderSettings($vars)
                 try {
                     var response = JSON.parse(xhr.responseText);
                     if (response.success) {
-                        resultDiv.innerHTML = \'<div class="alert alert-success"><i class="fa fa-check-circle"></i> Redis connected successfully!</div>\';
+                        var infoHtml = \'\';
+                        if (response.info) {
+                            infoHtml = \'<br><small class="text-muted">\' +
+                                \'Version: \' + (response.info.version || "Unknown") + \'<br>\' +
+                                \'Auth: \' + (response.auth_method || "Unknown") + \'<br>\' +
+                                (response.info.connected_clients ? \'Clients: \' + response.info.connected_clients + \'<br>\' : \'\') +
+                                (response.info.memory_usage ? \'Memory: \' + response.info.memory_usage : \'\') +
+                                \'</small>\';
+                        }
+                        resultDiv.innerHTML = \'<div class="alert alert-success">\' +
+                            \'<i class="fa fa-check-circle"></i> <strong>Redis connected successfully!</strong>\' +
+                            infoHtml + \'</div>\';
                     } else {
-                        resultDiv.innerHTML = \'<div class="alert alert-danger"><i class="fa fa-times-circle"></i> \' + response.message + \'</div>\';
+                        resultDiv.innerHTML = \'<div class="alert alert-danger">\' +
+                            \'<i class="fa fa-times-circle"></i> <strong>Redis connection failed</strong><br>\' +
+                            (response.message || "Unknown error") + \'</div>\';
                     }
                 } catch (e) {
-                    resultDiv.innerHTML = \'<div class="alert alert-danger"><i class="fa fa-times-circle"></i> Error parsing response</div>\';
+                    resultDiv.innerHTML = \'<div class="alert alert-danger">\' +
+                        \'<i class="fa fa-times-circle"></i> <strong>Error parsing response</strong><br>\' +
+                        \'Raw response: \' + xhr.responseText.substring(0, 100) + \'</div>\';
                 }
             }
         };
         
-        xhr.send("redis_host=" + encodeURIComponent(host) + "&redis_port=" + encodeURIComponent(port));
+        var params = "redis_host=" + encodeURIComponent(host) + 
+                    "&redis_port=" + encodeURIComponent(port) + 
+                    "&redis_username=" + encodeURIComponent(username) + 
+                    "&redis_password=" + encodeURIComponent(password);
+        xhr.send(params);
     }
     </script>';
     
@@ -1443,6 +1505,8 @@ function handleSettingsSave($vars)
         case 'redis':
             $settings['redis_host'] = $_POST['redis_host'] ?? 'localhost';
             $settings['redis_port'] = $_POST['redis_port'] ?? '6379';
+            $settings['redis_username'] = $_POST['redis_username'] ?? '';
+            $settings['redis_password'] = $_POST['redis_password'] ?? '';
             break;
             
         case 'general':
@@ -1562,16 +1626,16 @@ function testDatabaseConnection()
             'connection_status' => $connectionStatus
         ], 'Database connection established');
         
-        // Check if ORRISM tables exist
-        $stmt = $pdo->query("SHOW TABLES LIKE 'mod_orrism_%'");
-        $tablesExist = $stmt->rowCount() > 0;
-        
-        // Get list of existing ORRISM tables for debugging
+        // Check if ORRISM tables exist (core tables without prefix)
+        $coreTableNames = ['users', 'nodes', 'user_usage', 'node_groups', 'config'];
         $existingTables = [];
-        if ($tablesExist) {
-            $stmt = $pdo->query("SHOW TABLES LIKE 'mod_orrism_%'");
-            while ($row = $stmt->fetch(PDO::FETCH_NUM)) {
-                $existingTables[] = $row[0];
+        $tablesExist = false;
+        
+        foreach ($coreTableNames as $tableName) {
+            $stmt = $pdo->query("SHOW TABLES LIKE '$tableName'");
+            if ($stmt->rowCount() > 0) {
+                $existingTables[] = $tableName;
+                $tablesExist = true;
             }
         }
         
@@ -1693,6 +1757,8 @@ function testRedisConnectionHandler()
     try {
         $host = $_POST['redis_host'] ?? 'localhost';
         $port = $_POST['redis_port'] ?? 6379;
+        $username = $_POST['redis_username'] ?? '';
+        $password = $_POST['redis_password'] ?? '';
         
         if (!class_exists('Redis')) {
             return [
@@ -1704,17 +1770,80 @@ function testRedisConnectionHandler()
         $redis = new Redis();
         $connected = @$redis->connect($host, (int)$port, 2); // 2 second timeout
         
-        if ($connected) {
-            // Try to ping Redis
+        if (!$connected) {
+            return [
+                'success' => false,
+                'message' => "Failed to connect to Redis server at {$host}:{$port}"
+            ];
+        }
+        
+        // Handle authentication
+        try {
+            if (!empty($username) && !empty($password)) {
+                // Redis 6.0+ ACL with username and password
+                $authResult = $redis->auth([$username, $password]);
+                if (!$authResult) {
+                    $redis->close();
+                    return [
+                        'success' => false,
+                        'message' => 'Redis authentication failed with username and password'
+                    ];
+                }
+            } elseif (!empty($password)) {
+                // Traditional Redis auth with password only
+                $authResult = $redis->auth($password);
+                if (!$authResult) {
+                    $redis->close();
+                    return [
+                        'success' => false,
+                        'message' => 'Redis authentication failed with password'
+                    ];
+                }
+            }
+            
+            // Try to ping Redis to verify the connection is working
             $pong = $redis->ping();
+            
+            // Get Redis info for additional details
+            $info = [];
+            try {
+                $redisInfo = $redis->info();
+                if (isset($redisInfo['redis_version'])) {
+                    $info['version'] = $redisInfo['redis_version'];
+                }
+                if (isset($redisInfo['connected_clients'])) {
+                    $info['connected_clients'] = $redisInfo['connected_clients'];
+                }
+                if (isset($redisInfo['used_memory_human'])) {
+                    $info['memory_usage'] = $redisInfo['used_memory_human'];
+                }
+            } catch (Exception $infoException) {
+                // If we can't get info, it's not critical
+                $info['version'] = 'Unknown';
+            }
+            
             $redis->close();
             
             if ($pong) {
                 return [
                     'success' => true,
-                    'message' => 'Redis connected successfully'
+                    'message' => 'Redis connected successfully',
+                    'info' => $info,
+                    'auth_method' => !empty($username) ? 'ACL (username + password)' : (!empty($password) ? 'Password only' : 'No authentication')
+                ];
+            } else {
+                return [
+                    'success' => false,
+                    'message' => 'Connected to Redis but ping failed'
                 ];
             }
+            
+        } catch (Exception $authException) {
+            $redis->close();
+            return [
+                'success' => false,
+                'message' => 'Redis authentication error: ' . $authException->getMessage()
+            ];
         }
         
         return [

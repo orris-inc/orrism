@@ -38,7 +38,7 @@ foreach ($dependencies as $name => $path) {
  * 
  * @return array
  */
-function orrism_MetaData()
+function MetaData()
 {
     return [
         'DisplayName' => 'ORRISM ShadowSocks Manager',
@@ -56,7 +56,7 @@ function orrism_MetaData()
  * 
  * @return array
  */
-function orrism_ConfigOptions()
+function ConfigOptions()
 {
     return [
         'database' => [
@@ -113,10 +113,10 @@ function orrism_ConfigOptions()
  * @param array $params Module parameters
  * @return array
  */
-function orrism_TestConnection(array $params)
+function TestConnection(array $params)
 {
     try {
-        $dbManager = orrism_db_manager();
+        $dbManager = db_manager();
         $result = $dbManager->testConnection();
         
         if (!$result['success']) {
@@ -145,12 +145,12 @@ function orrism_TestConnection(array $params)
  * @param array $params Module parameters
  * @return string "success" or error message
  */
-function orrism_CreateAccount(array $params)
+function CreateAccount(array $params)
 {
     try {
         logModuleCall('orrism', __FUNCTION__, $params, '', '');
         
-        $db = orrism_db();
+        $db = db();
         $result = $db->createUser($params);
         
         if (!$result['success']) {
@@ -159,7 +159,7 @@ function orrism_CreateAccount(array $params)
         
         // Update WHMCS service with credentials
         $username = $params['username'] ?: 'user' . $params['serviceid'];
-        $password = $params['password'] ?: orrism_generate_password(12);
+        $password = $params['password'] ?: generate_password(12);
         $domain = $params['domain'] ?: $params['customfields']['domain'] ?: '';
         
         Capsule::table('tblhosting')
@@ -184,12 +184,12 @@ function orrism_CreateAccount(array $params)
  * @param array $params Module parameters
  * @return string "success" or error message
  */
-function orrism_SuspendAccount(array $params)
+function SuspendAccount(array $params)
 {
     try {
         logModuleCall('orrism', __FUNCTION__, $params, '', '');
         
-        $db = orrism_db();
+        $db = db();
         $success = $db->updateUserStatus($params['serviceid'], 'suspended');
         
         if (!$success) {
@@ -210,12 +210,12 @@ function orrism_SuspendAccount(array $params)
  * @param array $params Module parameters
  * @return string "success" or error message
  */
-function orrism_UnsuspendAccount(array $params)
+function UnsuspendAccount(array $params)
 {
     try {
         logModuleCall('orrism', __FUNCTION__, $params, '', '');
         
-        $db = orrism_db();
+        $db = db();
         $success = $db->updateUserStatus($params['serviceid'], 'active');
         
         if (!$success) {
@@ -236,12 +236,12 @@ function orrism_UnsuspendAccount(array $params)
  * @param array $params Module parameters
  * @return string "success" or error message
  */
-function orrism_TerminateAccount(array $params)
+function TerminateAccount(array $params)
 {
     try {
         logModuleCall('orrism', __FUNCTION__, $params, '', '');
         
-        $db = orrism_db();
+        $db = db();
         $success = $db->deleteUser($params['serviceid']);
         
         if (!$success) {
@@ -263,7 +263,7 @@ function orrism_TerminateAccount(array $params)
  * @param array $params Module parameters
  * @return string "success" or error message
  */
-function orrism_ChangePassword(array $params)
+function ChangePassword(array $params)
 {
     try {
         logModuleCall('orrism', __FUNCTION__, $params, '', '');
@@ -272,7 +272,7 @@ function orrism_ChangePassword(array $params)
         $password = $params['password'];
         
         // Update password hash in ORRISM database
-        $updated = Capsule::table('mod_orrism_users')
+        $updated = Capsule::table('users')
             ->where('service_id', $serviceid)
             ->update([
                 'password_hash' => password_hash($password, PASSWORD_DEFAULT),
@@ -297,12 +297,12 @@ function orrism_ChangePassword(array $params)
  * @param array $params Module parameters
  * @return string "success" or error message
  */
-function orrism_ChangePackage(array $params)
+function ChangePackage(array $params)
 {
     try {
         logModuleCall('orrism', __FUNCTION__, $params, '', '');
         
-        $db = orrism_db();
+        $db = db();
         $success = $db->updateUserPackage($params['serviceid'], $params);
         
         if (!$success) {
@@ -323,7 +323,7 @@ function orrism_ChangePackage(array $params)
  * @param array $params Module parameters
  * @return string "success" or error message
  */
-function orrism_Renew(array $params)
+function Renew(array $params)
 {
     try {
         logModuleCall('orrism', __FUNCTION__, $params, '', '');
@@ -333,7 +333,7 @@ function orrism_Renew(array $params)
         
         // Handle traffic reset based on strategy
         if ($resetStrategy > 0) {
-            $db = orrism_db();
+            $db = db();
             $success = $db->resetUserTraffic($serviceid);
             
             if (!$success) {
@@ -354,7 +354,7 @@ function orrism_Renew(array $params)
  *
  * @return array
  */
-function orrism_AdminCustomButtonArray()
+function AdminCustomButtonArray()
 {
     return [
         'Reset Traffic' => 'ResetTraffic',
@@ -369,12 +369,12 @@ function orrism_AdminCustomButtonArray()
  * @param array $params Module parameters
  * @return string "success" or error message
  */
-function orrism_ResetTraffic(array $params)
+function ResetTraffic(array $params)
 {
     try {
         logModuleCall('orrism', __FUNCTION__, $params, '', '');
         
-        $db = orrism_db();
+        $db = db();
         $success = $db->resetUserTraffic($params['serviceid']);
         
         if (!$success) {
@@ -395,12 +395,12 @@ function orrism_ResetTraffic(array $params)
  * @param array $params Module parameters
  * @return string "success" or error message
  */
-function orrism_ResetUUID(array $params)
+function ResetUUID(array $params)
 {
     try {
         logModuleCall('orrism', __FUNCTION__, $params, '', '');
         
-        $db = orrism_db();
+        $db = db();
         $result = $db->regenerateUUID($params['serviceid']);
         
         if (!$result['success']) {
@@ -421,10 +421,10 @@ function orrism_ResetUUID(array $params)
  * @param array $params Module parameters
  * @return array
  */
-function orrism_ViewUsage(array $params)
+function ViewUsage(array $params)
 {
     try {
-        $db = orrism_db();
+        $db = db();
         $usage = $db->getUserUsage($params['serviceid']);
         
         if (empty($usage)) {
@@ -455,11 +455,11 @@ function orrism_ViewUsage(array $params)
  * @param array $params Module parameters
  * @return array
  */
-function orrism_ClientArea(array $params)
+function ClientArea(array $params)
 {
     try {
         $serviceid = $params['serviceid'];
-        $db = orrism_db();
+        $db = db();
         
         // Get user data
         $user = $db->getUser($serviceid);
@@ -477,7 +477,7 @@ function orrism_ClientArea(array $params)
         $nodes = $db->getNodesForGroup($user->node_group_id);
         
         // Generate subscription URL
-        $subscriptionUrl = orrism_generate_subscription_url($params, $user->uuid);
+        $subscriptionUrl = generate_subscription_url($params, $user->uuid);
         
         return [
             'templatefile' => 'clientarea',
@@ -514,7 +514,7 @@ function orrism_ClientArea(array $params)
  *
  * @return array
  */
-function orrism_ClientAreaCustomButtonArray()
+function ClientAreaCustomButtonArray()
 {
     return [
         'Reset Traffic' => 'ClientResetTraffic'
@@ -527,7 +527,7 @@ function orrism_ClientAreaCustomButtonArray()
  * @param array $params Module parameters
  * @return string
  */
-function orrism_ClientResetTraffic(array $params)
+function ClientResetTraffic(array $params)
 {
     try {
         // Check if manual reset is allowed
@@ -535,7 +535,7 @@ function orrism_ClientResetTraffic(array $params)
             return 'Manual traffic reset is not allowed';
         }
         
-        $db = orrism_db();
+        $db = db();
         $success = $db->resetUserTraffic($params['serviceid']);
         
         if (!$success) {
@@ -564,10 +564,10 @@ function orrism_ClientResetTraffic(array $params)
  * @param array $params Module parameters
  * @return array
  */
-function orrism_AdminServicesTabFields(array $params)
+function AdminServicesTabFields(array $params)
 {
     try {
-        $db = orrism_db();
+        $db = db();
         $user = $db->getUser($params['serviceid']);
         
         if (!$user) {
@@ -603,7 +603,7 @@ function orrism_AdminServicesTabFields(array $params)
  * @param array $params Module parameters
  * @return string
  */
-function orrism_LoginLink(array $params)
+function LoginLink(array $params)
 {
     $serverHost = $params['serverhostname'] ?: $params['serverip'];
     $serverPort = $params['serversecure'] ? $params['configoption3'] : $params['configoption2'];
@@ -618,11 +618,11 @@ function orrism_LoginLink(array $params)
  * @param array $params Module parameters
  * @return array
  */
-function orrism_ServiceSingleSignOn(array $params)
+function ServiceSingleSignOn(array $params)
 {
     try {
         $serviceid = $params['serviceid'];
-        $db = orrism_get_database($params);
+        $db = get_database($params);
         
         // Get user data
         $user = Capsule::table($db . '.user')
@@ -634,7 +634,7 @@ function orrism_ServiceSingleSignOn(array $params)
         }
         
         // Generate SSO token
-        $token = orrism_generate_sso_token($params, $user);
+        $token = generate_sso_token($params, $user);
         
         $serverHost = $params['serverhostname'] ?: $params['serverip'];
         $protocol = $params['serversecure'] ? 'https' : 'http';
@@ -656,11 +656,11 @@ function orrism_ServiceSingleSignOn(array $params)
  * @param array $params Module parameters
  * @return array
  */
-function orrism_AdminSingleSignOn(array $params)
+function AdminSingleSignOn(array $params)
 {
     try {
         // Generate admin SSO token
-        $token = orrism_generate_admin_sso_token($params);
+        $token = generate_admin_sso_token($params);
         
         $serverHost = $params['serverhostname'] ?: $params['serverip'];
         $protocol = $params['serversecure'] ? 'https' : 'http';
@@ -682,10 +682,10 @@ function orrism_AdminSingleSignOn(array $params)
  * @param array $params Module parameters
  * @return array
  */
-function orrism_UsageUpdate(array $params)
+function UsageUpdate(array $params)
 {
     try {
-        $db = orrism_db();
+        $db = db();
         $usage = $db->getUserUsage($params['serviceid']);
         
         if (empty($usage)) {
@@ -716,7 +716,7 @@ function orrism_UsageUpdate(array $params)
  * @param int $length Password length
  * @return string
  */
-function orrism_generate_password($length = 12)
+function generate_password($length = 12)
 {
     $chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()';
     $password = '';
@@ -734,7 +734,7 @@ function orrism_generate_password($length = 12)
  * @param string $value Field value
  * @return void
  */
-function orrism_save_custom_field($serviceid, $fieldname, $value)
+function save_custom_field($serviceid, $fieldname, $value)
 {
     try {
         // Get custom field ID
@@ -766,7 +766,7 @@ function orrism_save_custom_field($serviceid, $fieldname, $value)
  * @param string $uuid User UUID
  * @return string
  */
-function orrism_generate_subscription_url(array $params, $uuid)
+function generate_subscription_url(array $params, $uuid)
 {
     $serverHost = $params['serverhostname'] ?: $params['serverip'];
     $protocol = $params['serversecure'] ? 'https' : 'http';
@@ -780,7 +780,7 @@ function orrism_generate_subscription_url(array $params, $uuid)
  * @param object $user User data
  * @return string
  */
-function orrism_generate_sso_token(array $params, $user)
+function generate_sso_token(array $params, $user)
 {
     $data = [
         'user_id' => $user->id,
@@ -797,7 +797,7 @@ function orrism_generate_sso_token(array $params, $user)
  * @param array $params Module parameters
  * @return string
  */
-function orrism_generate_admin_sso_token(array $params)
+function generate_admin_sso_token(array $params)
 {
     $data = [
         'admin' => true,

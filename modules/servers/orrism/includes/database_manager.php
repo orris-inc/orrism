@@ -55,14 +55,14 @@ class OrrisDatabaseManager
                 if (!$schema) {
                     return false;
                 }
-                return $schema->hasTable('mod_orrism_users') &&
-                       $schema->hasTable('mod_orrism_nodes') &&
-                       $schema->hasTable('mod_orrism_config');
+                return $schema->hasTable('users') &&
+                       $schema->hasTable('nodes') &&
+                       $schema->hasTable('config');
             } else {
                 // Fallback to WHMCS database
-                return Capsule::schema()->hasTable('mod_orrism_users') &&
-                       Capsule::schema()->hasTable('mod_orrism_nodes') &&
-                       Capsule::schema()->hasTable('mod_orrism_config');
+                return Capsule::schema()->hasTable('users') &&
+                       Capsule::schema()->hasTable('nodes') &&
+                       Capsule::schema()->hasTable('config');
             }
         } catch (Exception $e) {
             logModuleCall('orrism', __METHOD__, [], 'Database check failed: ' . $e->getMessage());
@@ -84,11 +84,11 @@ class OrrisDatabaseManager
             
             // Use ORRISM database if configured
             if ($this->useOrrisDB) {
-                $version = OrrisDB::table('mod_orrism_config')
+                $version = OrrisDB::table('config')
                     ->where('config_key', 'database_version')
                     ->first();
             } else {
-                $version = Capsule::table('mod_orrism_config')
+                $version = Capsule::table('config')
                     ->where('config_key', 'database_version')
                     ->first();
             }
@@ -202,12 +202,12 @@ class OrrisDatabaseManager
             if (!$keepData) {
                 // Drop all tables
                 $tables = [
-                    'mod_orrism_user_usage',
-                    'mod_orrism_users', 
-                    'mod_orrism_nodes',
-                    'mod_orrism_node_groups',
-                    'mod_orrism_config',
-                    'mod_orrism_migrations'
+                    'user_usage',
+                    'users', 
+                    'nodes',
+                    'node_groups',
+                    'config',
+                    'migrations'
                 ];
                 
                 foreach ($tables as $table) {
@@ -219,11 +219,11 @@ class OrrisDatabaseManager
                 $message = 'All database tables removed successfully';
             } else {
                 // Only drop configuration tables, keep user data
-                if ($schema->hasTable('mod_orrism_config')) {
-                    $schema->drop('mod_orrism_config');
+                if ($schema->hasTable('config')) {
+                    $schema->drop('config');
                 }
-                if ($schema->hasTable('mod_orrism_migrations')) {
-                    $schema->drop('mod_orrism_migrations');
+                if ($schema->hasTable('migrations')) {
+                    $schema->drop('migrations');
                 }
                 
                 $message = 'Configuration tables removed, user data preserved';
@@ -325,8 +325,8 @@ class OrrisDatabaseManager
         }
         
         // Create node groups table
-        if (!$schema->hasTable('mod_orrism_node_groups')) {
-            $schema->create('mod_orrism_node_groups', function ($table) {
+        if (!$schema->hasTable('node_groups')) {
+            $schema->create('node_groups', function ($table) {
                 $table->increments('id');
                 $table->string('name', 100)->unique();
                 $table->text('description')->nullable();
@@ -338,8 +338,8 @@ class OrrisDatabaseManager
         }
         
         // Create nodes table
-        if (!$schema->hasTable('mod_orrism_nodes')) {
-            $schema->create('mod_orrism_nodes', function ($table) {
+        if (!$schema->hasTable('nodes')) {
+            $schema->create('nodes', function ($table) {
             $table->increments('id');
             $table->string('node_type', 40)->default('shadowsocks');
             $table->integer('group_id')->default(1);
@@ -362,8 +362,8 @@ class OrrisDatabaseManager
         }
         
         // Create users table
-        if (!$schema->hasTable('mod_orrism_users')) {
-            $schema->create('mod_orrism_users', function ($table) {
+        if (!$schema->hasTable('users')) {
+            $schema->create('users', function ($table) {
             $table->increments('id');
             $table->integer('service_id')->unique();
             $table->integer('client_id');
@@ -388,8 +388,8 @@ class OrrisDatabaseManager
         }
         
         // Create user usage table
-        if (!$schema->hasTable('mod_orrism_user_usage')) {
-            $schema->create('mod_orrism_user_usage', function ($table) {
+        if (!$schema->hasTable('user_usage')) {
+            $schema->create('user_usage', function ($table) {
             $table->increments('id');
             $table->integer('user_id');
             $table->integer('service_id');
@@ -407,14 +407,14 @@ class OrrisDatabaseManager
             $table->index('node_id');
             $table->index('recorded_at');
             
-            $table->foreign('user_id')->references('id')->on('mod_orrism_users')->onDelete('cascade');
-            $table->foreign('node_id')->references('id')->on('mod_orrism_nodes')->onDelete('cascade');
+            $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
+            $table->foreign('node_id')->references('id')->on('nodes')->onDelete('cascade');
             });
         }
         
         // Create config table
-        if (!$schema->hasTable('mod_orrism_config')) {
-            $schema->create('mod_orrism_config', function ($table) {
+        if (!$schema->hasTable('config')) {
+            $schema->create('config', function ($table) {
             $table->increments('id');
             $table->string('config_key', 100)->unique();
             $table->text('config_value')->nullable();
@@ -426,8 +426,8 @@ class OrrisDatabaseManager
         }
         
         // Create migrations table
-        if (!$schema->hasTable('mod_orrism_migrations')) {
-            $schema->create('mod_orrism_migrations', function ($table) {
+        if (!$schema->hasTable('migrations')) {
+            $schema->create('migrations', function ($table) {
             $table->increments('id');
             $table->string('version', 20)->unique();
             $table->string('description');
@@ -442,7 +442,7 @@ class OrrisDatabaseManager
     private function insertDefaultData()
     {
         // Insert default node group if not exists
-        $table = $this->useOrrisDB ? OrrisDB::table('mod_orrism_node_groups') : Capsule::table('mod_orrism_node_groups');
+        $table = $this->useOrrisDB ? OrrisDB::table('node_groups') : Capsule::table('node_groups');
         
         if (!$table->where('id', 1)->exists()) {
             $table->insert([
@@ -471,7 +471,7 @@ class OrrisDatabaseManager
         
         foreach ($defaultConfigs as $config) {
             // Check if config key exists before inserting
-            $configTable = $this->useOrrisDB ? OrrisDB::table('mod_orrism_config') : Capsule::table('mod_orrism_config');
+            $configTable = $this->useOrrisDB ? OrrisDB::table('config') : Capsule::table('config');
             
             if (!$configTable->where('config_key', $config['config_key'])->exists()) {
                 $configTable->insert(array_merge($config, [
@@ -490,7 +490,7 @@ class OrrisDatabaseManager
      */
     private function recordMigration($version, $description)
     {
-        Capsule::table('mod_orrism_migrations')->insert([
+        Capsule::table('migrations')->insert([
             'version' => $version,
             'description' => $description,
             'executed_at' => now()
@@ -537,7 +537,7 @@ class OrrisDatabaseManager
      */
     private function updateConfig($key, $value)
     {
-        Capsule::table('mod_orrism_config')
+        Capsule::table('config')
             ->where('config_key', $key)
             ->update([
                 'config_value' => $value,
@@ -601,12 +601,12 @@ class OrrisDatabaseManager
         
         // Check table status
         $tables = [
-            'mod_orrism_users',
-            'mod_orrism_nodes', 
-            'mod_orrism_user_usage',
-            'mod_orrism_node_groups',
-            'mod_orrism_config',
-            'mod_orrism_migrations'
+            'users',
+            'nodes', 
+            'user_usage',
+            'node_groups',
+            'config',
+            'migrations'
         ];
         
         foreach ($tables as $table) {
@@ -648,7 +648,7 @@ class OrrisDatabaseManager
                 return 0;
             }
             
-            $table = $this->useOrrisDB ? OrrisDB::table('mod_orrism_users') : Capsule::table('mod_orrism_users');
+            $table = $this->useOrrisDB ? OrrisDB::table('users') : Capsule::table('users');
             return $table->count();
             
         } catch (Exception $e) {
@@ -663,7 +663,7 @@ class OrrisDatabaseManager
  * 
  * @return OrrisDatabaseManager
  */
-function orrism_db_manager()
+function db_manager()
 {
     return OrrisDatabaseManager::getInstance();
 }
