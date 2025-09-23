@@ -394,6 +394,15 @@ function orrism_admin_output($vars)
                     $data = $_POST['data'] ?? [];
                     $response = $nodeManager->batchUpdateNodes($nodeIds, $batchAction, $data);
                     break;
+                    
+                case 'node_get_methods':
+                    $nodeType = $_POST['node_type'] ?? '';
+                    $methods = $nodeManager->getEncryptionMethods($nodeType);
+                    $response = [
+                        'success' => true,
+                        'methods' => $methods
+                    ];
+                    break;
             }
             
             ob_clean();

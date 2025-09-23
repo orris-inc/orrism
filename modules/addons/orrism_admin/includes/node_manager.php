@@ -595,7 +595,6 @@ class NodeManager
     {
         return [
             'shadowsocks' => 'Shadowsocks',
-            'v2ray' => 'V2Ray',
             'vless' => 'VLESS',
             'vmess' => 'VMESS',
             'trojan' => 'Trojan'
@@ -609,15 +608,10 @@ class NodeManager
     {
         $methods = [
             'shadowsocks' => [
+                'aes-128-gcm' => 'AES-128-GCM',
+                'aes-192-gcm' => 'AES-192-GCM',
                 'aes-256-gcm' => 'AES-256-GCM',
-                'aes-128-gcm' => 'AES-128-GCM',
                 'chacha20-ietf-poly1305' => 'ChaCha20-IETF-Poly1305'
-            ],
-            'v2ray' => [
-                'auto' => 'Auto',
-                'aes-128-gcm' => 'AES-128-GCM',
-                'chacha20-poly1305' => 'ChaCha20-Poly1305',
-                'none' => 'None'
             ],
             'vless' => [
                 'none' => 'None'

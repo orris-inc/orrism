@@ -509,39 +509,61 @@ function renderNodeJavaScript()
     $("#nodeType").on("change", function() {
         var nodeType = $(this).val();
         var methodSelect = $("#nodeMethod");
-        methodSelect.empty();
         
-        // Define methods for each type
-        var methods = {
-            shadowsocks: {
-                "aes-256-gcm": "AES-256-GCM",
-                "aes-128-gcm": "AES-128-GCM",
-                "chacha20-ietf-poly1305": "ChaCha20-IETF-Poly1305"
-            },
-            v2ray: {
-                "auto": "Auto",
-                "aes-128-gcm": "AES-128-GCM",
-                "chacha20-poly1305": "ChaCha20-Poly1305",
-                "none": "None"
-            },
-            vless: {
-                "none": "None"
-            },
-            vmess: {
-                "auto": "Auto",
-                "aes-128-gcm": "AES-128-GCM",
-                "chacha20-poly1305": "ChaCha20-Poly1305",
-                "none": "None"
-            },
-            trojan: {
-                "none": "None"
+        // Show loading state
+        methodSelect.empty().append($("<option>").text("Loading..."));
+        
+        // Get methods from server
+        $.post("addonmodules.php?module=orrism_admin&action=node_get_methods", {
+            node_type: nodeType
+        }, function(response) {
+            methodSelect.empty();
+            
+            if (response.success && response.methods) {
+                var hasOptions = false;
+                $.each(response.methods, function(value, label) {
+                    methodSelect.append($("<option>").attr("value", value).text(label));
+                    hasOptions = true;
+                });
+                
+                // If no methods returned, use default
+                if (!hasOptions) {
+                    methodSelect.append($("<option>").attr("value", "none").text("None"));
+                }
+            } else {
+                // Fallback to local methods
+                var methods = {
+                    shadowsocks: {
+                        "aes-128-gcm": "AES-128-GCM",
+                        "aes-192-gcm": "AES-192-GCM",
+                        "aes-256-gcm": "AES-256-GCM",
+                        "chacha20-ietf-poly1305": "ChaCha20-IETF-Poly1305"
+                    },
+                    vless: {"none": "None"},
+                    vmess: {
+                        "auto": "Auto",
+                        "aes-128-gcm": "AES-128-GCM",
+                        "chacha20-poly1305": "ChaCha20-Poly1305",
+                        "none": "None"
+                    },
+                    trojan: {"none": "None"}
+                };
+                
+                var typeMethods = methods[nodeType] || {"none": "None"};
+                $.each(typeMethods, function(value, label) {
+                    methodSelect.append($("<option>").attr("value", value).text(label));
+                });
             }
-        };
-        
-        var typeMethods = methods[nodeType] || methods.shadowsocks;
-        $.each(typeMethods, function(value, label) {
-            methodSelect.append($("<option>").attr("value", value).text(label));
+        }, "json").fail(function() {
+            // On error, provide basic default
+            methodSelect.empty();
+            methodSelect.append($("<option>").attr("value", "aes-256-gcm").text("AES-256-GCM"));
         });
+    });
+    
+    // Trigger change on page load to set initial methods
+    $(document).ready(function() {
+        $("#nodeType").trigger("change");
     });
     </script>';
 }
