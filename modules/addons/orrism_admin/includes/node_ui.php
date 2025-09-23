@@ -14,6 +14,32 @@ if (!defined('WHMCS')) {
 }
 
 /**
+ * Render navigation tabs
+ * 
+ * @param string $activeAction Current active action
+ * @return string
+ */
+function renderNavigationTabs($activeAction)
+{
+    $tabs = [
+        'dashboard' => 'Dashboard',
+        'nodes' => 'Node Management',
+        'users' => 'User Management',
+        'settings' => 'Settings'
+    ];
+    
+    $nav = '<div class="orrism-nav-tabs">';
+    foreach ($tabs as $action => $label) {
+        $isActive = ($action === $activeAction);
+        $classes = $isActive ? 'btn btn-primary btn-sm' : 'btn btn-default btn-sm';
+        $nav .= '<a href="?module=orrism_admin&action=' . $action . '" class="' . $classes . '">' . $label . '</a>';
+    }
+    $nav .= '</div>';
+    
+    return $nav;
+}
+
+/**
  * Render node management page
  * 
  * @param array $vars Module variables
