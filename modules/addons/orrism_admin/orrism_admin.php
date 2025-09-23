@@ -667,7 +667,14 @@ function renderDashboard($vars)
             $dbManager = new OrrisDatabaseManager();
             $isConnected = $dbManager->testConnection();
             $content .= '<p><i class="fa fa-database"></i> ORRISM Database: ';
-            $content .= $isConnected ? '<span class="orrism-text-success">Connected</span>' : '<span class="orrism-text-danger">Not Connected</span>';
+            if ($isConnected) {
+                $content .= '<span class="orrism-text-success">Connected</span>';
+                if (!empty($settings['database_port'])) {
+                    $content .= ' <small class="text-muted">Port: ' . htmlspecialchars($settings['database_port']) . '</small>';
+                }
+            } else {
+                $content .= '<span class="orrism-text-danger">Not Connected</span>';
+            }
             $content .= '</p>';
         } else {
             $content .= '<p><i class="fa fa-database"></i> ORRISM Database: <span class="orrism-text-warning">Manager Not Loaded</span></p>';
@@ -680,36 +687,43 @@ function renderDashboard($vars)
     $content .= '<p><i class="fa fa-server"></i> Redis Cache: ';
     if (class_exists('Redis')) {
         try {
+            $redisHost = $settings['redis_host'] ?? ($vars['redis_host'] ?? 'localhost');
+            $redisPort = isset($settings['redis_port']) ? (int)$settings['redis_port'] : (int)($vars['redis_port'] ?? 6379);
+            $redisDbIndex = isset($settings['redis_db']) ? (int)$settings['redis_db'] : (int)($vars['redis_db'] ?? 0);
+            $redisUsername = $settings['redis_username'] ?? ($vars['redis_username'] ?? '');
+            $redisPassword = $settings['redis_password'] ?? ($vars['redis_password'] ?? '');
+
             $redis = new Redis();
-            $connected = $redis->connect($vars['redis_host'] ?? 'localhost', $vars['redis_port'] ?? 6379);
+            $connected = $redis->connect($redisHost, $redisPort);
             
             if ($connected) {
-                // Handle authentication if configured
-                $authSuccess = true;
-                $redisUsername = $vars['redis_username'] ?? '';
-                $redisPassword = $vars['redis_password'] ?? '';
-                
                 try {
                     if (!empty($redisUsername) && !empty($redisPassword)) {
-                        // Redis 6.0+ ACL with username and password
-                        $authSuccess = $redis->auth([$redisUsername, $redisPassword]);
+                        if (!$redis->auth([$redisUsername, $redisPassword])) {
+                            throw new Exception('Redis authentication failed (username + password)');
+                        }
                     } elseif (!empty($redisPassword)) {
-                        // Traditional Redis auth with password only
-                        $authSuccess = $redis->auth($redisPassword);
+                        if (!$redis->auth($redisPassword)) {
+                            throw new Exception('Redis authentication failed (password only)');
+                        }
                     }
-                    
-                    if ($authSuccess) {
-                        // Test with ping
-                        $pong = $redis->ping();
-                        $content .= $pong ? '<span class="orrism-text-success">Connected</span>' : '<span class="orrism-text-warning">Connected (No Ping)</span>';
+
+                    if (!$redis->select($redisDbIndex)) {
+                        throw new Exception('Redis DB #' . $redisDbIndex . ' select failed');
+                    }
+
+                    $pong = $redis->ping();
+                    if ($pong) {
+                        $content .= '<span class="orrism-text-success">Connected</span>';
+                        $content .= ' <small class="text-muted">DB: ' . $redisDbIndex . '</small>';
                     } else {
-                        $content .= '<span class="orrism-text-danger">Auth Failed</span>';
+                        $content .= '<span class="orrism-text-warning">Connected (No Ping)</span>';
                     }
-                } catch (Exception $authException) {
-                    $content .= '<span class="orrism-text-danger">Auth Error</span>';
+                } catch (Exception $redisException) {
+                    $content .= '<span class="orrism-text-danger">' . htmlspecialchars($redisException->getMessage()) . '</span>';
+                } finally {
+                    $redis->close();
                 }
-                
-                $redis->close();
             } else {
                 $content .= '<span class="orrism-text-danger">Not Connected</span>';
             }
@@ -772,27 +786,34 @@ function renderDatabaseSetup($vars)
     try {
         $content = '<div class="orrism-admin-dashboard">';
         $content .= '<h2>Database Setup & Installation</h2>';
-    
-    // Navigation with responsive design
-    $content .= renderNavigationTabs('database');
-    
-    // Database installation form with responsive panel
-    $content .= '<div class="orrism-panel">';
-    $content .= '<div class="orrism-panel-heading">Install ShadowSocks Database</div>';
-    $content .= '<div class="orrism-panel-body">';
-    $content .= '<form method="post">';
-    $content .= '<input type="hidden" name="action" value="install_database">';
-    $content .= '<p>This will create the necessary database tables for ShadowSocks integration.</p>';
-    $content .= '<p><strong>Current Configuration:</strong></p>';
-    $content .= '<ul>';
-    $content .= '<li>Host: ' . ($vars['database_host'] ?? 'localhost') . '</li>';
-    $content .= '<li>Database: ' . ($vars['database_name'] ?? 'shadowsocks') . '</li>';
-    $content .= '<li>Username: ' . ($vars['database_user'] ?? 'shadowsocks_user') . '</li>';
-    $content .= '</ul>';
-    $content .= '<button type="submit" class="btn btn-success btn-sm">Install Database Tables</button>';
-    $content .= '</form>';
-    $content .= '</div></div>';
-    $content .= '</div>';
+
+        $storedSettings = getOrrisSettings();
+        $currentHost = $storedSettings['database_host'] ?? ($vars['database_host'] ?? 'localhost');
+        $currentPort = $storedSettings['database_port'] ?? ($vars['database_port'] ?? '3306');
+        $currentName = $storedSettings['database_name'] ?? ($vars['database_name'] ?? 'shadowsocks');
+        $currentUser = $storedSettings['database_user'] ?? ($vars['database_user'] ?? 'shadowsocks_user');
+
+        // Navigation with responsive design
+        $content .= renderNavigationTabs('database');
+
+        // Database installation form with responsive panel
+        $content .= '<div class="orrism-panel">';
+        $content .= '<div class="orrism-panel-heading">Install ShadowSocks Database</div>';
+        $content .= '<div class="orrism-panel-body">';
+        $content .= '<form method="post">';
+        $content .= '<input type="hidden" name="action" value="install_database">';
+        $content .= '<p>This will create the necessary database tables for ShadowSocks integration.</p>';
+        $content .= '<p><strong>Current Configuration:</strong></p>';
+        $content .= '<ul>';
+        $content .= '<li>Host: ' . htmlspecialchars($currentHost) . '</li>';
+        $content .= '<li>Port: ' . htmlspecialchars($currentPort) . '</li>';
+        $content .= '<li>Database: ' . htmlspecialchars($currentName) . '</li>';
+        $content .= '<li>Username: ' . htmlspecialchars($currentUser) . '</li>';
+        $content .= '</ul>';
+        $content .= '<button type="submit" class="btn btn-success btn-sm">Install Database Tables</button>';
+        $content .= '</form>';
+        $content .= '</div></div>';
+        $content .= '</div>';
     
     return $content;
     
@@ -1048,7 +1069,13 @@ function renderSettings($vars)
     $content .= '<input type="text" class="form-control" id="db_host" name="database_host" value="' . htmlspecialchars($settings['database_host'] ?? 'localhost') . '" required>';
     $content .= '<small class="form-text text-muted">Database server hostname or IP address</small>';
     $content .= '</div>';
-    
+
+    $content .= '<div class="form-group">';
+    $content .= '<label for="db_port">Database Port</label>';
+    $content .= '<input type="number" class="form-control" id="db_port" name="database_port" value="' . htmlspecialchars($settings['database_port'] ?? '3306') . '" min="1" max="65535" required>';
+    $content .= '<small class="form-text text-muted">MySQL 端口（默认 3306）</small>';
+    $content .= '</div>';
+
     $content .= '<div class="form-group">';
     $content .= '<label for="db_name">Database Name</label>';
     $content .= '<input type="text" class="form-control" id="db_name" name="database_name" value="' . htmlspecialchars($settings['database_name'] ?? 'orrism') . '" required>';
@@ -1094,7 +1121,13 @@ function renderSettings($vars)
     $content .= '<input type="text" class="form-control" id="redis_port" name="redis_port" value="' . htmlspecialchars($settings['redis_port'] ?? '6379') . '">';
     $content .= '<small class="form-text text-muted">Redis server port</small>';
     $content .= '</div>';
-    
+
+    $content .= '<div class="form-group">';
+    $content .= '<label for="redis_db">Redis Database</label>';
+    $content .= '<input type="number" class="form-control" id="redis_db" name="redis_db" value="' . htmlspecialchars($settings['redis_db'] ?? '0') . '" min="0">';
+    $content .= '<small class="form-text text-muted">Redis 数据库编号（默认 0）</small>';
+    $content .= '</div>';
+
     $content .= '<div class="form-group">';
     $content .= '<label for="redis_username">Redis Username</label>';
     $content .= '<input type="text" class="form-control" id="redis_username" name="redis_username" value="' . htmlspecialchars($settings['redis_username'] ?? '') . '">';
@@ -1152,6 +1185,7 @@ function renderSettings($vars)
         
         // Get form values
         var host = document.getElementById("db_host").value;
+        var port = document.getElementById("db_port").value;
         var name = document.getElementById("db_name").value;
         var user = document.getElementById("db_user").value;
         var pass = document.getElementById("db_pass").value;
@@ -1164,7 +1198,7 @@ function renderSettings($vars)
         // Disable button and show loading
         btn.disabled = true;
         btn.innerHTML = \'<i class="fa fa-spinner fa-spin"></i> Testing...\';
-        resultDiv.innerHTML = \'<div class="alert alert-info"><i class="fa fa-spinner fa-spin"></i> Testing connection to \' + host + \'...</div>\';
+        resultDiv.innerHTML = \'<div class="alert alert-info"><i class="fa fa-spinner fa-spin"></i> Testing connection to \' + host + ':' + (port || '3306') + \'...</div>\';
         
         // Make AJAX request
         var xhr = new XMLHttpRequest();
@@ -1220,6 +1254,14 @@ function renderSettings($vars)
                                 tableInfo = \'<span class="text-warning">⚠ No ORRISM tables found (run Database Setup)</span>\';
                             }
                             
+                            var hostInfo = 'N/A';
+                            if (response.connection_details) {
+                                hostInfo = (response.connection_details.host || 'N/A');
+                                if (response.connection_details.port) {
+                                    hostInfo += ':' + response.connection_details.port;
+                                }
+                            }
+
                             var performanceInfo = response.execution_time_ms ? 
                                 \'<small class="text-muted">Connection time: \' + response.execution_time_ms + \'ms</small>\' : \'\';
                             
@@ -1227,7 +1269,7 @@ function renderSettings($vars)
                                 \'<i class="fa fa-check-circle"></i> <strong>Connection Successful!</strong><br>\' +
                                 \'Database: \' + (response.database || "N/A") + \'<br>\' +
                                 \'Server: \' + (response.server || "N/A") + \'<br>\' +
-                                \'Host: \' + (response.connection_details && response.connection_details.host || "N/A") + \'<br>\' +
+                                \'Host: \' + hostInfo + \'<br>\' +
                                 tableInfo + \'<br>\' +
                                 performanceInfo +
                                 \'</div>\';
@@ -1350,6 +1392,7 @@ function renderSettings($vars)
         
         // Prepare and send the request with detailed logging
         var params = "test_host=" + encodeURIComponent(host) + 
+                    "&test_port=" + encodeURIComponent(port || '3306') + 
                     "&test_name=" + encodeURIComponent(name) + 
                     "&test_user=" + encodeURIComponent(user) + 
                     "&test_pass=" + encodeURIComponent(pass);
@@ -1361,6 +1404,7 @@ function renderSettings($vars)
         console.log("ORRISM DB Test - Timeout:", xhr.timeout + "ms");
         console.log("ORRISM DB Test - Parameters:", {
             host: host,
+            port: port,
             name: name,
             user: user,
             pass: pass ? "[HIDDEN]" : "[EMPTY]"
@@ -1385,6 +1429,7 @@ function renderSettings($vars)
         var resultDiv = document.getElementById("redisTestResult");
         var host = document.getElementById("redis_host").value;
         var port = document.getElementById("redis_port").value;
+        var db = document.getElementById("redis_db").value;
         var username = document.getElementById("redis_username").value;
         var password = document.getElementById("redis_password").value;
         
@@ -1420,6 +1465,7 @@ function renderSettings($vars)
                             infoHtml = \'<br><small class="text-muted">\' +
                                 \'Version: \' + (response.info.version || "Unknown") + \'<br>\' +
                                 \'Auth: \' + (response.auth_method || "Unknown") + \'<br>\' +
+                                (typeof response.database !== 'undefined' ? \'DB: \' + response.database + \'<br>\' : \'\') +
                                 (response.info.connected_clients ? \'Clients: \' + response.info.connected_clients + \'<br>\' : \'\') +
                                 (response.info.memory_usage ? \'Memory: \' + response.info.memory_usage : \'\') +
                                 \'</small>\';
@@ -1466,6 +1512,7 @@ function renderSettings($vars)
         
         var params = "redis_host=" + encodeURIComponent(host) + 
                     "&redis_port=" + encodeURIComponent(port) + 
+                    "&redis_db=" + encodeURIComponent(db || 0) + 
                     "&redis_username=" + encodeURIComponent(username) + 
                     "&redis_password=" + encodeURIComponent(password);
         
@@ -1474,6 +1521,7 @@ function renderSettings($vars)
         console.log("Redis Test - Parameters:", {
             host: host,
             port: port,
+            db: db,
             username: username,
             password: password ? "[HIDDEN]" : "[EMPTY]"
         });
@@ -1567,6 +1615,8 @@ function handleSettingsSave($vars)
     switch ($settingsType) {
         case 'database':
             $settings['database_host'] = $_POST['database_host'] ?? 'localhost';
+            $dbPort = $_POST['database_port'] ?? '3306';
+            $settings['database_port'] = is_numeric($dbPort) ? (string) max(1, min(65535, (int) $dbPort)) : '3306';
             $settings['database_name'] = $_POST['database_name'] ?? 'orrism';
             $settings['database_user'] = $_POST['database_user'] ?? '';
             
@@ -1579,6 +1629,8 @@ function handleSettingsSave($vars)
         case 'redis':
             $settings['redis_host'] = $_POST['redis_host'] ?? 'localhost';
             $settings['redis_port'] = $_POST['redis_port'] ?? '6379';
+            $redisDb = $_POST['redis_db'] ?? '0';
+            $settings['redis_db'] = is_numeric($redisDb) ? (string) max(0, (int) $redisDb) : '0';
             $settings['redis_username'] = $_POST['redis_username'] ?? '';
             $settings['redis_password'] = $_POST['redis_password'] ?? '';
             break;
@@ -1645,6 +1697,10 @@ function testDatabaseConnection()
         safeLogModuleCall('orrism', 'testDatabaseConnection_start', $_POST, 'Starting database connection test');
         
         $host = $_POST['test_host'] ?? '';
+        $port = isset($_POST['test_port']) && is_numeric($_POST['test_port']) ? (int) $_POST['test_port'] : 3306;
+        if ($port <= 0 || $port > 65535) {
+            $port = 3306;
+        }
         $name = $_POST['test_name'] ?? '';
         $user = $_POST['test_user'] ?? '';
         $pass = $_POST['test_pass'] ?? '';
@@ -1669,7 +1725,7 @@ function testDatabaseConnection()
         }
         
         // Enhanced connection attempt with detailed logging
-        $dsn = "mysql:host=$host;dbname=$name;charset=utf8";
+        $dsn = "mysql:host=$host;port=$port;dbname=$name;charset=utf8";
         $options = [
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
@@ -1679,7 +1735,7 @@ function testDatabaseConnection()
         ];
         
         safeLogModuleCall('orrism', 'testDatabaseConnection_attempt', [
-            'dsn' => "mysql:host=$host;dbname=$name;charset=utf8",
+            'dsn' => "mysql:host=$host;port=$port;dbname=$name;charset=utf8",
             'user' => $user,
             'options' => array_keys($options)
         ], 'Attempting PDO connection');
@@ -1697,7 +1753,8 @@ function testDatabaseConnection()
         safeLogModuleCall('orrism', 'testDatabaseConnection_connected', [
             'server_version' => $serverVersion,
             'server_info' => $serverInfo,
-            'connection_status' => $connectionStatus
+            'connection_status' => $connectionStatus,
+            'port' => $port
         ], 'Database connection established');
         
         // Check if ORRISM tables exist (core tables without prefix)
@@ -1725,6 +1782,7 @@ function testDatabaseConnection()
             'execution_time_ms' => $executionTime,
             'connection_details' => [
                 'host' => $host,
+                'port' => $port,
                 'charset' => 'utf8',
                 'connection_status' => $connectionStatus
             ]
@@ -1745,10 +1803,11 @@ function testDatabaseConnection()
             'file' => $e->getFile(),
             'line' => $e->getLine(),
             'host' => $host,
+            'port' => $port,
             'database' => $name,
             'user' => $user,
             'execution_time_ms' => $executionTime,
-            'dsn_used' => "mysql:host=$host;dbname=$name;charset=utf8"
+            'dsn_used' => "mysql:host=$host;port=$port;dbname=$name;charset=utf8"
         ];
         safeLogModuleCall('orrism', 'testDatabaseConnection_pdo_error', $errorDetails, 'PDO Exception occurred during connection test');
         
@@ -1763,13 +1822,13 @@ function testDatabaseConnection()
             $userMessage = "Database '$name' does not exist. Please check the database name.";
             $errorCategory = 'database_not_found';
         } elseif (strpos($rawMessage, 'Connection refused') !== false || strpos($rawMessage, 'No such host') !== false) {
-            $userMessage = "Cannot connect to server at '$host'. Please check the hostname and ensure MySQL is running.";
+            $userMessage = "Cannot connect to server at '$host:$port'. Please check the hostname/port and ensure MySQL is running.";
             $errorCategory = 'connection_refused';
         } elseif (strpos($rawMessage, 'timed out') !== false || strpos($rawMessage, 'timeout') !== false) {
             $userMessage = "Connection timeout. The server may be overloaded or unreachable.";
             $errorCategory = 'timeout';
         } elseif (strpos($rawMessage, 'No route to host') !== false) {
-            $userMessage = "Network error: Cannot reach host '$host'.";
+            $userMessage = "Network error: Cannot reach host '$host:$port'.";
             $errorCategory = 'network_error';
         } else {
             $userMessage = 'Database connection failed: ' . substr($rawMessage, 0, 150) . (strlen($rawMessage) > 150 ? '...' : '');
@@ -1787,6 +1846,7 @@ function testDatabaseConnection()
                 'error_location' => $e->getFile() . ':' . $e->getLine(),
                 'connection_params' => [
                     'host' => $host,
+                    'port' => $port,
                     'database' => $name,
                     'user' => $user
                 ]
@@ -1833,6 +1893,7 @@ function testRedisConnectionHandler()
         $port = $_POST['redis_port'] ?? 6379;
         $username = $_POST['redis_username'] ?? '';
         $password = $_POST['redis_password'] ?? '';
+        $dbIndex = isset($_POST['redis_db']) ? max(0, (int) $_POST['redis_db']) : 0;
         
         if (!class_exists('Redis')) {
             return [
@@ -1875,6 +1936,25 @@ function testRedisConnectionHandler()
                 }
             }
             
+            // Select target database if available
+            try {
+                $selectResult = $redis->select($dbIndex);
+            } catch (Exception $selectException) {
+                $redis->close();
+                return [
+                    'success' => false,
+                    'message' => 'Redis select database #' . $dbIndex . ' error: ' . $selectException->getMessage()
+                ];
+            }
+
+            if (!$selectResult) {
+                $redis->close();
+                return [
+                    'success' => false,
+                    'message' => 'Redis select database #' . $dbIndex . ' failed'
+                ];
+            }
+
             // Try to ping Redis to verify the connection is working
             $pong = $redis->ping();
             
@@ -1903,6 +1983,7 @@ function testRedisConnectionHandler()
                     'success' => true,
                     'message' => 'Redis connected successfully',
                     'info' => $info,
+                    'database' => $dbIndex,
                     'auth_method' => !empty($username) ? 'ACL (username + password)' : (!empty($password) ? 'Password only' : 'No authentication')
                 ];
             } else {
