@@ -43,7 +43,91 @@ function orrism_admin_config()
         'version' => '2.0',
         'author' => 'ORRISM Development Team',
         'language' => 'english',
-        'fields' => []  // No configuration fields needed during activation
+        'fields' => [
+            // Database Configuration
+            'database_host' => [
+                'FriendlyName' => 'ORRISM Database Host',
+                'Type' => 'text',
+                'Size' => '25',
+                'Default' => 'localhost',
+                'Description' => 'ORRISM database server hostname'
+            ],
+            'database_port' => [
+                'FriendlyName' => 'Database Port',
+                'Type' => 'text',
+                'Size' => '10',
+                'Default' => '3306',
+                'Description' => 'Database server port'
+            ],
+            'database_name' => [
+                'FriendlyName' => 'Database Name',
+                'Type' => 'text',
+                'Size' => '25',
+                'Default' => 'orrism',
+                'Description' => 'ORRISM database name'
+            ],
+            'database_user' => [
+                'FriendlyName' => 'Database User',
+                'Type' => 'text',
+                'Size' => '25',
+                'Description' => 'Database username'
+            ],
+            'database_password' => [
+                'FriendlyName' => 'Database Password',
+                'Type' => 'password',
+                'Size' => '25',
+                'Description' => 'Database password'
+            ],
+            
+            // Redis Configuration
+            'redis_host' => [
+                'FriendlyName' => 'Redis Host',
+                'Type' => 'text',
+                'Size' => '25',
+                'Default' => 'localhost',
+                'Description' => 'Redis server hostname'
+            ],
+            'redis_port' => [
+                'FriendlyName' => 'Redis Port',
+                'Type' => 'text',
+                'Size' => '10',
+                'Default' => '6379',
+                'Description' => 'Redis server port'
+            ],
+            'redis_db' => [
+                'FriendlyName' => 'Redis Database',
+                'Type' => 'text',
+                'Size' => '5',
+                'Default' => '0',
+                'Description' => 'Redis database number (0-15)'
+            ],
+            'redis_username' => [
+                'FriendlyName' => 'Redis Username',
+                'Type' => 'text',
+                'Size' => '25',
+                'Description' => 'Redis username (Redis 6.0+ ACL)'
+            ],
+            'redis_password' => [
+                'FriendlyName' => 'Redis Password',
+                'Type' => 'password',
+                'Size' => '25',
+                'Description' => 'Redis authentication password'
+            ],
+            
+            // General Settings
+            'enable_traffic_log' => [
+                'FriendlyName' => 'Enable Traffic Logging',
+                'Type' => 'yesno',
+                'Description' => 'Enable detailed traffic usage logging'
+            ],
+            'traffic_reset_day' => [
+                'FriendlyName' => 'Traffic Reset Day',
+                'Type' => 'text',
+                'Size' => '5',
+                'Default' => '1',
+                'Description' => 'Day of month to reset traffic (1-28)'
+            ]
+        ]
     ];
 }
 

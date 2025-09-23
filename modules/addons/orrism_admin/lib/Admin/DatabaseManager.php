@@ -464,7 +464,7 @@ class DatabaseManager
                 }
                 
                 // Select database
-                $dbIndex = isset($params['database']) ? max(0, (int)$params['database']) : 0;
+                $dbIndex = isset($params['db']) ? max(0, (int)$params['db']) : 0;
                 $selectResult = $redis->select($dbIndex);
                 
                 if (!$selectResult) {
