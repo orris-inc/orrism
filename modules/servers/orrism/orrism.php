@@ -41,7 +41,7 @@ foreach ($dependencies as $name => $path) {
 function MetaData()
 {
     return [
-        'DisplayName' => 'ORRISM ShadowSocks Manager',
+        'DisplayName' => 'ORRISM Manager',
         'APIVersion' => '1.1',
         'RequiresServer' => true,
         'DefaultNonSSLPort' => '80',
@@ -63,7 +63,7 @@ function ConfigOptions()
             'Type' => 'text',
             'Size' => '25',
             'Default' => 'shadowsocks',
-            'Description' => 'Database name for ShadowSocks data'
+            'Description' => 'Database name for ORRISM service data'
         ],
         'reset_strategy' => [
             'Type' => 'dropdown',

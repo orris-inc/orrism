@@ -1,6 +1,6 @@
 <?php
 /**
- * ORRIS - ShadowSocks Manager Module for WHMCS
+ * ORRISM Manager Module for WHMCS
  *
  * @package    WHMCS
  * @author     ORRIS Development Team
@@ -242,4 +242,3 @@ class SubscriptionService {
 // 创建服务并处理请求
 $service = new SubscriptionService();
 $service->handleRequest();
-

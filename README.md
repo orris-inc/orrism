@@ -1,6 +1,6 @@
-# ORRISM - WHMCS ShadowSocks 管理模块
+# ORRISM - WHMCS 管理模块
 
-专业的 WHMCS 双模块架构，提供完整的 ShadowSocks 服务管理解决方案。
+专业的 WHMCS 双模块架构，提供完整的 ORRISM 服务管理解决方案。
 
 ## 🏗️ 模块架构
 
@@ -35,7 +35,7 @@ cp -r modules/addons/orrism_admin/ /path/to/whmcs/modules/addons/
 
 2. **配置 Server Module**
    - `System Settings` → `Products/Services` → `Servers`
-   - 添加服务器，选择 "ORRISM ShadowSocks Manager"
+   - 添加服务器，选择 "ORRISM Manager"
 
 ### 3. 初始化系统
 - 访问 `Addons` → `ORRISM Administration`

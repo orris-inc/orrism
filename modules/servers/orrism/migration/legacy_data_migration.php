@@ -1,7 +1,7 @@
 <?php
 /**
  * ORRISM Legacy Data Migration Script
- * Migrates data from old ShadowSocks database to new WHMCS-integrated structure
+ * Migrates data from the legacy ORRISM database to the WHMCS-integrated structure
  *
  * @package    WHMCS
  * @author     ORRISM Development Team

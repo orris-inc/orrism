@@ -7,7 +7,7 @@ The ORRISM WHMCS Module has been completely refactored to follow WHMCS standards
 ## Key Changes in Version 2.0
 
 ### Database Architecture
-- **Before**: Required separate ShadowSocks database with manual configuration
+- **Before**: Required separate ORRISM database with manual configuration
 - **After**: Uses WHMCS native database with `mod_orrism_` table prefix
 - **Benefits**: Better integration, automatic backups, simplified maintenance
 
@@ -49,14 +49,14 @@ Upload the `orrism` folder to your WHMCS installation:
 
 1. Go to **Setup → Products/Services → Servers**
 2. Add a new server or edit existing one
-3. Set **Type** to "ORRISM ShadowSocks Manager"
+3. Set **Type** to "ORRISM Manager"
 4. Configure server details (these are now used for API endpoints, not database)
 
 ### 4. Create Product/Service
 
 1. Go to **Setup → Products/Services → Products/Services**
 2. Create a new product
-3. Set **Module** to "ORRISM ShadowSocks Manager"
+3. Set **Module** to "ORRISM Manager"
 4. Configure module settings:
    - **Reset Strategy**: How traffic should be reset
    - **Node List**: Available node IDs (deprecated in v2.0)
@@ -76,7 +76,7 @@ Stores user accounts linked to WHMCS services
 - Tracks bandwidth usage and limits
 
 ### mod_orrism_nodes
-Stores ShadowSocks node configurations
+Stores ORRISM node configurations
 - Replaces old `nodes` table
 - Enhanced with status tracking and grouping
 - Better organization and management
@@ -111,8 +111,8 @@ If you're upgrading from the old version that used external databases:
 
 ### 1. Backup Your Data
 ```bash
-# Backup your legacy ShadowSocks database
-mysqldump -u username -p old_shadowsocks_db > backup.sql
+# Backup your legacy ORRISM database
+mysqldump -u username -p old_orrism_db > backup.sql
 
 # Backup WHMCS database
 mysqldump -u username -p whmcs_db > whmcs_backup.sql
@@ -129,7 +129,7 @@ require_once '/path/to/whmcs/modules/servers/orrism/migration/legacy_data_migrat
 // Configure legacy database connection
 $legacyConfig = [
     'mysql_host' => 'localhost',
-    'mysql_db' => 'old_shadowsocks_db',
+    'mysql_db' => 'old_orrism_db',
     'mysql_user' => 'username',
     'mysql_pass' => 'password',
     'mysql_port' => 3306

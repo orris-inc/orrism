@@ -18,7 +18,7 @@ require_once __DIR__ . '/../helper.php';
 
 /**
  * Unified Database Manager
- * Handles both legacy shadowsocks database and WHMCS database operations
+ * Handles both legacy ORRISM database and WHMCS database operations
  */
 class OrrisDatabase
 {
@@ -47,7 +47,7 @@ class OrrisDatabase
     }
 
     /**
-     * Get legacy shadowsocks database connection
+     * Get legacy ORRISM database connection
      */
     public function getLegacyConnection(): PDO
     {

@@ -20,7 +20,7 @@ CREATE TABLE mod_orrism_admin_settings (
 ---
 
 ### 🗄️ **点击 "Install Database Tables" 时**
-在 Database Setup 页面点击安装按钮时，会创建**完整的 ShadowSocks 业务表**：
+在 Database Setup 页面点击安装按钮时，会创建**完整的 ORRISM 业务表**：
 
 #### 1. `mod_orrism_node_groups` - 节点组
 ```sql
@@ -122,7 +122,7 @@ CREATE TABLE mod_orrism_migrations (
 1. 进入 `Addons > ORRISM Administration`
 2. 点击 "Database Setup" 标签
 3. 点击 "Install Database Tables" 按钮
-4. **自动创建**: 所有 ShadowSocks 业务表（6个表）
+4. **自动创建**: 所有 ORRISM 业务表（6个表）
 
 ---
 

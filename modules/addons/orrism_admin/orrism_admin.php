@@ -1,7 +1,7 @@
 <?php
 /**
  * ORRISM Administration Module for WHMCS
- * Centralized configuration and management for ORRISM ShadowSocks system
+ * Centralized configuration and management for the ORRISM system
  *
  * @package    WHMCS
  * @author     ORRISM Development Team
@@ -75,7 +75,7 @@ function orrism_admin_config()
 {
     return [
         'name' => 'ORRISM Administration',
-        'description' => 'Centralized management for ORRISM ShadowSocks system including database setup, node management, and user administration.',
+        'description' => 'Centralized management for the ORRISM system including database setup, node management, and user administration.',
         'version' => '2.0',
         'author' => 'ORRISM Development Team',
         'language' => 'english',
@@ -750,10 +750,10 @@ function renderDashboard($vars)
             $content .= '<p>Active Services: <strong>' . $totalServices . '</strong></p>';
         }
         
-        // Try to get ShadowSocks stats if database is connected
+        // Try to get ORRISM stats if database is connected
         if (isset($isConnected) && $isConnected && isset($dbManager)) {
             $userCount = $dbManager->getUserCount();
-            $content .= '<p>ShadowSocks Users: <strong>' . $userCount . '</strong></p>';
+            $content .= '<p>ORRISM Users: <strong>' . $userCount . '</strong></p>';
         }
     } catch (Exception $e) {
         $content .= '<p class="orrism-text-muted">Statistics unavailable: ' . $e->getMessage() . '</p>';
@@ -790,19 +790,19 @@ function renderDatabaseSetup($vars)
         $storedSettings = getOrrisSettings();
         $currentHost = $storedSettings['database_host'] ?? ($vars['database_host'] ?? 'localhost');
         $currentPort = $storedSettings['database_port'] ?? ($vars['database_port'] ?? '3306');
-        $currentName = $storedSettings['database_name'] ?? ($vars['database_name'] ?? 'shadowsocks');
-        $currentUser = $storedSettings['database_user'] ?? ($vars['database_user'] ?? 'shadowsocks_user');
+        $currentName = $storedSettings['database_name'] ?? ($vars['database_name'] ?? 'orrism');
+        $currentUser = $storedSettings['database_user'] ?? ($vars['database_user'] ?? 'orrism_user');
 
         // Navigation with responsive design
         $content .= renderNavigationTabs('database');
 
         // Database installation form with responsive panel
         $content .= '<div class="orrism-panel">';
-        $content .= '<div class="orrism-panel-heading">Install ShadowSocks Database</div>';
+        $content .= '<div class="orrism-panel-heading">Install ORRISM Database</div>';
         $content .= '<div class="orrism-panel-body">';
         $content .= '<form method="post">';
         $content .= '<input type="hidden" name="action" value="install_database">';
-        $content .= '<p>This will create the necessary database tables for ShadowSocks integration.</p>';
+        $content .= '<p>This will create the necessary database tables for ORRISM integration.</p>';
         $content .= '<p><strong>Current Configuration:</strong></p>';
         $content .= '<ul>';
         $content .= '<li>Host: ' . htmlspecialchars($currentHost) . '</li>';

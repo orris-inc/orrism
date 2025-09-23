@@ -44,7 +44,7 @@ orrism/
 ### Addon Module (`modules/addons/orrism_admin/`)
 **目的**: 系统级配置和管理
 - ✅ **独立管理入口**: 在 WHMCS `Addons` 菜单显示
-- ✅ **数据库管理**: 安装、配置 ShadowSocks 数据库
+- ✅ **数据库管理**: 安装、配置 ORRISM 数据库
 - ✅ **节点管理**: 添加、编辑、删除节点
 - ✅ **用户管理**: 批量用户操作
 - ✅ **系统监控**: Redis、数据库连接状态
@@ -54,7 +54,7 @@ orrism/
 **目的**: 服务生命周期管理
 - ✅ **服务管理**: Create, Suspend, Unsuspend, Terminate
 - ✅ **用户操作**: 重置流量、重置 UUID、查看使用情况
-- ✅ **API 接口**: 与 ShadowSocks 服务器通信
+- ✅ **API 接口**: 与 ORRISM 服务通信
 - ✅ **配置生成**: Checkmate 订阅链接
 - ✅ **数据同步**: 用户数据与 SS 数据库同步
 

@@ -1,6 +1,6 @@
 <?php
 /**
- * ORRIS - ShadowSocks Manager Module for WHMCS
+ * ORRISM Manager Module for WHMCS
  *
  * @package    WHMCS
  * @author     ORRIS Development Team

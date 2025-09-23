@@ -637,7 +637,7 @@ class OrrisDatabaseManager
     }
     
     /**
-     * Get count of users in ShadowSocks database
+     * Get count of users in the ORRISM database
      * 
      * @return int Number of users
      */

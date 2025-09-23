@@ -45,7 +45,7 @@ ORRISM 现在分为两个独立的 WHMCS 模块：
 
 2. **配置 Server Module**
    - 进入 `System Settings > Products/Services > Servers`
-   - 添加新服务器，选择 "ORRISM ShadowSocks Manager" 类型
+   - 添加新服务器，选择 "ORRISM Manager" 类型
 
 ### 第三步：初始化系统
 
