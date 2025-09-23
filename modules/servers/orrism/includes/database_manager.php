@@ -407,8 +407,8 @@ class OrrisDatabaseManager
             $table->index('node_id');
             $table->index('recorded_at');
             
-            $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
-            $table->foreign('node_id')->references('id')->on('nodes')->onDelete('cascade');
+            // Foreign key constraints removed for MySQL compatibility
+            // Data integrity will be maintained through application logic
             });
         }
         
