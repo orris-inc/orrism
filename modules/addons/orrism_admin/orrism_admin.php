@@ -64,54 +64,7 @@ function orrism_admin_config()
         'version' => '2.0',
         'author' => 'ORRISM Development Team',
         'language' => 'english',
-        'fields' => [
-            'database_host' => [
-                'FriendlyName' => 'ShadowSocks Database Host',
-                'Type' => 'text',
-                'Size' => '25',
-                'Default' => 'localhost',
-                'Description' => 'Database server hostname or IP'
-            ],
-            'database_name' => [
-                'FriendlyName' => 'ShadowSocks Database Name',
-                'Type' => 'text',
-                'Size' => '25',
-                'Default' => 'shadowsocks',
-                'Description' => 'Database name for ShadowSocks data'
-            ],
-            'database_user' => [
-                'FriendlyName' => 'Database Username',
-                'Type' => 'text',
-                'Size' => '25',
-                'Default' => 'shadowsocks_user',
-                'Description' => 'Database username'
-            ],
-            'database_password' => [
-                'FriendlyName' => 'Database Password',
-                'Type' => 'password',
-                'Size' => '25',
-                'Description' => 'Database password'
-            ],
-            'redis_host' => [
-                'FriendlyName' => 'Redis Host',
-                'Type' => 'text',
-                'Size' => '25',
-                'Default' => 'localhost',
-                'Description' => 'Redis server for caching'
-            ],
-            'redis_port' => [
-                'FriendlyName' => 'Redis Port',
-                'Type' => 'text',
-                'Size' => '10',
-                'Default' => '6379',
-                'Description' => 'Redis server port'
-            ],
-            'auto_sync' => [
-                'FriendlyName' => 'Auto Sync Enabled',
-                'Type' => 'yesno',
-                'Description' => 'Automatically sync user data with ShadowSocks database'
-            ]
-        ]
+        'fields' => []  // No configuration fields needed during activation
     ];
 }
 
@@ -373,6 +326,19 @@ function orrism_admin_output($vars)
         
         $action = isset($_GET['action']) ? $_GET['action'] : 'dashboard';
         
+        // Handle AJAX test connection requests
+        if ($action === 'test_connection' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+            header('Content-Type: application/json');
+            echo json_encode(testDatabaseConnection());
+            exit;
+        }
+        
+        if ($action === 'test_redis' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+            header('Content-Type: application/json');
+            echo json_encode(testRedisConnectionHandler());
+            exit;
+        }
+        
         // Handle POST requests
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $output .= handlePostRequest($vars);
@@ -451,6 +417,8 @@ function handlePostRequest($vars)
             return handleUserSync($vars);
         case 'reset_traffic':
             return handleTrafficReset($vars);
+        case 'save_settings':
+            return handleSettingsSave($vars);
         default:
             return renderDashboard($vars);
     }
@@ -487,17 +455,24 @@ function renderDashboard($vars)
     
     // Check database connection
     try {
-        if (class_exists('OrrisDatabaseManager')) {
+        // First check if database is configured
+        $settings = getOrrisSettings();
+        if (empty($settings['database_host']) || empty($settings['database_name'])) {
+            $content .= '<p><i class="fa fa-database"></i> ORRISM Database: ';
+            $content .= '<span class="orrism-text-warning">Not Configured</span> ';
+            $content .= '<a href="?module=orrism_admin&action=settings" class="btn btn-xs btn-info">Configure Now</a>';
+            $content .= '</p>';
+        } elseif (class_exists('OrrisDatabaseManager')) {
             $dbManager = new OrrisDatabaseManager();
             $isConnected = $dbManager->testConnection();
-            $content .= '<p><i class="fa fa-database"></i> ShadowSocks Database: ';
+            $content .= '<p><i class="fa fa-database"></i> ORRISM Database: ';
             $content .= $isConnected ? '<span class="orrism-text-success">Connected</span>' : '<span class="orrism-text-danger">Not Connected</span>';
             $content .= '</p>';
         } else {
-            $content .= '<p><i class="fa fa-database"></i> ShadowSocks Database: <span class="orrism-text-warning">Manager Not Loaded</span></p>';
+            $content .= '<p><i class="fa fa-database"></i> ORRISM Database: <span class="orrism-text-warning">Manager Not Loaded</span></p>';
         }
     } catch (Exception $e) {
-        $content .= '<p><i class="fa fa-database"></i> ShadowSocks Database: <span class="orrism-text-danger">Error: ' . $e->getMessage() . '</span></p>';
+        $content .= '<p><i class="fa fa-database"></i> ORRISM Database: <span class="orrism-text-danger">Error: ' . $e->getMessage() . '</span></p>';
     }
     
     // Check Redis connection
@@ -838,7 +813,212 @@ function renderSettings($vars)
     $content .= '<a href="?module=orrism_admin&action=settings" class="btn btn-primary btn-sm">Settings</a>';
     $content .= '</div>';
     
-    $content .= '<div class="orrism-alert orrism-alert-info">Advanced settings configuration will be implemented here.</div>';
+    // Get current settings from database
+    $settings = getOrrisSettings();
+    
+    // Settings form
+    $content .= '<div class="row">';
+    
+    // Database Configuration
+    $content .= '<div class="col-xs-12 col-sm-12 col-md-6 col-lg-6">';
+    $content .= '<div class="orrism-panel">';
+    $content .= '<div class="orrism-panel-heading">Database Configuration</div>';
+    $content .= '<div class="orrism-panel-body">';
+    $content .= '<form method="post" action="?module=orrism_admin&action=settings">';
+    $content .= '<input type="hidden" name="action" value="save_settings">';
+    $content .= '<input type="hidden" name="settings_type" value="database">';
+    
+    $content .= '<div class="form-group">';
+    $content .= '<label for="db_host">Database Host</label>';
+    $content .= '<input type="text" class="form-control" id="db_host" name="database_host" value="' . htmlspecialchars($settings['database_host'] ?? 'localhost') . '" required>';
+    $content .= '<small class="form-text text-muted">Database server hostname or IP address</small>';
+    $content .= '</div>';
+    
+    $content .= '<div class="form-group">';
+    $content .= '<label for="db_name">Database Name</label>';
+    $content .= '<input type="text" class="form-control" id="db_name" name="database_name" value="' . htmlspecialchars($settings['database_name'] ?? 'orrism') . '" required>';
+    $content .= '<small class="form-text text-muted">Database name for ORRISM data</small>';
+    $content .= '</div>';
+    
+    $content .= '<div class="form-group">';
+    $content .= '<label for="db_user">Database Username</label>';
+    $content .= '<input type="text" class="form-control" id="db_user" name="database_user" value="' . htmlspecialchars($settings['database_user'] ?? '') . '" required>';
+    $content .= '<small class="form-text text-muted">Database username</small>';
+    $content .= '</div>';
+    
+    $content .= '<div class="form-group">';
+    $content .= '<label for="db_pass">Database Password</label>';
+    $content .= '<input type="password" class="form-control" id="db_pass" name="database_password" value="' . htmlspecialchars($settings['database_password'] ?? '') . '">';
+    $content .= '<small class="form-text text-muted">Database password (leave blank to keep current)</small>';
+    $content .= '</div>';
+    
+    $content .= '<button type="submit" class="btn btn-primary btn-sm">Save Database Settings</button>';
+    $content .= ' <button type="button" class="btn btn-info btn-sm" onclick="testDatabaseConnection()" id="testDbBtn">';
+    $content .= '<i class="fa fa-plug"></i> Test Connection</button>';
+    $content .= '</form>';
+    $content .= '<div id="testResult" class="mt-3"></div>';
+    $content .= '</div></div></div>';
+    
+    // Redis Configuration
+    $content .= '<div class="col-xs-12 col-sm-12 col-md-6 col-lg-6">';
+    $content .= '<div class="orrism-panel">';
+    $content .= '<div class="orrism-panel-heading">Cache Configuration (Optional)</div>';
+    $content .= '<div class="orrism-panel-body">';
+    $content .= '<form method="post" action="?module=orrism_admin&action=settings">';
+    $content .= '<input type="hidden" name="action" value="save_settings">';
+    $content .= '<input type="hidden" name="settings_type" value="redis">';
+    
+    $content .= '<div class="form-group">';
+    $content .= '<label for="redis_host">Redis Host</label>';
+    $content .= '<input type="text" class="form-control" id="redis_host" name="redis_host" value="' . htmlspecialchars($settings['redis_host'] ?? 'localhost') . '">';
+    $content .= '<small class="form-text text-muted">Redis server hostname (optional)</small>';
+    $content .= '</div>';
+    
+    $content .= '<div class="form-group">';
+    $content .= '<label for="redis_port">Redis Port</label>';
+    $content .= '<input type="text" class="form-control" id="redis_port" name="redis_port" value="' . htmlspecialchars($settings['redis_port'] ?? '6379') . '">';
+    $content .= '<small class="form-text text-muted">Redis server port</small>';
+    $content .= '</div>';
+    
+    $content .= '<button type="submit" class="btn btn-primary btn-sm">Save Redis Settings</button>';
+    $content .= ' <button type="button" class="btn btn-info btn-sm" onclick="testRedisConnection()">';
+    $content .= '<i class="fa fa-server"></i> Test Redis</button>';
+    $content .= '</form>';
+    $content .= '<div id="redisTestResult" class="mt-3"></div>';
+    $content .= '</div></div></div>';
+    
+    $content .= '</div>';  // End row
+    
+    // General Settings
+    $content .= '<div class="orrism-panel">';
+    $content .= '<div class="orrism-panel-heading">General Settings</div>';
+    $content .= '<div class="orrism-panel-body">';
+    $content .= '<form method="post" action="?module=orrism_admin&action=settings">';
+    $content .= '<input type="hidden" name="action" value="save_settings">';
+    $content .= '<input type="hidden" name="settings_type" value="general">';
+    
+    $content .= '<div class="form-check">';
+    $content .= '<input type="checkbox" class="form-check-input" id="auto_sync" name="auto_sync" value="1" ' . ($settings['auto_sync'] ? 'checked' : '') . '>';
+    $content .= '<label class="form-check-label" for="auto_sync">Enable Automatic User Synchronization</label>';
+    $content .= '</div>';
+    
+    $content .= '<div class="form-check">';
+    $content .= '<input type="checkbox" class="form-check-input" id="auto_reset" name="auto_reset_traffic" value="1" ' . ($settings['auto_reset_traffic'] ? 'checked' : '') . '>';
+    $content .= '<label class="form-check-label" for="auto_reset">Enable Automatic Traffic Reset</label>';
+    $content .= '</div>';
+    
+    $content .= '<div class="form-group mt-3">';
+    $content .= '<label for="reset_day">Traffic Reset Day (1-28)</label>';
+    $content .= '<input type="number" class="form-control" id="reset_day" name="reset_day" min="1" max="28" value="' . htmlspecialchars($settings['reset_day'] ?? '1') . '">';
+    $content .= '<small class="form-text text-muted">Day of month for traffic reset</small>';
+    $content .= '</div>';
+    
+    $content .= '<button type="submit" class="btn btn-primary btn-sm">Save General Settings</button>';
+    $content .= '</form>';
+    $content .= '</div></div>';
+    
+    // Add JavaScript for testing connection
+    $content .= '<script>
+    function testDatabaseConnection() {
+        var btn = document.getElementById("testDbBtn");
+        var resultDiv = document.getElementById("testResult");
+        
+        // Get form values
+        var host = document.getElementById("db_host").value;
+        var name = document.getElementById("db_name").value;
+        var user = document.getElementById("db_user").value;
+        var pass = document.getElementById("db_pass").value;
+        
+        if (!host || !name || !user) {
+            resultDiv.innerHTML = \'<div class="alert alert-warning"><i class="fa fa-exclamation-triangle"></i> Please fill in all required database fields</div>\';
+            return;
+        }
+        
+        // Disable button and show loading
+        btn.disabled = true;
+        btn.innerHTML = \'<i class="fa fa-spinner fa-spin"></i> Testing...\';
+        resultDiv.innerHTML = \'<div class="alert alert-info"><i class="fa fa-spinner fa-spin"></i> Testing connection to \' + host + \'...</div>\';
+        
+        // Make AJAX request
+        var xhr = new XMLHttpRequest();
+        xhr.open("POST", "addonmodules.php?module=orrism_admin&action=test_connection", true);
+        xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+        
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === 4) {
+                btn.disabled = false;
+                btn.innerHTML = \'<i class="fa fa-plug"></i> Test Connection\';
+                
+                if (xhr.status === 200) {
+                    try {
+                        var response = JSON.parse(xhr.responseText);
+                        if (response.success) {
+                            resultDiv.innerHTML = \'<div class="alert alert-success">\' +
+                                \'<i class="fa fa-check-circle"></i> <strong>Connection Successful!</strong><br>\' +
+                                \'Database: \' + response.database + \'<br>\' +
+                                \'Server: \' + response.server + \'<br>\' +
+                                (response.tables_exist ? \'<span class="text-info">ORRISM tables detected</span>\' : \'<span class="text-warning">No ORRISM tables found (run Database Setup)</span>\') +
+                                \'</div>\';
+                        } else {
+                            resultDiv.innerHTML = \'<div class="alert alert-danger">\' +
+                                \'<i class="fa fa-times-circle"></i> <strong>Connection Failed</strong><br>\' +
+                                response.message +
+                                \'</div>\';
+                        }
+                    } catch (e) {
+                        resultDiv.innerHTML = \'<div class="alert alert-danger"><i class="fa fa-times-circle"></i> Error parsing response</div>\';
+                    }
+                } else {
+                    resultDiv.innerHTML = \'<div class="alert alert-danger"><i class="fa fa-times-circle"></i> Request failed. Please try again.</div>\';
+                }
+            }
+        };
+        
+        // Send the request
+        var params = "test_host=" + encodeURIComponent(host) + 
+                    "&test_name=" + encodeURIComponent(name) + 
+                    "&test_user=" + encodeURIComponent(user) + 
+                    "&test_pass=" + encodeURIComponent(pass);
+        xhr.send(params);
+    }
+    
+    // Test Redis connection
+    function testRedisConnection() {
+        var resultDiv = document.getElementById("redisTestResult");
+        var host = document.getElementById("redis_host").value;
+        var port = document.getElementById("redis_port").value;
+        
+        if (!host || !port) {
+            resultDiv.innerHTML = \'<div class="alert alert-warning"><i class="fa fa-exclamation-triangle"></i> Please fill in Redis host and port</div>\';
+            return;
+        }
+        
+        resultDiv.innerHTML = \'<div class="alert alert-info"><i class="fa fa-spinner fa-spin"></i> Testing Redis connection...</div>\';
+        
+        // Make AJAX request
+        var xhr = new XMLHttpRequest();
+        xhr.open("POST", "addonmodules.php?module=orrism_admin&action=test_redis", true);
+        xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+        
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === 4 && xhr.status === 200) {
+                try {
+                    var response = JSON.parse(xhr.responseText);
+                    if (response.success) {
+                        resultDiv.innerHTML = \'<div class="alert alert-success"><i class="fa fa-check-circle"></i> Redis connected successfully!</div>\';
+                    } else {
+                        resultDiv.innerHTML = \'<div class="alert alert-danger"><i class="fa fa-times-circle"></i> \' + response.message + \'</div>\';
+                    }
+                } catch (e) {
+                    resultDiv.innerHTML = \'<div class="alert alert-danger"><i class="fa fa-times-circle"></i> Error parsing response</div>\';
+                }
+            }
+        };
+        
+        xhr.send("redis_host=" + encodeURIComponent(host) + "&redis_port=" + encodeURIComponent(port));
+    }
+    </script>';
+    
     $content .= '</div>';
     
     return $content;
@@ -846,6 +1026,104 @@ function renderSettings($vars)
     } catch (Exception $e) {
         return '<div class="orrism-alert orrism-alert-danger">Settings Error: ' . htmlspecialchars($e->getMessage()) . '</div>';
     }
+}
+
+/**
+ * Get ORRISM settings from database
+ * 
+ * @return array
+ */
+function getOrrisSettings()
+{
+    try {
+        $pdo = Capsule::connection()->getPdo();
+        $stmt = $pdo->query("SELECT setting_key, setting_value FROM mod_orrism_admin_settings");
+        $settings = [];
+        
+        while ($row = $stmt->fetch()) {
+            $settings[$row['setting_key']] = $row['setting_value'];
+        }
+        
+        return $settings;
+    } catch (Exception $e) {
+        return [];
+    }
+}
+
+/**
+ * Save ORRISM settings to database
+ * 
+ * @param array $settings Settings to save
+ * @return bool
+ */
+function saveOrrisSettings($settings)
+{
+    try {
+        $pdo = Capsule::connection()->getPdo();
+        
+        foreach ($settings as $key => $value) {
+            $stmt = $pdo->prepare("
+                INSERT INTO mod_orrism_admin_settings (setting_key, setting_value, updated_at) 
+                VALUES (?, ?, NOW())
+                ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_at = NOW()
+            ");
+            $stmt->execute([$key, $value]);
+        }
+        
+        // Clear cached configuration in OrrisDB
+        if (class_exists('OrrisDB')) {
+            OrrisDB::reset();
+        }
+        
+        return true;
+    } catch (Exception $e) {
+        logModuleCall('orrism', __FUNCTION__, $settings, 'Error: ' . $e->getMessage());
+        return false;
+    }
+}
+
+/**
+ * Handle settings save request
+ * 
+ * @param array $vars Module variables
+ * @return string
+ */
+function handleSettingsSave($vars)
+{
+    $settingsType = $_POST['settings_type'] ?? '';
+    $settings = [];
+    
+    switch ($settingsType) {
+        case 'database':
+            $settings['database_host'] = $_POST['database_host'] ?? 'localhost';
+            $settings['database_name'] = $_POST['database_name'] ?? 'orrism';
+            $settings['database_user'] = $_POST['database_user'] ?? '';
+            
+            // Only update password if provided
+            if (!empty($_POST['database_password'])) {
+                $settings['database_password'] = $_POST['database_password'];
+            }
+            break;
+            
+        case 'redis':
+            $settings['redis_host'] = $_POST['redis_host'] ?? 'localhost';
+            $settings['redis_port'] = $_POST['redis_port'] ?? '6379';
+            break;
+            
+        case 'general':
+            $settings['auto_sync'] = isset($_POST['auto_sync']) ? '1' : '0';
+            $settings['auto_reset_traffic'] = isset($_POST['auto_reset_traffic']) ? '1' : '0';
+            $settings['reset_day'] = $_POST['reset_day'] ?? '1';
+            break;
+    }
+    
+    if (saveOrrisSettings($settings)) {
+        $message = '<div class="orrism-alert orrism-alert-success">Settings saved successfully!</div>';
+    } else {
+        $message = '<div class="orrism-alert orrism-alert-danger">Failed to save settings.</div>';
+    }
+    
+    return $message . renderSettings($vars);
 }
 
 /**
@@ -877,5 +1155,125 @@ function handleTrafficReset($vars)
         return $message . renderTrafficManagement($vars);
     } catch (Exception $e) {
         return '<div class="orrism-alert orrism-alert-danger">Traffic Reset Error: ' . htmlspecialchars($e->getMessage()) . '</div>' . renderTrafficManagement($vars);
+    }
+}
+
+/**
+ * Test database connection
+ * 
+ * @return array JSON response
+ */
+function testDatabaseConnection()
+{
+    try {
+        $host = $_POST['test_host'] ?? '';
+        $name = $_POST['test_name'] ?? '';
+        $user = $_POST['test_user'] ?? '';
+        $pass = $_POST['test_pass'] ?? '';
+        
+        if (empty($host) || empty($name) || empty($user)) {
+            return [
+                'success' => false,
+                'message' => 'Missing required parameters'
+            ];
+        }
+        
+        // Try to connect using PDO
+        $dsn = "mysql:host=$host;dbname=$name;charset=utf8";
+        $options = [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            PDO::ATTR_EMULATE_PREPARES => false,
+            PDO::ATTR_TIMEOUT => 5  // 5 second timeout
+        ];
+        
+        $pdo = new PDO($dsn, $user, $pass, $options);
+        
+        // Get server info
+        $serverInfo = $pdo->getAttribute(PDO::ATTR_SERVER_VERSION);
+        
+        // Check if ORRISM tables exist
+        $stmt = $pdo->query("SHOW TABLES LIKE 'mod_orrism_%'");
+        $tablesExist = $stmt->rowCount() > 0;
+        
+        return [
+            'success' => true,
+            'database' => $name,
+            'server' => "MySQL $serverInfo",
+            'tables_exist' => $tablesExist
+        ];
+        
+    } catch (PDOException $e) {
+        $message = $e->getMessage();
+        
+        // Clean up error message for user
+        if (strpos($message, 'Access denied') !== false) {
+            $message = 'Access denied. Please check username and password.';
+        } elseif (strpos($message, 'Unknown database') !== false) {
+            $message = "Database '$name' does not exist.";
+        } elseif (strpos($message, 'Connection refused') !== false || strpos($message, 'No such host') !== false) {
+            $message = "Cannot connect to server at '$host'.";
+        } else {
+            // Generic database error, log the full error
+            logModuleCall('orrism', __FUNCTION__, ['host' => $host, 'database' => $name], 'Error: ' . $message);
+            $message = 'Database connection failed: ' . substr($message, 0, 100);
+        }
+        
+        return [
+            'success' => false,
+            'message' => $message
+        ];
+    } catch (Exception $e) {
+        return [
+            'success' => false,
+            'message' => 'Unexpected error: ' . $e->getMessage()
+        ];
+    }
+}
+
+/**
+ * Test Redis connection
+ * 
+ * @return array JSON response
+ */
+function testRedisConnectionHandler()
+{
+    try {
+        $host = $_POST['redis_host'] ?? 'localhost';
+        $port = $_POST['redis_port'] ?? 6379;
+        
+        if (!class_exists('Redis')) {
+            return [
+                'success' => false,
+                'message' => 'Redis PHP extension is not installed'
+            ];
+        }
+        
+        $redis = new Redis();
+        $connected = @$redis->connect($host, (int)$port, 2); // 2 second timeout
+        
+        if ($connected) {
+            // Try to ping Redis
+            $pong = $redis->ping();
+            $redis->close();
+            
+            if ($pong) {
+                return [
+                    'success' => true,
+                    'message' => 'Redis connected successfully'
+                ];
+            }
+        }
+        
+        return [
+            'success' => false,
+            'message' => "Cannot connect to Redis at $host:$port"
+        ];
+        
+    } catch (Exception $e) {
+        return [
+            'success' => false,
+            'message' => 'Redis connection error: ' . $e->getMessage()
+        ];
     }
 }
