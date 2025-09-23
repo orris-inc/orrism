@@ -46,12 +46,12 @@ class OrrisDatabase
     }
     
     /**
-     * Create or update user account
+     * Create or update service account
      * 
      * @param array $params Module parameters
-     * @return array Result with user data or error
+     * @return array Result with service data or error
      */
-    public function createUser(array $params)
+    public function createService(array $params)
     {
         try {
             $serviceid = $params['serviceid'];
@@ -63,23 +63,37 @@ class OrrisDatabase
             // Generate UUID
             $uuid = $this->generateUUID();
             
-            // Check if user already exists
-            $existingUser = Capsule::table('users')
+            // Check if service already exists
+            $existingService = Capsule::table('services')
                 ->where('service_id', $serviceid)
                 ->first();
                 
-            if ($existingUser) {
+            if ($existingService) {
                 return [
                     'success' => false,
-                    'message' => 'User account already exists for this service'
+                    'message' => 'Service account already exists'
                 ];
             }
             
-            // Create new user
-            $userId = Capsule::table('users')->insertGetId([
+            // Get WHMCS client info
+            $client = Capsule::table('tblclients')
+                ->where('id', $clientid)
+                ->first();
+            
+            // Generate service credentials
+            $serviceUsername = 'orrism_' . $serviceid;
+            $servicePassword = $this->generatePassword();
+            
+            // Create new service
+            $serviceId = Capsule::table('services')->insertGetId([
                 'service_id' => $serviceid,
                 'client_id' => $clientid,
-                'email' => $email,
+                'domain' => $params['domain'] ?? null,
+                'product_id' => $params['pid'] ?? null,
+                'whmcs_username' => $client->email ?? $email,
+                'whmcs_email' => $email,
+                'service_username' => $serviceUsername,
+                'service_password' => password_hash($servicePassword, PASSWORD_DEFAULT),
                 'uuid' => $uuid,
                 'upload_bytes' => 0,
                 'download_bytes' => 0,
@@ -91,21 +105,25 @@ class OrrisDatabase
                 'updated_at' => date('Y-m-d H:i:s')
             ]);
             
-            // Update WHMCS service with UUID
+            // Update WHMCS service with credentials
             $this->saveCustomField($serviceid, 'uuid', $uuid);
+            $this->saveCustomField($serviceid, 'service_username', $serviceUsername);
+            $this->saveCustomField($serviceid, 'service_password', $servicePassword);
             
             return [
                 'success' => true,
-                'user_id' => $userId,
+                'service_id' => $serviceId,
                 'uuid' => $uuid,
-                'message' => 'User account created successfully'
+                'username' => $serviceUsername,
+                'password' => $servicePassword,
+                'message' => 'Service account created successfully'
             ];
             
         } catch (Exception $e) {
             logModuleCall('orrism', __METHOD__, $params, 'Error: ' . $e->getMessage());
             return [
                 'success' => false,
-                'message' => 'Failed to create user: ' . $e->getMessage()
+                'message' => 'Failed to create service: ' . $e->getMessage()
             ];
         }
     }
@@ -154,15 +172,15 @@ class OrrisDatabase
     }
     
     /**
-     * Delete user account
+     * Delete service account
      * 
      * @param int $serviceid Service ID
      * @return bool Success status
      */
-    public function deleteUser($serviceid)
+    public function deleteService($serviceid)
     {
         try {
-            return Capsule::table('users')
+            return Capsule::table('services')
                 ->where('service_id', $serviceid)
                 ->delete() > 0;
                 
@@ -173,7 +191,7 @@ class OrrisDatabase
     }
     
     /**
-     * Reset user traffic
+     * Reset service traffic
      * 
      * @param int $serviceid Service ID
      * @return bool Success status
@@ -204,12 +222,14 @@ class OrrisDatabase
      * @param int $serviceid Service ID
      * @return array Result with new UUID or error
      */
-    public function regenerateUUID($serviceid)
+    public function regenerateCredentials($serviceid)
     {
         try {
             $newUuid = $this->generateUUID();
+            $newPassword = $this->generatePassword();
+            $newUsername = 'orrism_' . $serviceid;
             
-            $updated = Capsule::table('users')
+            $updated = Capsule::table('services')
                 ->where('service_id', $serviceid)
                 ->update([
                     'uuid' => $newUuid,
@@ -254,7 +274,7 @@ class OrrisDatabase
             $bandwidth = ($params['configoption4'] ?: 100) * 1024 * 1024 * 1024; // Convert GB to bytes
             $nodeGroup = $params['configoption7'] ?: 1;
             
-            $updated = Capsule::table('users')
+            $updated = Capsule::table('services')
                 ->where('service_id', $serviceid)
                 ->update([
                     'bandwidth_limit' => $bandwidth,
@@ -271,21 +291,21 @@ class OrrisDatabase
     }
     
     /**
-     * Get user usage statistics
+     * Get service usage statistics
      * 
      * @param int $serviceid Service ID
      * @return array Usage statistics
      */
-    public function getUserUsage($serviceid)
+    public function getServiceUsage($serviceid)
     {
         try {
-            $user = $this->getUser($serviceid);
-            if (!$user) {
+            $service = $this->getService($serviceid);
+            if (!$service) {
                 return [];
             }
             
-            $totalGB = round($user->bandwidth_limit / 1024 / 1024 / 1024, 2);
-            $usedGB = round(($user->upload_bytes + $user->download_bytes) / 1024 / 1024 / 1024, 2);
+            $totalGB = round($service->bandwidth_limit / 1024 / 1024 / 1024, 2);
+            $usedGB = round(($service->upload_bytes + $service->download_bytes) / 1024 / 1024 / 1024, 2);
             $remainingGB = max(0, $totalGB - $usedGB);
             $usagePercent = $totalGB > 0 ? round($usedGB / $totalGB * 100, 2) : 0;
             
@@ -294,10 +314,10 @@ class OrrisDatabase
                 'used_bandwidth' => $usedGB,
                 'remaining_bandwidth' => $remainingGB,
                 'usage_percent' => $usagePercent,
-                'upload_gb' => round($user->upload_bytes / 1024 / 1024 / 1024, 2),
-                'download_gb' => round($user->download_bytes / 1024 / 1024 / 1024, 2),
-                'status' => $user->status,
-                'last_reset' => $user->last_reset_at
+                'upload_gb' => round($service->upload_bytes / 1024 / 1024 / 1024, 2),
+                'download_gb' => round($service->download_bytes / 1024 / 1024 / 1024, 2),
+                'status' => $service->status,
+                'last_reset' => $service->last_reset_at
             ];
             
         } catch (Exception $e) {
@@ -391,6 +411,25 @@ class OrrisDatabase
             mt_rand(0, 0x3fff) | 0x8000,
             mt_rand(0, 0xffff), mt_rand(0, 0xffff), mt_rand(0, 0xffff)
         );
+    }
+    
+    /**
+     * Generate a secure password
+     * 
+     * @param int $length Password length
+     * @return string Generated password
+     */
+    private function generatePassword($length = 16)
+    {
+        $chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
+        $password = '';
+        $max = strlen($chars) - 1;
+        
+        for ($i = 0; $i < $length; $i++) {
+            $password .= $chars[random_int(0, $max)];
+        }
+        
+        return $password;
     }
     
     /**

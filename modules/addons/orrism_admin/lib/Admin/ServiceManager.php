@@ -90,6 +90,26 @@ class ServiceManager
     }
     
     /**
+     * Get server list (alias for getServiceList)
+     * 
+     * @param array $filters Filter options
+     * @return array Server list with pagination info
+     */
+    public function getServerList($filters = [])
+    {
+        // Get services and format them as servers
+        $result = $this->getServiceList($filters);
+        
+        // Rename key for consistency
+        if (isset($result['services'])) {
+            $result['servers'] = $result['services'];
+            unset($result['services']);
+        }
+        
+        return $result;
+    }
+    
+    /**
      * Synchronize WHMCS users with ORRISM system
      * 
      * @param array $options Synchronization options
@@ -324,8 +344,8 @@ class ServiceManager
             
             return [
                 'success' => true,
-                'message' => "Traffic reset successful for $affectedRows users",
-                'affected_users' => $affectedRows
+                'message' => "Traffic reset successful for $affectedRows services",
+                'affected_services' => $affectedRows
             ];
             
         } catch (Exception $e) {
@@ -338,12 +358,12 @@ class ServiceManager
     }
     
     /**
-     * Get user list with filtering and pagination
+     * Get service list with filtering and pagination
      * 
      * @param array $filters Filter options
-     * @return array User list with pagination info
+     * @return array Service list with pagination info
      */
-    public function getUserList($filters = [])
+    public function getServiceList($filters = [])
     {
         try {
             if (!$this->orrisDb) {
@@ -361,7 +381,7 @@ class ServiceManager
             $sortOrder = strtoupper($filters['sort_order'] ?? 'DESC');
             
             // Validate sort parameters
-            $allowedSortColumns = ['id', 'email', 'created_at', 'upload_bytes', 'download_bytes', 'status'];
+            $allowedSortColumns = ['id', 'whmcs_email', 'service_username', 'created_at', 'upload_bytes', 'download_bytes', 'status'];
             if (!in_array($sortBy, $allowedSortColumns)) {
                 $sortBy = 'id';
             }
@@ -375,7 +395,10 @@ class ServiceManager
                     s.id,
                     s.service_id,
                     s.client_id,
-                    s.email,
+                    s.domain,
+                    s.whmcs_username,
+                    s.whmcs_email,
+                    s.service_username,
                     s.uuid,
                     s.upload_bytes,
                     s.download_bytes,
@@ -408,10 +431,12 @@ class ServiceManager
             
             // Apply filters
             if (!empty($search)) {
-                $searchCondition = " AND (s.email LIKE ? OR s.uuid LIKE ?)";
+                $searchCondition = " AND (s.whmcs_email LIKE ? OR s.service_username LIKE ? OR s.uuid LIKE ? OR s.domain LIKE ?)";
                 $query .= $searchCondition;
                 $countQuery .= $searchCondition;
                 $searchParam = "%$search%";
+                $params[] = $searchParam;
+                $params[] = $searchParam;
                 $params[] = $searchParam;
                 $params[] = $searchParam;
             }
@@ -458,7 +483,7 @@ class ServiceManager
             
             return [
                 'success' => true,
-                'users' => $users,
+                'services' => $users,
                 'pagination' => [
                     'current_page' => $page,
                     'total_pages' => $totalPages,
@@ -470,11 +495,11 @@ class ServiceManager
             ];
             
         } catch (Exception $e) {
-            $this->logError('Failed to get user list', $e);
+            $this->logError('Failed to get service list', $e);
             return [
                 'success' => false,
-                'message' => 'Failed to get user list: ' . $e->getMessage(),
-                'users' => [],
+                'message' => 'Failed to get service list: ' . $e->getMessage(),
+                'services' => [],
                 'pagination' => [
                     'current_page' => 1,
                     'total_pages' => 0,
@@ -486,27 +511,27 @@ class ServiceManager
     }
     
     /**
-     * Get user statistics
+     * Get service statistics
      * 
-     * @return array User statistics
+     * @return array Service statistics
      */
-    public function getUserStatistics()
+    public function getServiceStatistics()
     {
         try {
             if (!$this->orrisDb) {
                 return [
-                    'total_users' => 0,
-                    'active_users' => 0,
-                    'suspended_users' => 0,
+                    'total_services' => 0,
+                    'active_services' => 0,
+                    'suspended_services' => 0,
                     'total_traffic' => 0
                 ];
             }
             
             $stmt = $this->orrisDb->query("
                 SELECT 
-                    COUNT(*) as total_users,
-                    SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active_users,
-                    SUM(CASE WHEN status = 'suspended' THEN 1 ELSE 0 END) as suspended_users,
+                    COUNT(*) as total_services,
+                    SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active_services,
+                    SUM(CASE WHEN status = 'suspended' THEN 1 ELSE 0 END) as suspended_services,
                     SUM(upload_bytes + download_bytes) as total_traffic
                 FROM services
             ");
@@ -514,32 +539,32 @@ class ServiceManager
             $stats = $stmt->fetch();
             
             return [
-                'total_users' => (int)$stats['total_users'],
-                'active_users' => (int)$stats['active_users'],
-                'suspended_users' => (int)$stats['suspended_users'],
+                'total_services' => (int)$stats['total_services'],
+                'active_services' => (int)$stats['active_services'],
+                'suspended_services' => (int)$stats['suspended_services'],
                 'total_traffic' => $this->formatBytes($stats['total_traffic'] ?? 0),
                 'total_traffic_bytes' => (int)($stats['total_traffic'] ?? 0)
             ];
             
         } catch (Exception $e) {
-            $this->logError('Failed to get user statistics', $e);
+            $this->logError('Failed to get service statistics', $e);
             return [
-                'total_users' => 0,
-                'active_users' => 0,
-                'suspended_users' => 0,
+                'total_services' => 0,
+                'active_services' => 0,
+                'suspended_services' => 0,
                 'total_traffic' => '0 B'
             ];
         }
     }
     
     /**
-     * Update user status
+     * Update service status
      * 
-     * @param int $userId User ID
+     * @param int $serviceId Service ID
      * @param string $status New status
      * @return array Operation result
      */
-    public function updateUserStatus($userId, $status)
+    public function updateServiceStatus($serviceId, $status)
     {
         try {
             if (!$this->orrisDb) {
@@ -557,19 +582,19 @@ class ServiceManager
                 WHERE id = ?
             ");
             
-            $stmt->execute([$status, $userId]);
+            $stmt->execute([$status, $serviceId]);
             
             if ($stmt->rowCount() === 0) {
-                throw new Exception('User not found');
+                throw new Exception('Service not found');
             }
             
             return [
                 'success' => true,
-                'message' => "User status updated to $status"
+                'message' => "Service status updated to $status"
             ];
             
         } catch (Exception $e) {
-            $this->logError('Failed to update user status', $e);
+            $this->logError('Failed to update service status', $e);
             return [
                 'success' => false,
                 'message' => 'Failed to update status: ' . $e->getMessage()

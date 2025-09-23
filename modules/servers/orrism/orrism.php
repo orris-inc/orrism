@@ -151,15 +151,15 @@ function CreateAccount(array $params)
         logModuleCall('orrism', __FUNCTION__, $params, '', '');
         
         $db = db();
-        $result = $db->createUser($params);
+        $result = $db->createService($params);
         
         if (!$result['success']) {
             return 'Error: ' . $result['message'];
         }
         
-        // Update WHMCS service with credentials
-        $username = $params['username'] ?: 'user' . $params['serviceid'];
-        $password = $params['password'] ?: generate_password(12);
+        // Update WHMCS service with generated credentials
+        $username = $result['username'];
+        $password = $result['password'];
         $domain = $params['domain'] ?: $params['customfields']['domain'] ?: '';
         
         Capsule::table('tblhosting')
@@ -190,7 +190,7 @@ function SuspendAccount(array $params)
         logModuleCall('orrism', __FUNCTION__, $params, '', '');
         
         $db = db();
-        $success = $db->updateUserStatus($params['serviceid'], 'suspended');
+        $success = $db->updateServiceStatus($params['serviceid'], 'suspended');
         
         if (!$success) {
             throw new Exception('User not found in database');
@@ -216,7 +216,7 @@ function UnsuspendAccount(array $params)
         logModuleCall('orrism', __FUNCTION__, $params, '', '');
         
         $db = db();
-        $success = $db->updateUserStatus($params['serviceid'], 'active');
+        $success = $db->updateServiceStatus($params['serviceid'], 'active');
         
         if (!$success) {
             throw new Exception('User not found in database');
@@ -242,7 +242,7 @@ function TerminateAccount(array $params)
         logModuleCall('orrism', __FUNCTION__, $params, '', '');
         
         $db = db();
-        $success = $db->deleteUser($params['serviceid']);
+        $success = $db->deleteService($params['serviceid']);
         
         if (!$success) {
             // User might already be deleted, consider it success
@@ -334,7 +334,7 @@ function Renew(array $params)
         // Handle traffic reset based on strategy
         if ($resetStrategy > 0) {
             $db = db();
-            $success = $db->resetUserTraffic($serviceid);
+            $success = $db->resetServiceTraffic($serviceid);
             
             if (!$success) {
                 logModuleCall('orrism', __FUNCTION__, $params, 'Failed to reset traffic for renewal');
@@ -375,7 +375,7 @@ function ResetTraffic(array $params)
         logModuleCall('orrism', __FUNCTION__, $params, '', '');
         
         $db = db();
-        $success = $db->resetUserTraffic($params['serviceid']);
+        $success = $db->resetServiceTraffic($params['serviceid']);
         
         if (!$success) {
             throw new Exception('User not found in database');
@@ -462,8 +462,8 @@ function ClientArea(array $params)
         $db = db();
         
         // Get user data
-        $user = $db->getUser($serviceid);
-        if (!$user) {
+        $service = $db->getService($serviceid);
+        if (!$service) {
             return [
                 'templatefile' => 'error',
                 'vars' => ['errormessage' => 'Account not found']
@@ -471,13 +471,13 @@ function ClientArea(array $params)
         }
         
         // Get usage statistics
-        $usage = $db->getUserUsage($serviceid);
+        $usage = $db->getServiceUsage($serviceid);
         
-        // Get nodes for user's group
-        $nodes = $db->getNodesForGroup($user->node_group_id);
+        // Get nodes for service's group
+        $nodes = $db->getNodesForGroup($service->node_group_id);
         
         // Generate subscription URL
-        $subscriptionUrl = generate_subscription_url($params, $user->uuid);
+        $subscriptionUrl = generate_subscription_url($params, $service->uuid);
         
         return [
             'templatefile' => 'clientarea',
@@ -536,7 +536,7 @@ function ClientResetTraffic(array $params)
         }
         
         $db = db();
-        $success = $db->resetUserTraffic($params['serviceid']);
+        $success = $db->resetServiceTraffic($params['serviceid']);
         
         if (!$success) {
             throw new Exception('User not found in database');
@@ -568,24 +568,25 @@ function AdminServicesTabFields(array $params)
 {
     try {
         $db = db();
-        $user = $db->getUser($params['serviceid']);
+        $service = $db->getService($params['serviceid']);
         
-        if (!$user) {
+        if (!$service) {
             return [];
         }
         
-        $usage = $db->getUserUsage($params['serviceid']);
+        $usage = $db->getServiceUsage($params['serviceid']);
         
         return [
-            'UUID' => $user->uuid,
-            'Email' => $user->email,
+            'UUID' => $service->uuid,
+            'Service Username' => $service->service_username,
+            'WHMCS Account' => $service->whmcs_email,
             'Total Bandwidth' => $usage['total_bandwidth'] . ' GB',
             'Used Bandwidth' => $usage['used_bandwidth'] . ' GB',
             'Upload' => $usage['upload_gb'] . ' GB',
             'Download' => $usage['download_gb'] . ' GB',
             'Usage Percentage' => $usage['usage_percent'] . '%',
-            'Status' => ucfirst($user->status),
-            'Node Group' => $user->node_group_id,
+            'Status' => ucfirst($service->status),
+            'Node Group' => $service->node_group_id,
             'Created' => $user->created_at,
             'Updated' => $user->updated_at,
             'Last Reset' => $user->last_reset_at ?: 'Never'
@@ -629,7 +630,7 @@ function ServiceSingleSignOn(array $params)
             ->where('pid', $serviceid)
             ->first();
             
-        if (!$user) {
+        if (!$service) {
             return ['success' => false, 'errorMsg' => 'User not found'];
         }
         

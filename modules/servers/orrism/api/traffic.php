@@ -115,12 +115,12 @@ function orris_check_traffic() {
     try {
         $conn = orris_get_db_connection();
         
-        // Disable users who have exceeded their bandwidth and are currently enabled
-        $stmt_disable = $conn->prepare('UPDATE user SET enable = 0 WHERE (u + d) > bandwidth AND enable = 1');
+        // Disable services that have exceeded their bandwidth and are currently enabled
+        $stmt_disable = $conn->prepare('UPDATE services SET status = "suspended" WHERE (upload_bytes + download_bytes) > bandwidth_limit AND status = "active"');
         $stmt_disable->execute();
         
-        // Enable users who are below their bandwidth limit and are currently disabled
-        $stmt_enable = $conn->prepare('UPDATE user SET enable = 1 WHERE (u + d) < bandwidth AND enable = 0');
+        // Enable services that are below their bandwidth limit and are currently disabled
+        $stmt_enable = $conn->prepare('UPDATE services SET status = "active" WHERE (upload_bytes + download_bytes) < bandwidth_limit AND status = "suspended"');
         $stmt_enable->execute();
         
         return true;

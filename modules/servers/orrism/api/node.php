@@ -46,25 +46,25 @@ function orris_get_node($node_id) {
 }
 
 /**
- * 获取分组下所有用户
+ * 获取分组下所有服务
  * @param int $group_id
  * @return array
  */
-function orris_get_group_id_user($group_id) {
+function orris_get_group_id_services($group_id) {
     try {
         $conn = orris_get_db_connection();
-        $action = $conn->prepare('SELECT * FROM user WHERE `node_group_id` = :node_group_id AND `enable` = 1');
+        $action = $conn->prepare('SELECT * FROM services WHERE `node_group_id` = :node_group_id AND `status` = "active"');
         $action->bindValue(':node_group_id', $group_id);
         $action->execute();
         return $action->fetchAll(PDO::FETCH_ASSOC);
     } catch (Exception $e) {
-        error_log("Error getting users by group: " . $e->getMessage());
+        error_log("Error getting services by group: " . $e->getMessage());
         return [];
     }
 }
 
 /**
- * 获取用户节点列表
+ * 获取服务节点列表
  * @param int $sid
  * @return array
  */

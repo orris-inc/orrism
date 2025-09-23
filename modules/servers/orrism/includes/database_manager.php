@@ -365,23 +365,42 @@ class OrrisDatabaseManager
         if (!$schema->hasTable('services')) {
             $schema->create('services', function ($table) {
             $table->increments('id');
-            $table->integer('service_id')->unique();
-            $table->integer('client_id');
-            $table->string('email');
-            $table->string('uuid', 36)->unique();
-            $table->string('password_hash')->nullable();
+            
+            // WHMCS Service Relationship
+            $table->integer('service_id')->unique()->comment('WHMCS tblhosting.id');
+            $table->integer('client_id')->comment('WHMCS tblclients.userid');
+            $table->string('domain', 255)->nullable()->comment('Service identifier/domain');
+            $table->integer('product_id')->nullable()->comment('WHMCS tblproducts.id');
+            
+            // WHMCS Account Info (who owns this service)
+            $table->string('whmcs_username', 100)->nullable()->comment('WHMCS account username');
+            $table->string('whmcs_email')->comment('WHMCS account email');
+            
+            // ORRISM Service Credentials
+            $table->string('service_username', 100)->unique()->comment('ORRISM service login username');
+            $table->string('service_password', 255)->nullable()->comment('ORRISM service password (encrypted)');
+            $table->string('uuid', 36)->unique()->comment('ORRISM service UUID');
+            
+            // Traffic and Limits
             $table->bigInteger('upload_bytes')->default(0);
             $table->bigInteger('download_bytes')->default(0);
-            $table->bigInteger('bandwidth_limit')->default(0);
-            $table->integer('node_group_id')->default(1);
+            $table->bigInteger('bandwidth_limit')->default(0)->comment('Monthly bandwidth limit in bytes');
+            $table->integer('node_group_id')->default(1)->comment('Allowed node group');
+            
+            // Service Status
             $table->enum('status', ['active', 'suspended', 'terminated'])->default('active');
             $table->boolean('need_reset')->default(true);
-            $table->timestamp('last_reset_at')->nullable();
-            $table->timestamp('expired_at')->nullable();
+            
+            // Dates
+            $table->timestamp('last_reset_at')->nullable()->comment('Last traffic reset');
+            $table->timestamp('expired_at')->nullable()->comment('Service expiry date');
             $table->timestamps();
             
+            // Indexes
+            $table->index('service_id');
             $table->index('client_id');
-            $table->index('email');
+            $table->index('whmcs_email');
+            $table->index('service_username');
             $table->index('status');
             $table->index(['node_group_id', 'status']);
             });
@@ -599,9 +618,9 @@ class OrrisDatabaseManager
         
         // Check table status
         $tables = [
-            'users',
+            'services',
             'nodes', 
-            'user_usage',
+            'service_usage',
             'node_groups',
             'config',
             'migrations'
@@ -635,18 +654,18 @@ class OrrisDatabaseManager
     }
     
     /**
-     * Get count of users in the ORRISM database
+     * Get count of services in the ORRISM database
      * 
-     * @return int Number of users
+     * @return int Number of services
      */
-    public function getUserCount()
+    public function getServiceCount()
     {
         try {
             if (!$this->isInstalled()) {
                 return 0;
             }
             
-            $table = $this->useOrrisDB ? OrrisDB::table('users') : Capsule::table('users');
+            $table = $this->useOrrisDB ? OrrisDB::table('services') : Capsule::table('services');
             return $table->count();
             
         } catch (Exception $e) {
@@ -654,6 +673,7 @@ class OrrisDatabaseManager
             return 0;
         }
     }
+    
 }
 
 /**
