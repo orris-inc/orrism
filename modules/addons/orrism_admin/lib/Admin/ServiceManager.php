@@ -1,7 +1,7 @@
 <?php
 /**
- * ORRISM User Manager
- * Handles user synchronization, traffic management, and user operations
+ * ORRISM Service Manager
+ * Handles service management, traffic management, and service operations
  *
  * @package    WHMCS\Module\Addon\OrrisAdmin\Admin
  * @author     ORRISM Development Team
@@ -16,10 +16,10 @@ use Exception;
 use PDO;
 
 /**
- * User Manager Class
- * Provides centralized user management functionality for ORRISM system
+ * Service Manager Class
+ * Provides centralized service management functionality for ORRISM system
  */
-class UserManager
+class ServiceManager
 {
     /**
      * Database connection instance
@@ -196,7 +196,7 @@ class UserManager
         // Check if user exists in ORRISM
         $stmt = $this->orrisDb->prepare("
             SELECT id, status, bandwidth_limit 
-            FROM users 
+            FROM services 
             WHERE service_id = ?
         ");
         $stmt->execute([$service['service_id']]);
@@ -212,7 +212,7 @@ class UserManager
         if ($orrisUser) {
             // Update existing user
             $stmt = $this->orrisDb->prepare("
-                UPDATE users SET
+                UPDATE services SET
                     email = ?,
                     bandwidth_limit = ?,
                     node_group_id = ?,
@@ -237,7 +237,7 @@ class UserManager
             $password = $this->generatePassword();
             
             $stmt = $this->orrisDb->prepare("
-                INSERT INTO users (
+                INSERT INTO services (
                     service_id, client_id, email, uuid, password_hash,
                     bandwidth_limit, node_group_id, status, expired_at,
                     created_at, updated_at
@@ -280,7 +280,7 @@ class UserManager
             
             // Build query based on options
             $query = "
-                UPDATE users 
+                UPDATE services 
                 SET 
                     upload_bytes = 0,
                     download_bytes = 0,
@@ -372,35 +372,35 @@ class UserManager
             // Build query
             $query = "
                 SELECT 
-                    u.id,
-                    u.service_id,
-                    u.client_id,
-                    u.email,
-                    u.uuid,
-                    u.upload_bytes,
-                    u.download_bytes,
-                    u.bandwidth_limit,
-                    u.node_group_id,
-                    u.status,
-                    u.last_reset_at,
-                    u.expired_at,
-                    u.created_at,
-                    u.updated_at,
+                    s.id,
+                    s.service_id,
+                    s.client_id,
+                    s.email,
+                    s.uuid,
+                    s.upload_bytes,
+                    s.download_bytes,
+                    s.bandwidth_limit,
+                    s.node_group_id,
+                    s.status,
+                    s.last_reset_at,
+                    s.expired_at,
+                    s.created_at,
+                    s.updated_at,
                     ng.name as node_group_name,
-                    (u.upload_bytes + u.download_bytes) as total_usage,
+                    (s.upload_bytes + s.download_bytes) as total_usage,
                     CASE 
-                        WHEN u.bandwidth_limit > 0 THEN 
-                            ROUND((u.upload_bytes + u.download_bytes) / u.bandwidth_limit * 100, 2)
+                        WHEN s.bandwidth_limit > 0 THEN 
+                            ROUND((s.upload_bytes + s.download_bytes) / s.bandwidth_limit * 100, 2)
                         ELSE 0
                     END as usage_percentage
-                FROM users u
-                LEFT JOIN node_groups ng ON u.node_group_id = ng.id
+                FROM services s
+                LEFT JOIN node_groups ng ON s.node_group_id = ng.id
                 WHERE 1=1
             ";
             
             $countQuery = "
                 SELECT COUNT(*) as total
-                FROM users u
+                FROM services s
                 WHERE 1=1
             ";
             
@@ -408,7 +408,7 @@ class UserManager
             
             // Apply filters
             if (!empty($search)) {
-                $searchCondition = " AND (u.email LIKE ? OR u.uuid LIKE ?)";
+                $searchCondition = " AND (s.email LIKE ? OR s.uuid LIKE ?)";
                 $query .= $searchCondition;
                 $countQuery .= $searchCondition;
                 $searchParam = "%$search%";
@@ -417,14 +417,14 @@ class UserManager
             }
             
             if (!empty($status)) {
-                $statusCondition = " AND u.status = ?";
+                $statusCondition = " AND s.status = ?";
                 $query .= $statusCondition;
                 $countQuery .= $statusCondition;
                 $params[] = $status;
             }
             
             if (!empty($nodeGroupId)) {
-                $groupCondition = " AND u.node_group_id = ?";
+                $groupCondition = " AND s.node_group_id = ?";
                 $query .= $groupCondition;
                 $countQuery .= $groupCondition;
                 $params[] = $nodeGroupId;
@@ -508,7 +508,7 @@ class UserManager
                     SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active_users,
                     SUM(CASE WHEN status = 'suspended' THEN 1 ELSE 0 END) as suspended_users,
                     SUM(upload_bytes + download_bytes) as total_traffic
-                FROM users
+                FROM services
             ");
             
             $stats = $stmt->fetch();
@@ -552,7 +552,7 @@ class UserManager
             }
             
             $stmt = $this->orrisDb->prepare("
-                UPDATE users 
+                UPDATE services 
                 SET status = ?, updated_at = NOW()
                 WHERE id = ?
             ");

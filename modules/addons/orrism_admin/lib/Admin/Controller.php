@@ -110,8 +110,10 @@ class Controller
             switch ($this->action) {
                 case 'nodes':
                     return $this->nodes($this->vars);
-                case 'users':
-                    return $this->users($this->vars);
+                case 'services':
+                case 'servers': // Backward compatibility  
+                case 'users': // Backward compatibility
+                    return $this->services($this->vars);
                 case 'settings':
                     return $this->settings($this->vars);
                 case 'database':
@@ -272,12 +274,12 @@ class Controller
      * @param array $vars Module variables
      * @return string
      */
-    public function users($vars)
+    public function services($vars)
     {
         try {
             $content = $this->getStyles();
             $content .= '<div class="orrism-admin-dashboard">';
-            $content .= '<h2>User Management</h2>';
+            $content .= '<h2>Server Management</h2>';
             
             // Navigation
             $content .= $this->renderNavigationTabs('users');
@@ -290,12 +292,12 @@ class Controller
                 }
             }
             
-            // User management interface
+            // Server management interface
             $content .= '<div class="orrism-panel">';
-            $content .= '<div class="orrism-panel-heading">Service User Management</div>';
+            $content .= '<div class="orrism-panel-heading">Service Server Management</div>';
             $content .= '<div class="orrism-panel-body">';
             
-            $content .= '<p>ORRISM users are automatically created when WHMCS services are provisioned. Each service corresponds to one ORRISM user account.</p>';
+            $content .= '<p>ORRISM servers are automatically created when WHMCS services are provisioned. Each WHMCS service corresponds to one ORRISM server instance.</p>';
             
             $content .= '<div class="btn-group" style="margin-bottom: 20px;">';
             $content .= '<form method="post" style="display: inline-block;">';
@@ -304,11 +306,11 @@ class Controller
             $content .= '</form>';
             $content .= '</div>';
             
-            // Display user list
-            $content .= $this->renderUserList();
+            // Display server list
+            $content .= $this->renderServerList();
             
             $content .= '<div class="orrism-alert orrism-alert-info" style="margin-top: 20px;">';
-            $content .= '<i class="fa fa-info-circle"></i> Users are managed through WHMCS service provisioning. To create a new user, create a new service order in WHMCS.';
+            $content .= '<i class="fa fa-info-circle"></i> Servers are managed through WHMCS service provisioning. To create a new server, create a new service order in WHMCS.';
             $content .= '</div>';
             
             $content .= '</div></div>';
@@ -505,7 +507,7 @@ class Controller
                 
             case 'reset_traffic':
                 $result = $this->handleTrafficReset();
-                return $this->renderPostResult($result, 'users');
+                return $this->renderPostResult($result, 'servers');
                 
             default:
                 return $this->index($this->vars);
@@ -1062,7 +1064,7 @@ class Controller
         $tabs = [
             'dashboard' => 'Dashboard',
             'nodes' => 'Node Management',
-            'users' => 'User Management',
+            'servers' => 'Server Management',
             'settings' => 'Settings'
         ];
         
@@ -1586,23 +1588,23 @@ class Controller
     }
     
     /**
-     * Render user list table
+     * Render server list table
      * 
      * @return string
      */
-    protected function renderUserList()
+    protected function renderServerList()
     {
         try {
-            // Get ORRISM users from database
-            $userManager = new UserManager();
-            $users = $userManager->getUserList();
+            // Get ORRISM servers from database
+            $serverManager = new ServerManager();
+            $servers = $serverManager->getServerList();
             
             $html = '<div class="table-responsive">';
             $html .= '<table class="table table-striped table-hover">';
             $html .= '<thead>';
             $html .= '<tr>';
             $html .= '<th>Service ID</th>';
-            $html .= '<th>Username</th>';
+            $html .= '<th>Server Name</th>';
             $html .= '<th>Client</th>';
             $html .= '<th>Status</th>';
             $html .= '<th>Traffic Used</th>';
@@ -1613,22 +1615,22 @@ class Controller
             $html .= '</thead>';
             $html .= '<tbody>';
             
-            if (empty($users['users'])) {
-                $html .= '<tr><td colspan="8" class="text-center">No users found</td></tr>';
+            if (empty($servers['servers'])) {
+                $html .= '<tr><td colspan="8" class="text-center">No servers found</td></tr>';
             } else {
-                foreach ($users['users'] as $user) {
-                    $statusClass = $user['status'] === 'active' ? 'success' : 'warning';
+                foreach ($servers['servers'] as $server) {
+                    $statusClass = $server['status'] === 'active' ? 'success' : 'warning';
                     $html .= '<tr>';
-                    $html .= '<td>' . htmlspecialchars($user['service_id'] ?? '-') . '</td>';
-                    $html .= '<td>' . htmlspecialchars($user['username']) . '</td>';
-                    $html .= '<td>' . htmlspecialchars($user['client_name'] ?? '-') . '</td>';
-                    $html .= '<td><span class="label label-' . $statusClass . '">' . ucfirst($user['status']) . '</span></td>';
-                    $html .= '<td>' . $this->formatTraffic($user['traffic_used'] ?? 0) . '</td>';
-                    $html .= '<td>' . $this->formatTraffic($user['bandwidth_limit'] ?? 0) . '</td>';
-                    $html .= '<td>' . htmlspecialchars($user['created_at'] ?? '-') . '</td>';
+                    $html .= '<td>' . htmlspecialchars($server['service_id'] ?? '-') . '</td>';
+                    $html .= '<td>' . htmlspecialchars($server['username']) . '</td>';
+                    $html .= '<td>' . htmlspecialchars($server['client_name'] ?? '-') . '</td>';
+                    $html .= '<td><span class="label label-' . $statusClass . '">' . ucfirst($server['status']) . '</span></td>';
+                    $html .= '<td>' . $this->formatTraffic($server['traffic_used'] ?? 0) . '</td>';
+                    $html .= '<td>' . $this->formatTraffic($server['bandwidth_limit'] ?? 0) . '</td>';
+                    $html .= '<td>' . htmlspecialchars($server['created_at'] ?? '-') . '</td>';
                     $html .= '<td>';
-                    $html .= '<button class="btn btn-xs btn-info" onclick="viewUserDetails(' . $user['id'] . ')">View</button> ';
-                    $html .= '<button class="btn btn-xs btn-warning" onclick="resetUserTraffic(' . $user['id'] . ')">Reset</button>';
+                    $html .= '<button class="btn btn-xs btn-info" onclick="viewServerDetails(' . $server['id'] . ')">View</button> ';
+                    $html .= '<button class="btn btn-xs btn-warning" onclick="resetServerTraffic(' . $server['id'] . ')">Reset</button>';
                     $html .= '</td>';
                     $html .= '</tr>';
                 }
@@ -1640,12 +1642,12 @@ class Controller
             
             // Add JavaScript for actions
             $html .= '<script>
-            function viewUserDetails(userId) {
-                alert("View details for user #" + userId + " - Feature coming soon");
+            function viewServerDetails(serverId) {
+                alert("View details for server #" + serverId + " - Feature coming soon");
             }
-            function resetUserTraffic(userId) {
-                if (confirm("Reset traffic for this user?")) {
-                    alert("Reset traffic for user #" + userId + " - Feature coming soon");
+            function resetServerTraffic(serverId) {
+                if (confirm("Reset traffic for this server?")) {
+                    alert("Reset traffic for server #" + serverId + " - Feature coming soon");
                 }
             }
             </script>';
@@ -1653,7 +1655,7 @@ class Controller
             return $html;
             
         } catch (Exception $e) {
-            return '<div class="alert alert-danger">Failed to load user list: ' . htmlspecialchars($e->getMessage()) . '</div>';
+            return '<div class="alert alert-danger">Failed to load server list: ' . htmlspecialchars($e->getMessage()) . '</div>';
         }
     }
     

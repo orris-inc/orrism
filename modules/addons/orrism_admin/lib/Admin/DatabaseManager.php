@@ -167,7 +167,7 @@ class DatabaseManager
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
                 )",
                 
-                'mod_orrism_users' => "CREATE TABLE IF NOT EXISTS mod_orrism_users (
+                'mod_orrism_services' => "CREATE TABLE IF NOT EXISTS mod_orrism_services (
                     id INT AUTO_INCREMENT PRIMARY KEY,
                     service_id INT UNIQUE,
                     email VARCHAR(255),

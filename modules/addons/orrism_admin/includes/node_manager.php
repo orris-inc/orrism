@@ -131,20 +131,20 @@ class NodeManager
                     n.updated_at as last_check,
                     ng.id as group_id,
                     ng.name as group_name,
-                    COALESCE(user_stats.user_count, 0) as current_users,
+                    COALESCE(service_stats.service_count, 0) as current_services,
                     COALESCE(traffic_stats.total_traffic, 0) as total_traffic
                 FROM nodes n
                 LEFT JOIN node_groups ng ON n.group_id = ng.id
                 LEFT JOIN (
-                    SELECT node_group_id, COUNT(*) as user_count
-                    FROM users
+                    SELECT node_group_id, COUNT(*) as service_count
+                    FROM services
                     WHERE status = 'active'
                     GROUP BY node_group_id
-                ) user_stats ON user_stats.node_group_id = ng.id
+                ) service_stats ON service_stats.node_group_id = ng.id
                 LEFT JOIN (
                     SELECT node_id, 
                            SUM(upload_bytes + download_bytes) as total_traffic
-                    FROM user_usage
+                    FROM service_usage
                     WHERE DATE(created_at) = CURDATE()
                     GROUP BY node_id
                 ) traffic_stats ON traffic_stats.node_id = n.id
@@ -269,7 +269,7 @@ class NodeManager
             
             if ($node) {
                 // Get current users count
-                $countQuery = "SELECT COUNT(*) as count FROM users WHERE node_group_id = ? AND status = 'active'";
+                $countQuery = "SELECT COUNT(*) as count FROM services WHERE node_group_id = ? AND status = 'active'";
                 $stmt = $this->db->getPdo()->prepare($countQuery);
                 $stmt->execute([$node->group_id]);
                 $result = $stmt->fetch(PDO::FETCH_OBJ);
@@ -425,7 +425,7 @@ class NodeManager
             
             try {
                 // Delete related usage records first
-                $sql = "DELETE FROM user_usage WHERE node_id = ?";
+                $sql = "DELETE FROM service_usage WHERE node_id = ?";
                 $this->execute($sql, [$nodeId]);
                 
                 // Delete node
@@ -527,7 +527,7 @@ class NodeManager
                         
                     case 'delete':
                         // Delete usage records first
-                        $sql = "DELETE FROM user_usage WHERE node_id IN ($placeholders)";
+                        $sql = "DELETE FROM service_usage WHERE node_id IN ($placeholders)";
                         $this->execute($sql, $nodeIds);
                         
                         $sql = "DELETE FROM nodes WHERE id IN ($placeholders)";

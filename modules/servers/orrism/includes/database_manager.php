@@ -55,12 +55,12 @@ class OrrisDatabaseManager
                 if (!$schema) {
                     return false;
                 }
-                return $schema->hasTable('users') &&
+                return $schema->hasTable('services') &&
                        $schema->hasTable('nodes') &&
                        $schema->hasTable('config');
             } else {
                 // Fallback to WHMCS database
-                return Capsule::schema()->hasTable('users') &&
+                return Capsule::schema()->hasTable('services') &&
                        Capsule::schema()->hasTable('nodes') &&
                        Capsule::schema()->hasTable('config');
             }
@@ -202,8 +202,8 @@ class OrrisDatabaseManager
             if (!$keepData) {
                 // Drop all tables
                 $tables = [
-                    'user_usage',
-                    'users', 
+                    'service_usage',
+                    'services', 
                     'nodes',
                     'node_groups',
                     'config',
@@ -361,9 +361,9 @@ class OrrisDatabaseManager
             });
         }
         
-        // Create users table
-        if (!$schema->hasTable('users')) {
-            $schema->create('users', function ($table) {
+        // Create services table
+        if (!$schema->hasTable('services')) {
+            $schema->create('services', function ($table) {
             $table->increments('id');
             $table->integer('service_id')->unique();
             $table->integer('client_id');
@@ -387,11 +387,10 @@ class OrrisDatabaseManager
             });
         }
         
-        // Create user usage table
-        if (!$schema->hasTable('user_usage')) {
-            $schema->create('user_usage', function ($table) {
+        // Create service usage table
+        if (!$schema->hasTable('service_usage')) {
+            $schema->create('service_usage', function ($table) {
             $table->increments('id');
-            $table->integer('user_id');
             $table->integer('service_id');
             $table->integer('node_id');
             $table->bigInteger('upload_bytes')->default(0);
@@ -402,7 +401,6 @@ class OrrisDatabaseManager
             $table->text('user_agent')->nullable();
             $table->timestamp('recorded_at')->useCurrent();
             
-            $table->index('user_id');
             $table->index('service_id');
             $table->index('node_id');
             $table->index('recorded_at');
