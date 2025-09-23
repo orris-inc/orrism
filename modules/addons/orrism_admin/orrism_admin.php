@@ -1254,11 +1254,11 @@ function renderSettings($vars)
                                 tableInfo = \'<span class="text-warning">⚠ No ORRISM tables found (run Database Setup)</span>\';
                             }
                             
-                            var hostInfo = 'N/A';
+                            var hostInfo = "N/A";
                             if (response.connection_details) {
-                                hostInfo = (response.connection_details.host || 'N/A');
+                                hostInfo = (response.connection_details.host || "N/A");
                                 if (response.connection_details.port) {
-                                    hostInfo += ':' + response.connection_details.port;
+                                    hostInfo += ":" + response.connection_details.port;
                                 }
                             }
 
