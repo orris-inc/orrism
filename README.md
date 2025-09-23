@@ -73,6 +73,7 @@ orrism/
 ### 管理员操作
 - 系统配置：`Addons` → `ORRISM Administration`
 - 服务管理：在产品服务页面中管理具体服务
+- 账户模型：每个 WHMCS 服务实例都会自动创建一个 ORRISM 模块账户，同一客户可拥有多个实例
 
 ### 开发者说明
 - Server Module：专注服务 CRUD 操作

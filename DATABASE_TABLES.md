@@ -72,6 +72,8 @@ CREATE TABLE mod_orrism_users (
 )
 ```
 
+> 说明：每个 WHMCS 服务（无论同一客户购买多少个产品/数量）都会生成一个独立的 ORRISM 模块账户，上表即记录这些“模块用户”。
+
 #### 4. `mod_orrism_user_usage` - 使用记录
 ```sql
 CREATE TABLE mod_orrism_user_usage (

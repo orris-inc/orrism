@@ -64,6 +64,7 @@ Upload the `orrism` folder to your WHMCS installation:
    - **Manual Reset**: Allow customers to reset traffic manually
    - **Reset Cost**: Cost percentage for manual resets
    - **Node Group**: Default node group for new users
+   - **Account Model**: 每个启用的 WHMCS 服务都会生成独立的 ORRISM 模块账户，可与客户端一对多
 
 ## Database Schema
 

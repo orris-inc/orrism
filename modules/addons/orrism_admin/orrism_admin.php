@@ -750,10 +750,10 @@ function renderDashboard($vars)
             $content .= '<p>Active Services: <strong>' . $totalServices . '</strong></p>';
         }
         
-        // Try to get ORRISM stats if database is connected
+        // Try to get ORRISM module account stats (each WHMCS service has its own account)
         if (isset($isConnected) && $isConnected && isset($dbManager)) {
             $userCount = $dbManager->getUserCount();
-            $content .= '<p>ORRISM Users: <strong>' . $userCount . '</strong></p>';
+            $content .= '<p>ORRISM Module Accounts: <strong>' . $userCount . '</strong></p>';
         }
     } catch (Exception $e) {
         $content .= '<p class="orrism-text-muted">Statistics unavailable: ' . $e->getMessage() . '</p>';
@@ -999,7 +999,7 @@ function renderUserManagement($vars)
     // Navigation with responsive design
     $content .= renderNavigationTabs('users');
     
-    $content .= '<div class="orrism-alert orrism-alert-info">User management functionality will be implemented here.</div>';
+    $content .= '<div class="orrism-alert orrism-alert-info">ORRISM module accounts are created per WHMCS service. Management tooling for these accounts will be implemented here.</div>';
     $content .= '</div>';
     
     return $content;
@@ -1660,7 +1660,7 @@ function handleSettingsSave($vars)
 function handleUserSync($vars)
 {
     try {
-        $message = '<div class="orrism-alert orrism-alert-info">User synchronization functionality is not yet implemented.</div>';
+        $message = '<div class="orrism-alert orrism-alert-info">Automatic synchronization between WHMCS services and ORRISM module accounts is not yet implemented.</div>';
         return $message . renderUserManagement($vars);
     } catch (Exception $e) {
         return '<div class="orrism-alert orrism-alert-danger">User Sync Error: ' . htmlspecialchars($e->getMessage()) . '</div>' . renderUserManagement($vars);
