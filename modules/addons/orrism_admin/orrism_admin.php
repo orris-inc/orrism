@@ -528,7 +528,6 @@ function orrism_admin_output($vars)
                 exit;
             }
         }
-        }
         
         // Handle POST requests
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -578,16 +577,6 @@ function orrism_admin_output($vars)
         $errorOutput .= orrism_debug_output_html();
         
         echo $errorOutput;
-    } catch (Error $e) {
-        // Ultimate fallback for fatal errors
-        echo '<div style="padding: 20px; border: 2px solid #d9534f; background: #f2dede; color: #a94442;">' .
-               '<h3>ORRISM Administration - Critical Error</h3>' .
-               '<p><strong>A critical error occurred:</strong> ' . htmlspecialchars($e->getMessage()) . '</p>' .
-               '<p><strong>Location:</strong> ' . htmlspecialchars($e->getFile()) . ':' . $e->getLine() . '</p>' .
-               '<p>Please check server error logs and contact system administrator.</p>' .
-               '<p><a href="?module=orrism_admin&debug=1">Enable Debug Mode</a> | ' .
-               '<a href="?module=orrism_admin">Reload</a></p>' .
-               '</div>';
     }
 }
 
