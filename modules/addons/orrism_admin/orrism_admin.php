@@ -1465,7 +1465,7 @@ function renderSettings($vars)
                             infoHtml = \'<br><small class="text-muted">\' +
                                 \'Version: \' + (response.info.version || "Unknown") + \'<br>\' +
                                 \'Auth: \' + (response.auth_method || "Unknown") + \'<br>\' +
-                                (typeof response.database !== 'undefined' ? \'DB: \' + response.database + \'<br>\' : \'\') +
+                                (typeof response.database !== "undefined" ? \'DB: \' + response.database + \'<br>\' : \'\') +
                                 (response.info.connected_clients ? \'Clients: \' + response.info.connected_clients + \'<br>\' : \'\') +
                                 (response.info.memory_usage ? \'Memory: \' + response.info.memory_usage : \'\') +
                                 \'</small>\';
