@@ -475,32 +475,59 @@ function orrism_admin_output($vars)
         }
         
         if ($action === 'test_redis' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-            // Log the request
-            logModuleCall('orrism', 'test_redis_request', $_POST, 'Redis connection test requested');
+            // Clean all output buffers for clean JSON response
+            while (ob_get_level()) {
+                ob_end_clean();
+            }
+            ob_start();
             
             try {
-                header('Content-Type: application/json');
+                // Set headers safely
+                if (!headers_sent()) {
+                    http_response_code(200);
+                    header('Content-Type: application/json; charset=utf-8');
+                    header('X-ORRISM-Debug: Redis-Test');
+                }
+                
+                // Log the request safely
+                safeLogModuleCall('orrism', 'test_redis_request', $_POST, 'Redis connection test requested');
+                
+                // Check if testRedisConnectionHandler function exists
+                if (!function_exists('testRedisConnectionHandler')) {
+                    throw new Exception('testRedisConnectionHandler function not found');
+                }
+                
                 $result = testRedisConnectionHandler();
                 
-                // Log the result
-                logModuleCall('orrism', 'test_redis_result', $result, 'Redis connection test completed');
+                // Log the result safely
+                safeLogModuleCall('orrism', 'test_redis_result', $result, 'Redis connection test completed');
                 
+                // Clean output and send JSON
+                ob_clean();
                 echo json_encode($result);
-            } catch (Exception $e) {
-                // Log the error
-                logModuleCall('orrism', 'test_redis_error', [], 'Redis connection test failed: ' . $e->getMessage());
+                ob_end_flush();
+                exit;
                 
-                header('Content-Type: application/json');
-                echo json_encode([
+            } catch (Exception $e) {
+                // Log the error safely
+                safeLogModuleCall('orrism', 'test_redis_error', [], 'Redis connection test failed: ' . $e->getMessage());
+                
+                $errorResponse = [
                     'success' => false,
                     'message' => 'Internal error: ' . $e->getMessage(),
                     'debug' => [
                         'file' => $e->getFile(),
                         'line' => $e->getLine()
                     ]
-                ]);
+                ];
+                
+                // Clean output and send error
+                ob_clean();
+                echo json_encode($errorResponse);
+                ob_end_flush();
+                exit;
             }
-            exit;
+        }
         }
         
         // Handle POST requests
@@ -1373,13 +1400,23 @@ function renderSettings($vars)
         
         resultDiv.innerHTML = \'<div class="alert alert-info"><i class="fa fa-spinner fa-spin"></i> Testing Redis connection...</div>\';
         
-        // Make AJAX request
+        // Make AJAX request with timeout
         var xhr = new XMLHttpRequest();
-        xhr.open("POST", "addonmodules.php?module=orrism_admin&action=test_redis", true);
+        var requestUrl = "addonmodules.php?module=orrism_admin&action=test_redis";
+        xhr.open("POST", requestUrl, true);
         xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
         
+        // Add timeout
+        xhr.timeout = 15000; // 15 seconds timeout for Redis test
+        
         xhr.onreadystatechange = function() {
-            if (xhr.readyState === 4 && xhr.status === 200) {
+            console.log("Redis Test - ReadyState:", xhr.readyState, "Status:", xhr.status);
+            
+            if (xhr.readyState === 4) {
+                console.log("Redis Test - Final Status:", xhr.status);
+                console.log("Redis Test - Response:", xhr.responseText);
+                
+                if (xhr.status === 200) {
                 try {
                     var response = JSON.parse(xhr.responseText);
                     if (response.success) {
@@ -1401,18 +1438,60 @@ function renderSettings($vars)
                             (response.message || "Unknown error") + \'</div>\';
                     }
                 } catch (e) {
+                    console.error("Redis Test - JSON parse error:", e);
                     resultDiv.innerHTML = \'<div class="alert alert-danger">\' +
                         \'<i class="fa fa-times-circle"></i> <strong>Error parsing response</strong><br>\' +
-                        \'Raw response: \' + xhr.responseText.substring(0, 100) + \'</div>\';
+                        \'Parse error: \' + e.message + \'<br>\' +
+                        \'Raw response: \' + xhr.responseText.substring(0, 200) + \'</div>\';
+                }
+                } else {
+                    // Handle HTTP errors
+                    console.error("Redis Test - HTTP error:", xhr.status, xhr.statusText);
+                    var errorMsg = "HTTP " + xhr.status + ": " + (xhr.statusText || "Unknown error");
+                    resultDiv.innerHTML = \'<div class="alert alert-danger">\' +
+                        \'<i class="fa fa-times-circle"></i> <strong>Request Failed</strong><br>\' +
+                        errorMsg + \'<br>URL: \' + requestUrl + \'</div>\';
                 }
             }
+        };
+        
+        xhr.ontimeout = function() {
+            console.error("Redis Test - Request timeout");
+            resultDiv.innerHTML = \'<div class="alert alert-danger">\' +
+                \'<i class="fa fa-clock-o"></i> <strong>Request Timeout</strong><br>\' +
+                \'Redis connection test timed out after 15 seconds.</div>\';
+        };
+        
+        xhr.onerror = function() {
+            console.error("Redis Test - Network error");
+            resultDiv.innerHTML = \'<div class="alert alert-danger">\' +
+                \'<i class="fa fa-exclamation-triangle"></i> <strong>Network Error</strong><br>\' +
+                \'Failed to connect to server.</div>\';
         };
         
         var params = "redis_host=" + encodeURIComponent(host) + 
                     "&redis_port=" + encodeURIComponent(port) + 
                     "&redis_username=" + encodeURIComponent(username) + 
                     "&redis_password=" + encodeURIComponent(password);
-        xhr.send(params);
+        
+        // Log request details for debugging
+        console.log("Redis Test - Request URL:", requestUrl);
+        console.log("Redis Test - Parameters:", {
+            host: host,
+            port: port,
+            username: username,
+            password: password ? "[HIDDEN]" : "[EMPTY]"
+        });
+        
+        try {
+            xhr.send(params);
+            console.log("Redis Test - Request sent successfully");
+        } catch (e) {
+            console.error("Redis Test - Send error:", e);
+            resultDiv.innerHTML = \'<div class="alert alert-danger">\' +
+                \'<i class="fa fa-exclamation-triangle"></i> <strong>Request Send Error</strong><br>\' +
+                \'Failed to send request: \' + e.message + \'</div>\';
+        }
     }
     </script>';
     
