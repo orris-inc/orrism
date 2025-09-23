@@ -219,23 +219,156 @@ function orrism_admin_output($vars)
     }
     
     try {
-        // Add CSS styles for better appearance
+        // Add responsive CSS styles with better WHMCS theme compatibility
         $output = '<style>
-        .orrism-admin-dashboard { padding: 20px; }
-        .nav-tabs { margin-bottom: 20px; }
-        .nav-tabs .btn { margin-right: 5px; }
-        .alert { padding: 15px; margin-bottom: 20px; border: 1px solid transparent; border-radius: 4px; }
-        .alert-success { color: #3c763d; background-color: #dff0d8; border-color: #d6e9c6; }
-        .alert-warning { color: #8a6d3b; background-color: #fcf8e3; border-color: #faebcc; }
-        .alert-danger { color: #a94442; background-color: #f2dede; border-color: #ebccd1; }
-        .alert-info { color: #31708f; background-color: #d9edf7; border-color: #bce8f1; }
-        .text-success { color: #3c763d; }
-        .text-danger { color: #a94442; }
-        .text-warning { color: #8a6d3b; }
-        .text-muted { color: #777; }
-        .panel { margin-bottom: 20px; background-color: #fff; border: 1px solid #ddd; border-radius: 4px; }
-        .panel-heading { padding: 10px 15px; background-color: #f5f5f5; border-bottom: 1px solid #ddd; }
-        .panel-body { padding: 15px; }
+        /* Main container with responsive padding */
+        .orrism-admin-dashboard { 
+            padding: 15px; 
+            max-width: 100%;
+            overflow-x: hidden;
+        }
+        
+        /* Responsive navigation tabs */
+        .orrism-nav-tabs { 
+            margin-bottom: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+        }
+        .orrism-nav-tabs .btn { 
+            margin: 2px;
+            flex: 0 1 auto;
+            white-space: nowrap;
+        }
+        
+        /* Mobile responsive navigation */
+        @media (max-width: 768px) {
+            .orrism-nav-tabs {
+                flex-direction: column;
+            }
+            .orrism-nav-tabs .btn {
+                width: 100%;
+                margin: 2px 0;
+                text-align: left;
+            }
+        }
+        
+        /* Alert styles with proper spacing */
+        .orrism-alert {
+            padding: 12px 15px;
+            margin-bottom: 20px;
+            border: 1px solid transparent;
+            border-radius: 4px;
+            word-wrap: break-word;
+        }
+        .orrism-alert-success { 
+            color: #3c763d; 
+            background-color: #dff0d8; 
+            border-color: #d6e9c6; 
+        }
+        .orrism-alert-warning { 
+            color: #8a6d3b; 
+            background-color: #fcf8e3; 
+            border-color: #faebcc; 
+        }
+        .orrism-alert-danger { 
+            color: #a94442; 
+            background-color: #f2dede; 
+            border-color: #ebccd1; 
+        }
+        .orrism-alert-info { 
+            color: #31708f; 
+            background-color: #d9edf7; 
+            border-color: #bce8f1; 
+        }
+        
+        /* Text color utilities */
+        .orrism-text-success { color: #3c763d; }
+        .orrism-text-danger { color: #a94442; }
+        .orrism-text-warning { color: #8a6d3b; }
+        .orrism-text-muted { color: #777; }
+        
+        /* Panel styles with responsive design */
+        .orrism-panel { 
+            margin-bottom: 20px; 
+            background-color: #fff; 
+            border: 1px solid #ddd; 
+            border-radius: 4px;
+            box-shadow: 0 1px 1px rgba(0,0,0,.05);
+        }
+        .orrism-panel-heading { 
+            padding: 10px 15px; 
+            background-color: #f5f5f5; 
+            border-bottom: 1px solid #ddd;
+            border-radius: 3px 3px 0 0;
+            font-weight: 600;
+        }
+        .orrism-panel-body { 
+            padding: 15px;
+            overflow-x: auto;
+        }
+        
+        /* Responsive grid adjustments */
+        @media (max-width: 992px) {
+            .orrism-admin-dashboard .col-md-6 {
+                width: 100%;
+                margin-bottom: 10px;
+            }
+        }
+        
+        /* Table responsive wrapper */
+        .orrism-table-responsive {
+            width: 100%;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        
+        /* Button group responsive */
+        .orrism-btn-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+        }
+        
+        /* Form controls responsive */
+        .orrism-form-control {
+            width: 100%;
+            max-width: 100%;
+        }
+        
+        /* Ensure compatibility with WHMCS admin theme */
+        .orrism-admin-dashboard h2 {
+            font-size: 24px;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        /* Small screen adjustments */
+        @media (max-width: 576px) {
+            .orrism-admin-dashboard {
+                padding: 10px;
+            }
+            .orrism-admin-dashboard h2 {
+                font-size: 20px;
+            }
+            .orrism-panel-body {
+                padding: 10px;
+            }
+        }
+        
+        /* Dark mode compatibility */
+        @media (prefers-color-scheme: dark) {
+            .orrism-panel {
+                background-color: #2d2d2d;
+                border-color: #444;
+            }
+            .orrism-panel-heading {
+                background-color: #333;
+                border-color: #444;
+                color: #e0e0e0;
+            }
+        }
         </style>';
         
         $action = isset($_GET['action']) ? $_GET['action'] : 'dashboard';
@@ -272,7 +405,7 @@ function orrism_admin_output($vars)
         
     } catch (Exception $e) {
         // Display error information instead of blank page
-        $errorOutput = '<div class="alert alert-danger">';
+        $errorOutput = '<div class="orrism-alert orrism-alert-danger">';
         $errorOutput .= '<h4>ORRISM Administration Error</h4>';
         $errorOutput .= '<p><strong>Error:</strong> ' . htmlspecialchars($e->getMessage()) . '</p>';
         $errorOutput .= '<p><strong>File:</strong> ' . htmlspecialchars($e->getFile()) . '</p>';
@@ -281,7 +414,7 @@ function orrism_admin_output($vars)
             $errorOutput .= '<p><strong>Stack Trace:</strong></p>';
             $errorOutput .= '<pre>' . htmlspecialchars($e->getTraceAsString()) . '</pre>';
         }
-        $errorOutput .= '<p><a href="?module=orrism_admin&debug=1" class="btn btn-warning">Enable Debug Mode</a></p>';
+        $errorOutput .= '<p><a href="?module=orrism_admin&debug=1" class="btn btn-warning btn-sm">Enable Debug Mode</a></p>';
         $errorOutput .= '</div>';
         
         // Add debug information
@@ -335,22 +468,22 @@ function renderDashboard($vars)
         $content = '<div class="orrism-admin-dashboard">';
         $content .= '<h2>ORRISM System Dashboard</h2>';
     
-    // Navigation menu
-    $content .= '<div class="nav-tabs" style="margin-bottom: 20px;">';
-    $content .= '<a href="?module=orrism_admin&action=dashboard" class="btn btn-default">Dashboard</a> ';
-    $content .= '<a href="?module=orrism_admin&action=database" class="btn btn-default">Database Setup</a> ';
-    $content .= '<a href="?module=orrism_admin&action=nodes" class="btn btn-default">Node Management</a> ';
-    $content .= '<a href="?module=orrism_admin&action=users" class="btn btn-default">User Management</a> ';
-    $content .= '<a href="?module=orrism_admin&action=traffic" class="btn btn-default">Traffic Management</a> ';
-    $content .= '<a href="?module=orrism_admin&action=settings" class="btn btn-default">Settings</a>';
+    // Navigation menu with responsive design
+    $content .= '<div class="orrism-nav-tabs">';
+    $content .= '<a href="?module=orrism_admin&action=dashboard" class="btn btn-primary btn-sm">Dashboard</a>';
+    $content .= '<a href="?module=orrism_admin&action=database" class="btn btn-default btn-sm">Database Setup</a>';
+    $content .= '<a href="?module=orrism_admin&action=nodes" class="btn btn-default btn-sm">Node Management</a>';
+    $content .= '<a href="?module=orrism_admin&action=users" class="btn btn-default btn-sm">User Management</a>';
+    $content .= '<a href="?module=orrism_admin&action=traffic" class="btn btn-default btn-sm">Traffic Management</a>';
+    $content .= '<a href="?module=orrism_admin&action=settings" class="btn btn-default btn-sm">Settings</a>';
     $content .= '</div>';
     
-    // System status
+    // System status with responsive columns
     $content .= '<div class="row">';
-    $content .= '<div class="col-md-6">';
-    $content .= '<div class="panel panel-default">';
-    $content .= '<div class="panel-heading">System Status</div>';
-    $content .= '<div class="panel-body">';
+    $content .= '<div class="col-xs-12 col-sm-12 col-md-6 col-lg-6">';
+    $content .= '<div class="orrism-panel">';
+    $content .= '<div class="orrism-panel-heading">System Status</div>';
+    $content .= '<div class="orrism-panel-body">';
     
     // Check database connection
     try {
@@ -358,13 +491,13 @@ function renderDashboard($vars)
             $dbManager = new OrrisDatabaseManager();
             $isConnected = $dbManager->testConnection();
             $content .= '<p><i class="fa fa-database"></i> ShadowSocks Database: ';
-            $content .= $isConnected ? '<span class="text-success">Connected</span>' : '<span class="text-danger">Not Connected</span>';
+            $content .= $isConnected ? '<span class="orrism-text-success">Connected</span>' : '<span class="orrism-text-danger">Not Connected</span>';
             $content .= '</p>';
         } else {
-            $content .= '<p><i class="fa fa-database"></i> ShadowSocks Database: <span class="text-warning">Manager Not Loaded</span></p>';
+            $content .= '<p><i class="fa fa-database"></i> ShadowSocks Database: <span class="orrism-text-warning">Manager Not Loaded</span></p>';
         }
     } catch (Exception $e) {
-        $content .= '<p><i class="fa fa-database"></i> ShadowSocks Database: <span class="text-danger">Error: ' . $e->getMessage() . '</span></p>';
+        $content .= '<p><i class="fa fa-database"></i> ShadowSocks Database: <span class="orrism-text-danger">Error: ' . $e->getMessage() . '</span></p>';
     }
     
     // Check Redis connection
@@ -373,23 +506,23 @@ function renderDashboard($vars)
         try {
             $redis = new Redis();
             $connected = $redis->connect($vars['redis_host'] ?? 'localhost', $vars['redis_port'] ?? 6379);
-            $content .= $connected ? '<span class="text-success">Connected</span>' : '<span class="text-danger">Not Connected</span>';
+            $content .= $connected ? '<span class="orrism-text-success">Connected</span>' : '<span class="orrism-text-danger">Not Connected</span>';
             if ($connected) $redis->close();
         } catch (Exception $e) {
-            $content .= '<span class="text-danger">Error</span>';
+            $content .= '<span class="orrism-text-danger">Error</span>';
         }
     } else {
-        $content .= '<span class="text-warning">Redis Extension Not Installed</span>';
+        $content .= '<span class="orrism-text-warning">Redis Extension Not Installed</span>';
     }
     $content .= '</p>';
     
     $content .= '</div></div></div>';
     
-    // Quick stats
-    $content .= '<div class="col-md-6">';
-    $content .= '<div class="panel panel-default">';
-    $content .= '<div class="panel-heading">Quick Statistics</div>';
-    $content .= '<div class="panel-body">';
+    // Quick stats with responsive columns
+    $content .= '<div class="col-xs-12 col-sm-12 col-md-6 col-lg-6">';
+    $content .= '<div class="orrism-panel">';
+    $content .= '<div class="orrism-panel-heading">Quick Statistics</div>';
+    $content .= '<div class="orrism-panel-body">';
     
     try {
         if (class_exists('OrrisDatabase')) {
@@ -404,7 +537,7 @@ function renderDashboard($vars)
             $content .= '<p>ShadowSocks Users: <strong>' . $userCount . '</strong></p>';
         }
     } catch (Exception $e) {
-        $content .= '<p class="text-muted">Statistics unavailable: ' . $e->getMessage() . '</p>';
+        $content .= '<p class="orrism-text-muted">Statistics unavailable: ' . $e->getMessage() . '</p>';
     }
     
     $content .= '</div></div></div></div>';
@@ -419,7 +552,7 @@ function renderDashboard($vars)
     return $content;
     
     } catch (Exception $e) {
-        return '<div class="alert alert-danger">Dashboard Error: ' . htmlspecialchars($e->getMessage()) . '</div>';
+        return '<div class="orrism-alert orrism-alert-danger">Dashboard Error: ' . htmlspecialchars($e->getMessage()) . '</div>';
     }
 }
 
@@ -435,16 +568,16 @@ function renderDatabaseSetup($vars)
         $content = '<div class="orrism-admin-dashboard">';
         $content .= '<h2>Database Setup & Installation</h2>';
     
-    // Navigation
-    $content .= '<div class="nav-tabs" style="margin-bottom: 20px;">';
-    $content .= '<a href="?module=orrism_admin&action=dashboard" class="btn btn-default">Dashboard</a> ';
-    $content .= '<a href="?module=orrism_admin&action=database" class="btn btn-primary">Database Setup</a>';
+    // Navigation with responsive design
+    $content .= '<div class="orrism-nav-tabs">';
+    $content .= '<a href="?module=orrism_admin&action=dashboard" class="btn btn-default btn-sm">Dashboard</a>';
+    $content .= '<a href="?module=orrism_admin&action=database" class="btn btn-primary btn-sm">Database Setup</a>';
     $content .= '</div>';
     
-    // Database installation form
-    $content .= '<div class="panel panel-default">';
-    $content .= '<div class="panel-heading">Install ShadowSocks Database</div>';
-    $content .= '<div class="panel-body">';
+    // Database installation form with responsive panel
+    $content .= '<div class="orrism-panel">';
+    $content .= '<div class="orrism-panel-heading">Install ShadowSocks Database</div>';
+    $content .= '<div class="orrism-panel-body">';
     $content .= '<form method="post">';
     $content .= '<input type="hidden" name="action" value="install_database">';
     $content .= '<p>This will create the necessary database tables for ShadowSocks integration.</p>';
@@ -454,7 +587,7 @@ function renderDatabaseSetup($vars)
     $content .= '<li>Database: ' . ($vars['database_name'] ?? 'shadowsocks') . '</li>';
     $content .= '<li>Username: ' . ($vars['database_user'] ?? 'shadowsocks_user') . '</li>';
     $content .= '</ul>';
-    $content .= '<button type="submit" class="btn btn-success">Install Database Tables</button>';
+    $content .= '<button type="submit" class="btn btn-success btn-sm">Install Database Tables</button>';
     $content .= '</form>';
     $content .= '</div></div>';
     $content .= '</div>';
@@ -462,7 +595,7 @@ function renderDatabaseSetup($vars)
     return $content;
     
     } catch (Exception $e) {
-        return '<div class="alert alert-danger">Database Setup Error: ' . htmlspecialchars($e->getMessage()) . '</div>';
+        return '<div class="orrism-alert orrism-alert-danger">Database Setup Error: ' . htmlspecialchars($e->getMessage()) . '</div>';
     }
 }
 
@@ -486,7 +619,7 @@ function handleDatabaseInstall($vars)
         
         // Check if already installed
         if ($dbManager->isInstalled()) {
-            return '<div class="alert alert-warning">Database tables already exist. If you need to reinstall, please uninstall first.</div>' . renderDatabaseSetup($vars);
+            return '<div class="orrism-alert orrism-alert-warning">Database tables already exist. If you need to reinstall, please uninstall first.</div>' . renderDatabaseSetup($vars);
         }
         
         // Run installation
@@ -503,9 +636,9 @@ function handleDatabaseInstall($vars)
                 error_log('ORRISM: Failed to update addon settings: ' . $updateError->getMessage());
             }
             
-            return '<div class="alert alert-success">Database installed successfully! ' . $result['message'] . '</div>' . renderDatabaseSetup($vars);
+            return '<div class="orrism-alert orrism-alert-success">Database installed successfully! ' . $result['message'] . '</div>' . renderDatabaseSetup($vars);
         } else {
-            return '<div class="alert alert-danger">Database installation failed: ' . $result['message'] . '</div>' . renderDatabaseSetup($vars);
+            return '<div class="orrism-alert orrism-alert-danger">Database installation failed: ' . $result['message'] . '</div>' . renderDatabaseSetup($vars);
         }
         
     } catch (Exception $e) {
@@ -593,13 +726,13 @@ function handleSimpleTableCreation($vars)
                 error_log('ORRISM: Failed to insert default data: ' . $dataError->getMessage());
             }
             
-            return '<div class="alert alert-success">Database tables created successfully! Created: ' . implode(', ', $createdTables) . '</div>' . renderDatabaseSetup($vars);
+            return '<div class="orrism-alert orrism-alert-success">Database tables created successfully! Created: ' . implode(', ', $createdTables) . '</div>' . renderDatabaseSetup($vars);
         } else {
-            return '<div class="alert alert-danger">Failed to create any database tables. Please check error logs.</div>' . renderDatabaseSetup($vars);
+            return '<div class="orrism-alert orrism-alert-danger">Failed to create any database tables. Please check error logs.</div>' . renderDatabaseSetup($vars);
         }
         
     } catch (Exception $e) {
-        return '<div class="alert alert-danger">Simple installation also failed: ' . $e->getMessage() . '</div>' . renderDatabaseSetup($vars);
+        return '<div class="orrism-alert orrism-alert-danger">Simple installation also failed: ' . $e->getMessage() . '</div>' . renderDatabaseSetup($vars);
     }
 }
 
@@ -615,19 +748,19 @@ function renderNodeManagement($vars)
         $content = '<div class="orrism-admin-dashboard">';
         $content .= '<h2>Node Management</h2>';
     
-    // Navigation
-    $content .= '<div class="nav-tabs" style="margin-bottom: 20px;">';
-    $content .= '<a href="?module=orrism_admin&action=dashboard" class="btn btn-default">Dashboard</a> ';
-    $content .= '<a href="?module=orrism_admin&action=nodes" class="btn btn-primary">Node Management</a>';
+    // Navigation with responsive design
+    $content .= '<div class="orrism-nav-tabs">';
+    $content .= '<a href="?module=orrism_admin&action=dashboard" class="btn btn-default btn-sm">Dashboard</a>';
+    $content .= '<a href="?module=orrism_admin&action=nodes" class="btn btn-primary btn-sm">Node Management</a>';
     $content .= '</div>';
     
-    $content .= '<div class="alert alert-info">Node management functionality will be implemented here.</div>';
+    $content .= '<div class="orrism-alert orrism-alert-info">Node management functionality will be implemented here.</div>';
     $content .= '</div>';
     
     return $content;
     
     } catch (Exception $e) {
-        return '<div class="alert alert-danger">Node Management Error: ' . htmlspecialchars($e->getMessage()) . '</div>';
+        return '<div class="orrism-alert orrism-alert-danger">Node Management Error: ' . htmlspecialchars($e->getMessage()) . '</div>';
     }
 }
 
@@ -643,19 +776,19 @@ function renderUserManagement($vars)
         $content = '<div class="orrism-admin-dashboard">';
         $content .= '<h2>User Management</h2>';
     
-    // Navigation
-    $content .= '<div class="nav-tabs" style="margin-bottom: 20px;">';
-    $content .= '<a href="?module=orrism_admin&action=dashboard" class="btn btn-default">Dashboard</a> ';
-    $content .= '<a href="?module=orrism_admin&action=users" class="btn btn-primary">User Management</a>';
+    // Navigation with responsive design
+    $content .= '<div class="orrism-nav-tabs">';
+    $content .= '<a href="?module=orrism_admin&action=dashboard" class="btn btn-default btn-sm">Dashboard</a>';
+    $content .= '<a href="?module=orrism_admin&action=users" class="btn btn-primary btn-sm">User Management</a>';
     $content .= '</div>';
     
-    $content .= '<div class="alert alert-info">User management functionality will be implemented here.</div>';
+    $content .= '<div class="orrism-alert orrism-alert-info">User management functionality will be implemented here.</div>';
     $content .= '</div>';
     
     return $content;
     
     } catch (Exception $e) {
-        return '<div class="alert alert-danger">User Management Error: ' . htmlspecialchars($e->getMessage()) . '</div>';
+        return '<div class="orrism-alert orrism-alert-danger">User Management Error: ' . htmlspecialchars($e->getMessage()) . '</div>';
     }
 }
 
@@ -671,19 +804,19 @@ function renderTrafficManagement($vars)
         $content = '<div class="orrism-admin-dashboard">';
         $content .= '<h2>Traffic Management</h2>';
     
-    // Navigation
-    $content .= '<div class="nav-tabs" style="margin-bottom: 20px;">';
-    $content .= '<a href="?module=orrism_admin&action=dashboard" class="btn btn-default">Dashboard</a> ';
-    $content .= '<a href="?module=orrism_admin&action=traffic" class="btn btn-primary">Traffic Management</a>';
+    // Navigation with responsive design
+    $content .= '<div class="orrism-nav-tabs">';
+    $content .= '<a href="?module=orrism_admin&action=dashboard" class="btn btn-default btn-sm">Dashboard</a>';
+    $content .= '<a href="?module=orrism_admin&action=traffic" class="btn btn-primary btn-sm">Traffic Management</a>';
     $content .= '</div>';
     
-    $content .= '<div class="alert alert-info">Traffic management functionality will be implemented here.</div>';
+    $content .= '<div class="orrism-alert orrism-alert-info">Traffic management functionality will be implemented here.</div>';
     $content .= '</div>';
     
     return $content;
     
     } catch (Exception $e) {
-        return '<div class="alert alert-danger">Traffic Management Error: ' . htmlspecialchars($e->getMessage()) . '</div>';
+        return '<div class="orrism-alert orrism-alert-danger">Traffic Management Error: ' . htmlspecialchars($e->getMessage()) . '</div>';
     }
 }
 
@@ -699,19 +832,19 @@ function renderSettings($vars)
         $content = '<div class="orrism-admin-dashboard">';
         $content .= '<h2>ORRISM Settings</h2>';
     
-    // Navigation
-    $content .= '<div class="nav-tabs" style="margin-bottom: 20px;">';
-    $content .= '<a href="?module=orrism_admin&action=dashboard" class="btn btn-default">Dashboard</a> ';
-    $content .= '<a href="?module=orrism_admin&action=settings" class="btn btn-primary">Settings</a>';
+    // Navigation with responsive design
+    $content .= '<div class="orrism-nav-tabs">';
+    $content .= '<a href="?module=orrism_admin&action=dashboard" class="btn btn-default btn-sm">Dashboard</a>';
+    $content .= '<a href="?module=orrism_admin&action=settings" class="btn btn-primary btn-sm">Settings</a>';
     $content .= '</div>';
     
-    $content .= '<div class="alert alert-info">Advanced settings configuration will be implemented here.</div>';
+    $content .= '<div class="orrism-alert orrism-alert-info">Advanced settings configuration will be implemented here.</div>';
     $content .= '</div>';
     
     return $content;
     
     } catch (Exception $e) {
-        return '<div class="alert alert-danger">Settings Error: ' . htmlspecialchars($e->getMessage()) . '</div>';
+        return '<div class="orrism-alert orrism-alert-danger">Settings Error: ' . htmlspecialchars($e->getMessage()) . '</div>';
     }
 }
 
@@ -724,10 +857,10 @@ function renderSettings($vars)
 function handleUserSync($vars)
 {
     try {
-        $message = '<div class="alert alert-info">User synchronization functionality is not yet implemented.</div>';
+        $message = '<div class="orrism-alert orrism-alert-info">User synchronization functionality is not yet implemented.</div>';
         return $message . renderUserManagement($vars);
     } catch (Exception $e) {
-        return '<div class="alert alert-danger">User Sync Error: ' . htmlspecialchars($e->getMessage()) . '</div>' . renderUserManagement($vars);
+        return '<div class="orrism-alert orrism-alert-danger">User Sync Error: ' . htmlspecialchars($e->getMessage()) . '</div>' . renderUserManagement($vars);
     }
 }
 
@@ -740,9 +873,9 @@ function handleUserSync($vars)
 function handleTrafficReset($vars)
 {
     try {
-        $message = '<div class="alert alert-info">Traffic reset functionality is not yet implemented.</div>';
+        $message = '<div class="orrism-alert orrism-alert-info">Traffic reset functionality is not yet implemented.</div>';
         return $message . renderTrafficManagement($vars);
     } catch (Exception $e) {
-        return '<div class="alert alert-danger">Traffic Reset Error: ' . htmlspecialchars($e->getMessage()) . '</div>' . renderTrafficManagement($vars);
+        return '<div class="orrism-alert orrism-alert-danger">Traffic Reset Error: ' . htmlspecialchars($e->getMessage()) . '</div>' . renderTrafficManagement($vars);
     }
 }

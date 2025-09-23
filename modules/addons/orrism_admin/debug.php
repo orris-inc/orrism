@@ -71,17 +71,17 @@ function orrism_debug_dependencies() {
 function orrism_debug_output_html() {
     $debug = orrism_debug_dependencies();
     
-    $html = '<div class="panel panel-default">';
-    $html .= '<div class="panel-heading">';
+    $html = '<div class="orrism-panel">';
+    $html .= '<div class="orrism-panel-heading">';
     $html .= '<strong>ORRISM Debug Information</strong> ';
     $html .= '<small style="color: #666;">(This section helps diagnose module loading issues)</small>';
     $html .= '</div>';
-    $html .= '<div class="panel-body">';
+    $html .= '<div class="orrism-panel-body">';
     
     // Show load errors if any
     global $orrism_load_errors;
     if (!empty($orrism_load_errors)) {
-        $html .= '<div class="alert alert-warning">';
+        $html .= '<div class="orrism-alert orrism-alert-warning">';
         $html .= '<h4>⚠️ Dependency Loading Issues</h4>';
         $html .= '<ul>';
         foreach ($orrism_load_errors as $error) {
@@ -129,9 +129,11 @@ function orrism_debug_output_html() {
     // Add quick actions
     $html .= '<div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #eee;">';
     $html .= '<h4>Quick Actions</h4>';
-    $html .= '<a href="?module=orrism_admin&action=dashboard" class="btn btn-default">Reload Dashboard</a> ';
-    $html .= '<a href="?module=orrism_admin&action=dashboard&debug=1" class="btn btn-warning">Enable Debug Mode</a> ';
-    $html .= '<a href="?module=orrism_admin&action=database" class="btn btn-info">Database Setup</a>';
+    $html .= '<div class="orrism-btn-group">';
+    $html .= '<a href="?module=orrism_admin&action=dashboard" class="btn btn-default btn-sm">Reload Dashboard</a>';
+    $html .= '<a href="?module=orrism_admin&action=dashboard&debug=1" class="btn btn-warning btn-sm">Enable Debug Mode</a>';
+    $html .= '<a href="?module=orrism_admin&action=database" class="btn btn-info btn-sm">Database Setup</a>';
+    $html .= '</div>';
     $html .= '</div>';
     
     $html .= '</div></div>';
