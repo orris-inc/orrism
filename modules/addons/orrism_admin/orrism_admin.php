@@ -212,14 +212,6 @@ if (!class_exists('OrrisDatabase')) {
  */
 function orrism_admin_output($vars)
 {
-    // 清理任何之前的输出缓冲
-    if (ob_get_level()) {
-        ob_clean();
-    }
-    
-    // 强制开始输出缓冲
-    ob_start();
-    
     // Enable error reporting for debugging
     if (isset($_GET['debug']) || !class_exists('OrrisDatabaseManager')) {
         ini_set('display_errors', 1);
@@ -275,29 +267,11 @@ function orrism_admin_output($vars)
             }
         }
         
-        // 获取缓冲内容
-        $content = ob_get_contents();
-        ob_end_clean();
-        
-        // 合并所有输出
-        $finalOutput = $output;
-        if (!empty($content)) {
-            $finalOutput = $content . $output;
-        }
-        
-        // 直接输出到浏览器
-        echo $finalOutput;
-        
-        // 刷新输出缓冲区
-        if (ob_get_level()) {
-            ob_flush();
-        }
-        flush();
-        
-        return $finalOutput;
+        // WHMCS expects the function to echo the output, not return it
+        echo $output;
         
     } catch (Exception $e) {
-        // Return error information instead of blank page
+        // Display error information instead of blank page
         $errorOutput = '<div class="alert alert-danger">';
         $errorOutput .= '<h4>ORRISM Administration Error</h4>';
         $errorOutput .= '<p><strong>Error:</strong> ' . htmlspecialchars($e->getMessage()) . '</p>';
@@ -313,10 +287,10 @@ function orrism_admin_output($vars)
         // Add debug information
         $errorOutput .= orrism_debug_output_html();
         
-        return $errorOutput;
+        echo $errorOutput;
     } catch (Error $e) {
         // Ultimate fallback for fatal errors
-        return '<div style="padding: 20px; border: 2px solid #d9534f; background: #f2dede; color: #a94442;">' .
+        echo '<div style="padding: 20px; border: 2px solid #d9534f; background: #f2dede; color: #a94442;">' .
                '<h3>ORRISM Administration - Critical Error</h3>' .
                '<p><strong>A critical error occurred:</strong> ' . htmlspecialchars($e->getMessage()) . '</p>' .
                '<p><strong>Location:</strong> ' . htmlspecialchars($e->getFile()) . ':' . $e->getLine() . '</p>' .
@@ -738,5 +712,37 @@ function renderSettings($vars)
     
     } catch (Exception $e) {
         return '<div class="alert alert-danger">Settings Error: ' . htmlspecialchars($e->getMessage()) . '</div>';
+    }
+}
+
+/**
+ * Handle user sync request
+ * 
+ * @param array $vars Module variables
+ * @return string
+ */
+function handleUserSync($vars)
+{
+    try {
+        $message = '<div class="alert alert-info">User synchronization functionality is not yet implemented.</div>';
+        return $message . renderUserManagement($vars);
+    } catch (Exception $e) {
+        return '<div class="alert alert-danger">User Sync Error: ' . htmlspecialchars($e->getMessage()) . '</div>' . renderUserManagement($vars);
+    }
+}
+
+/**
+ * Handle traffic reset request
+ * 
+ * @param array $vars Module variables
+ * @return string
+ */
+function handleTrafficReset($vars)
+{
+    try {
+        $message = '<div class="alert alert-info">Traffic reset functionality is not yet implemented.</div>';
+        return $message . renderTrafficManagement($vars);
+    } catch (Exception $e) {
+        return '<div class="alert alert-danger">Traffic Reset Error: ' . htmlspecialchars($e->getMessage()) . '</div>' . renderTrafficManagement($vars);
     }
 }
