@@ -328,14 +328,98 @@ function orrism_admin_output($vars)
         
         // Handle AJAX test connection requests
         if ($action === 'test_connection' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+            // Enhanced debugging headers
             header('Content-Type: application/json');
-            echo json_encode(testDatabaseConnection());
+            header('X-ORRISM-Debug: Connection-Test');
+            
+            // Comprehensive request logging
+            $requestData = [
+                'POST' => $_POST,
+                'headers' => getallheaders(),
+                'php_input' => file_get_contents('php://input'),
+                'request_uri' => $_SERVER['REQUEST_URI'] ?? '',
+                'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? ''
+            ];
+            logModuleCall('orrism', 'test_connection_request_detailed', $requestData, 'Database connection test requested with full context');
+            
+            try {
+                // Check if testDatabaseConnection function exists
+                if (!function_exists('testDatabaseConnection')) {
+                    throw new Exception('testDatabaseConnection function not found');
+                }
+                
+                $result = testDatabaseConnection();
+                
+                // Enhanced result logging
+                $responseData = [
+                    'result' => $result,
+                    'execution_time' => microtime(true) - $_SERVER['REQUEST_TIME_FLOAT'],
+                    'memory_usage' => memory_get_usage(true),
+                    'peak_memory' => memory_get_peak_usage(true)
+                ];
+                logModuleCall('orrism', 'test_connection_result_detailed', $responseData, 'Database connection test completed with performance metrics');
+                
+                echo json_encode($result);
+                exit; // Important: prevent any additional output
+                
+            } catch (Exception $e) {
+                // Comprehensive error logging
+                $errorData = [
+                    'message' => $e->getMessage(),
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                    'trace' => $e->getTraceAsString(),
+                    'post_data' => $_POST,
+                    'server_vars' => [
+                        'REQUEST_METHOD' => $_SERVER['REQUEST_METHOD'],
+                        'CONTENT_TYPE' => $_SERVER['CONTENT_TYPE'] ?? '',
+                        'HTTP_ACCEPT' => $_SERVER['HTTP_ACCEPT'] ?? ''
+                    ]
+                ];
+                logModuleCall('orrism', 'test_connection_error_detailed', $errorData, 'Database connection test failed with full error context');
+                
+                $errorResponse = [
+                    'success' => false,
+                    'message' => 'Internal error: ' . $e->getMessage(),
+                    'debug' => [
+                        'file' => $e->getFile(),
+                        'line' => $e->getLine(),
+                        'error_type' => get_class($e),
+                        'request_data' => $_POST
+                    ]
+                ];
+                echo json_encode($errorResponse);
+                exit; // Important: prevent any additional output
+            }
             exit;
         }
         
         if ($action === 'test_redis' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-            header('Content-Type: application/json');
-            echo json_encode(testRedisConnectionHandler());
+            // Log the request
+            logModuleCall('orrism', 'test_redis_request', $_POST, 'Redis connection test requested');
+            
+            try {
+                header('Content-Type: application/json');
+                $result = testRedisConnectionHandler();
+                
+                // Log the result
+                logModuleCall('orrism', 'test_redis_result', $result, 'Redis connection test completed');
+                
+                echo json_encode($result);
+            } catch (Exception $e) {
+                // Log the error
+                logModuleCall('orrism', 'test_redis_error', [], 'Redis connection test failed: ' . $e->getMessage());
+                
+                header('Content-Type: application/json');
+                echo json_encode([
+                    'success' => false,
+                    'message' => 'Internal error: ' . $e->getMessage(),
+                    'debug' => [
+                        'file' => $e->getFile(),
+                        'line' => $e->getLine()
+                    ]
+                ]);
+            }
             exit;
         }
         
@@ -941,45 +1025,210 @@ function renderSettings($vars)
         
         // Make AJAX request
         var xhr = new XMLHttpRequest();
-        xhr.open("POST", "addonmodules.php?module=orrism_admin&action=test_connection", true);
+        var requestUrl = "addonmodules.php?module=orrism_admin&action=test_connection";
+        xhr.open("POST", requestUrl, true);
         xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
         
+        // Add timeout
+        xhr.timeout = 30000; // 30 seconds
+        
+        // Enhanced response handling with detailed debugging
         xhr.onreadystatechange = function() {
+            // Log every state change for debugging
+            console.log("ORRISM DB Test - ReadyState:", xhr.readyState, "Status:", xhr.status);
+            
             if (xhr.readyState === 4) {
                 btn.disabled = false;
                 btn.innerHTML = \'<i class="fa fa-plug"></i> Test Connection\';
                 
+                // Comprehensive response logging
+                console.log("ORRISM DB Test - Final Status:", xhr.status);
+                console.log("ORRISM DB Test - Status Text:", xhr.statusText);
+                console.log("ORRISM DB Test - Response Headers:", xhr.getAllResponseHeaders());
+                console.log("ORRISM DB Test - Response Text Length:", xhr.responseText ? xhr.responseText.length : 0);
+                console.log("ORRISM DB Test - Raw Response:", xhr.responseText);
+                
                 if (xhr.status === 200) {
                     try {
+                        // Check if response is empty or only whitespace
+                        if (!xhr.responseText || xhr.responseText.trim() === "") {
+                            throw new Error("Empty response received from server");
+                        }
+                        
                         var response = JSON.parse(xhr.responseText);
+                        console.log("ORRISM DB Test - Parsed response:", response);
+                        
                         if (response.success) {
+                            var tableInfo = \'\';
+                            if (response.tables_exist && response.existing_tables && response.existing_tables.length > 0) {
+                                tableInfo = \'<span class="text-info">✓ ORRISM tables detected (\' + response.existing_tables.length + \' tables)</span>\';
+                            } else {
+                                tableInfo = \'<span class="text-warning">⚠ No ORRISM tables found (run Database Setup)</span>\';
+                            }
+                            
+                            var performanceInfo = response.execution_time_ms ? 
+                                \'<small class="text-muted">Connection time: \' + response.execution_time_ms + \'ms</small>\' : \'\';
+                            
                             resultDiv.innerHTML = \'<div class="alert alert-success">\' +
                                 \'<i class="fa fa-check-circle"></i> <strong>Connection Successful!</strong><br>\' +
-                                \'Database: \' + response.database + \'<br>\' +
-                                \'Server: \' + response.server + \'<br>\' +
-                                (response.tables_exist ? \'<span class="text-info">ORRISM tables detected</span>\' : \'<span class="text-warning">No ORRISM tables found (run Database Setup)</span>\') +
+                                \'Database: \' + (response.database || "N/A") + \'<br>\' +
+                                \'Server: \' + (response.server || "N/A") + \'<br>\' +
+                                \'Host: \' + (response.connection_details && response.connection_details.host || "N/A") + \'<br>\' +
+                                tableInfo + \'<br>\' +
+                                performanceInfo +
                                 \'</div>\';
                         } else {
-                            resultDiv.innerHTML = \'<div class="alert alert-danger">\' +
-                                \'<i class="fa fa-times-circle"></i> <strong>Connection Failed</strong><br>\' +
-                                response.message +
+                            var debugInfo = \'\';
+                            if (response.debug) {
+                                debugInfo = \'<details style="margin-top: 10px;"><summary>Debug Information</summary>\' +
+                                    \'<small><strong>Error Category:</strong> \' + (response.error_category || "N/A") + \'<br>\' +
+                                    \'<strong>Error Code:</strong> \' + (response.error_code || "N/A") + \'<br>\' +
+                                    \'<strong>Execution Time:</strong> \' + (response.execution_time_ms || "N/A") + \'ms<br>\' +
+                                    \'<strong>Location:</strong> \' + (response.debug.error_location || "N/A") + \'<br>\';
+                                    
+                                if (response.debug.raw_error) {
+                                    debugInfo += \'<strong>Raw Error:</strong><br><code style="font-size: 10px;">\' + 
+                                        response.debug.raw_error.replace(/</g, "&lt;").replace(/>/g, "&gt;") + \'</code><br>\';
+                                }
+                                
+                                if (response.debug.connection_params) {
+                                    debugInfo += \'<strong>Connection Params:</strong> \' + JSON.stringify(response.debug.connection_params) + \'<br>\';
+                                }
+                                
+                                debugInfo += \'</small></details>\';
+                            }
+                            
+                            var alertClass = "alert-danger";
+                            var iconClass = "fa-times-circle";
+                            
+                            // Use different alert styles based on error category
+                            if (response.error_category === \'timeout\') {
+                                alertClass = "alert-warning";
+                                iconClass = "fa-clock-o";
+                            } else if (response.error_category === \'authentication\') {
+                                iconClass = "fa-lock";
+                            } else if (response.error_category === \'network_error\') {
+                                iconClass = "fa-exclamation-triangle";
+                            }
+                            
+                            resultDiv.innerHTML = \'<div class="alert \' + alertClass + \'">\' +
+                                \'<i class="fa \' + iconClass + \'"></i> <strong>Connection Failed</strong><br>\' +
+                                (response.message || "Unknown error") + debugInfo +
                                 \'</div>\';
                         }
                     } catch (e) {
-                        resultDiv.innerHTML = \'<div class="alert alert-danger"><i class="fa fa-times-circle"></i> Error parsing response</div>\';
+                        console.error("ORRISM DB Test - JSON parse error:", e);
+                        console.log("ORRISM DB Test - First 500 chars:", xhr.responseText.substring(0, 500));
+                        
+                        // Check for common response issues
+                        var errorDetails = "";
+                        if (xhr.responseText.indexOf("Fatal error") !== -1) {
+                            errorDetails = "PHP Fatal Error detected in response";
+                        } else if (xhr.responseText.indexOf("Parse error") !== -1) {
+                            errorDetails = "PHP Parse Error detected in response";
+                        } else if (xhr.responseText.indexOf("Warning") !== -1) {
+                            errorDetails = "PHP Warning detected in response";
+                        } else if (xhr.responseText.indexOf("<html") !== -1) {
+                            errorDetails = "HTML response received instead of JSON";
+                        } else if (xhr.responseText.trim() === "") {
+                            errorDetails = "Empty response received";
+                        } else {
+                            errorDetails = "Invalid JSON format";
+                        }
+                        
+                        resultDiv.innerHTML = \'<div class="alert alert-danger">\' +
+                            \'<i class="fa fa-times-circle"></i> <strong>Response Parse Error</strong><br>\' +
+                            \'Issue: \' + errorDetails + \'<br>\' +
+                            \'<details><summary>Raw Response (first 500 chars)</summary><pre style="white-space: pre-wrap; font-size: 11px;">\' +
+                            xhr.responseText.substring(0, 500).replace(/</g, "&lt;").replace(/>/g, "&gt;") +
+                            (xhr.responseText.length > 500 ? "..." : "") + \'</pre></details>\' +
+                            \'</div>\';
                     }
                 } else {
-                    resultDiv.innerHTML = \'<div class="alert alert-danger"><i class="fa fa-times-circle"></i> Request failed. Please try again.</div>\';
+                    console.error("ORRISM DB Test - HTTP error:", xhr.status, xhr.statusText);
+                    
+                    var httpErrorMsg = "";
+                    switch(xhr.status) {
+                        case 0:
+                            httpErrorMsg = "No response from server (connection failed)";
+                            break;
+                        case 404:
+                            httpErrorMsg = "Addon module not found (404)";
+                            break;
+                        case 500:
+                            httpErrorMsg = "Internal server error (500)";
+                            break;
+                        case 403:
+                            httpErrorMsg = "Access forbidden (403)";
+                            break;
+                        default:
+                            httpErrorMsg = "HTTP " + xhr.status + ": " + (xhr.statusText || "Unknown error");
+                    }
+                    
+                    resultDiv.innerHTML = \'<div class="alert alert-danger">\' +
+                        \'<i class="fa fa-times-circle"></i> <strong>Request Failed</strong><br>\' +
+                        httpErrorMsg + \'<br>\' +
+                        \'URL: \' + requestUrl + \'<br>\' +
+                        \'<details><summary>Response Details</summary><pre style="white-space: pre-wrap; font-size: 11px; max-height: 200px; overflow-y: auto;">\' +
+                        (xhr.responseText ? xhr.responseText.substring(0, 1000).replace(/</g, "&lt;").replace(/>/g, "&gt;") : "No response content") +
+                        (xhr.responseText && xhr.responseText.length > 1000 ? "\\n...truncated" : "") + \'</pre></details>\' +
+                        \'</div>\';
                 }
             }
         };
         
-        // Send the request
+        xhr.ontimeout = function() {
+            btn.disabled = false;
+            btn.innerHTML = \'<i class="fa fa-plug"></i> Test Connection\';
+            console.error("ORRISM DB Test - Request timeout");
+            resultDiv.innerHTML = \'<div class="alert alert-danger">\' +
+                \'<i class="fa fa-clock-o"></i> <strong>Request Timeout</strong><br>\' +
+                \'The request took longer than 30 seconds to complete.<br>\' +
+                \'This could indicate server overload or network issues.<br>\' +
+                \'URL: \' + requestUrl + \'</div>\';
+        };
+        
+        xhr.onerror = function() {
+            btn.disabled = false;
+            btn.innerHTML = \'<i class="fa fa-plug"></i> Test Connection\';
+            console.error("ORRISM DB Test - Network error");
+            resultDiv.innerHTML = \'<div class="alert alert-danger">\' +
+                \'<i class="fa fa-exclamation-triangle"></i> <strong>Network Error</strong><br>\' +
+                \'Failed to establish connection to server.<br>\' +
+                \'Please check your network connection and try again.<br>\' +
+                \'URL: \' + requestUrl + \'</div>\';
+        };
+        
+        // Prepare and send the request with detailed logging
         var params = "test_host=" + encodeURIComponent(host) + 
                     "&test_name=" + encodeURIComponent(name) + 
                     "&test_user=" + encodeURIComponent(user) + 
                     "&test_pass=" + encodeURIComponent(pass);
-        xhr.send(params);
+        
+        // Log request details for debugging
+        console.log("ORRISM DB Test - Request URL:", requestUrl);
+        console.log("ORRISM DB Test - Request Method: POST");
+        console.log("ORRISM DB Test - Content Type: application/x-www-form-urlencoded");
+        console.log("ORRISM DB Test - Timeout:", xhr.timeout + "ms");
+        console.log("ORRISM DB Test - Parameters:", {
+            host: host,
+            name: name,
+            user: user,
+            pass: pass ? "[HIDDEN]" : "[EMPTY]"
+        });
+        console.log("ORRISM DB Test - Raw params length:", params.length);
+        
+        try {
+            xhr.send(params);
+            console.log("ORRISM DB Test - Request sent successfully");
+        } catch (e) {
+            console.error("ORRISM DB Test - Send error:", e);
+            btn.disabled = false;
+            btn.innerHTML = \'<i class="fa fa-plug"></i> Test Connection\';
+            resultDiv.innerHTML = \'<div class="alert alert-danger">\' +
+                \'<i class="fa fa-exclamation-triangle"></i> <strong>Request Send Error</strong><br>\' +
+                \'Failed to send request: \' + e.message + \'</div>\';
+        }
     }
     
     // Test Redis connection
@@ -1165,68 +1414,185 @@ function handleTrafficReset($vars)
  */
 function testDatabaseConnection()
 {
+    $startTime = microtime(true);
+    
     try {
+        // Log function entry
+        logModuleCall('orrism', 'testDatabaseConnection_start', $_POST, 'Starting database connection test');
+        
         $host = $_POST['test_host'] ?? '';
         $name = $_POST['test_name'] ?? '';
         $user = $_POST['test_user'] ?? '';
         $pass = $_POST['test_pass'] ?? '';
         
-        if (empty($host) || empty($name) || empty($user)) {
-            return [
+        // Enhanced parameter validation
+        $missingParams = [];
+        if (empty($host)) $missingParams[] = 'host';
+        if (empty($name)) $missingParams[] = 'database name';
+        if (empty($user)) $missingParams[] = 'username';
+        
+        if (!empty($missingParams)) {
+            $errorResponse = [
                 'success' => false,
-                'message' => 'Missing required parameters'
+                'message' => 'Missing required parameters: ' . implode(', ', $missingParams),
+                'debug' => [
+                    'missing_params' => $missingParams,
+                    'received_params' => array_keys($_POST)
+                ]
             ];
+            logModuleCall('orrism', 'testDatabaseConnection_validation_error', $errorResponse, 'Parameter validation failed');
+            return $errorResponse;
         }
         
-        // Try to connect using PDO
+        // Enhanced connection attempt with detailed logging
         $dsn = "mysql:host=$host;dbname=$name;charset=utf8";
         $options = [
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
             PDO::ATTR_EMULATE_PREPARES => false,
-            PDO::ATTR_TIMEOUT => 5  // 5 second timeout
+            PDO::ATTR_TIMEOUT => 10,  // Increased timeout to 10 seconds
+            PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8"
         ];
+        
+        logModuleCall('orrism', 'testDatabaseConnection_attempt', [
+            'dsn' => "mysql:host=$host;dbname=$name;charset=utf8",
+            'user' => $user,
+            'options' => array_keys($options)
+        ], 'Attempting PDO connection');
         
         $pdo = new PDO($dsn, $user, $pass, $options);
         
-        // Get server info
-        $serverInfo = $pdo->getAttribute(PDO::ATTR_SERVER_VERSION);
+        // Test the connection is actually working
+        $pdo->query('SELECT 1');
+        
+        // Get detailed server info
+        $serverVersion = $pdo->getAttribute(PDO::ATTR_SERVER_VERSION);
+        $serverInfo = $pdo->getAttribute(PDO::ATTR_SERVER_INFO);
+        $connectionStatus = $pdo->getAttribute(PDO::ATTR_CONNECTION_STATUS);
+        
+        logModuleCall('orrism', 'testDatabaseConnection_connected', [
+            'server_version' => $serverVersion,
+            'server_info' => $serverInfo,
+            'connection_status' => $connectionStatus
+        ], 'Database connection established');
         
         // Check if ORRISM tables exist
         $stmt = $pdo->query("SHOW TABLES LIKE 'mod_orrism_%'");
         $tablesExist = $stmt->rowCount() > 0;
         
-        return [
-            'success' => true,
-            'database' => $name,
-            'server' => "MySQL $serverInfo",
-            'tables_exist' => $tablesExist
-        ];
-        
-    } catch (PDOException $e) {
-        $message = $e->getMessage();
-        
-        // Clean up error message for user
-        if (strpos($message, 'Access denied') !== false) {
-            $message = 'Access denied. Please check username and password.';
-        } elseif (strpos($message, 'Unknown database') !== false) {
-            $message = "Database '$name' does not exist.";
-        } elseif (strpos($message, 'Connection refused') !== false || strpos($message, 'No such host') !== false) {
-            $message = "Cannot connect to server at '$host'.";
-        } else {
-            // Generic database error, log the full error
-            logModuleCall('orrism', __FUNCTION__, ['host' => $host, 'database' => $name], 'Error: ' . $message);
-            $message = 'Database connection failed: ' . substr($message, 0, 100);
+        // Get list of existing ORRISM tables for debugging
+        $existingTables = [];
+        if ($tablesExist) {
+            $stmt = $pdo->query("SHOW TABLES LIKE 'mod_orrism_%'");
+            while ($row = $stmt->fetch(PDO::FETCH_NUM)) {
+                $existingTables[] = $row[0];
+            }
         }
         
-        return [
-            'success' => false,
-            'message' => $message
+        $executionTime = round((microtime(true) - $startTime) * 1000, 2); // milliseconds
+        
+        $successResponse = [
+            'success' => true,
+            'database' => $name,
+            'server' => "MySQL $serverVersion",
+            'server_info' => $serverInfo,
+            'tables_exist' => $tablesExist,
+            'existing_tables' => $existingTables,
+            'execution_time_ms' => $executionTime,
+            'connection_details' => [
+                'host' => $host,
+                'charset' => 'utf8',
+                'connection_status' => $connectionStatus
+            ]
         ];
+        
+        logModuleCall('orrism', 'testDatabaseConnection_success', $successResponse, 'Database connection test completed successfully');
+        return $successResponse;
+        
+    } catch (PDOException $e) {
+        $executionTime = round((microtime(true) - $startTime) * 1000, 2);
+        $rawMessage = $e->getMessage();
+        $errorCode = $e->getCode();
+        
+        // Comprehensive error logging
+        $errorDetails = [
+            'message' => $rawMessage,
+            'code' => $errorCode,
+            'file' => $e->getFile(),
+            'line' => $e->getLine(),
+            'host' => $host,
+            'database' => $name,
+            'user' => $user,
+            'execution_time_ms' => $executionTime,
+            'dsn_used' => "mysql:host=$host;dbname=$name;charset=utf8"
+        ];
+        logModuleCall('orrism', 'testDatabaseConnection_pdo_error', $errorDetails, 'PDO Exception occurred during connection test');
+        
+        // Clean up error message for user-friendly display
+        $userMessage = '';
+        $errorCategory = 'unknown';
+        
+        if (strpos($rawMessage, 'Access denied') !== false) {
+            $userMessage = 'Access denied. Please check username and password.';
+            $errorCategory = 'authentication';
+        } elseif (strpos($rawMessage, 'Unknown database') !== false) {
+            $userMessage = "Database '$name' does not exist. Please check the database name.";
+            $errorCategory = 'database_not_found';
+        } elseif (strpos($rawMessage, 'Connection refused') !== false || strpos($rawMessage, 'No such host') !== false) {
+            $userMessage = "Cannot connect to server at '$host'. Please check the hostname and ensure MySQL is running.";
+            $errorCategory = 'connection_refused';
+        } elseif (strpos($rawMessage, 'timed out') !== false || strpos($rawMessage, 'timeout') !== false) {
+            $userMessage = "Connection timeout. The server may be overloaded or unreachable.";
+            $errorCategory = 'timeout';
+        } elseif (strpos($rawMessage, 'No route to host') !== false) {
+            $userMessage = "Network error: Cannot reach host '$host'.";
+            $errorCategory = 'network_error';
+        } else {
+            $userMessage = 'Database connection failed: ' . substr($rawMessage, 0, 150) . (strlen($rawMessage) > 150 ? '...' : '');
+            $errorCategory = 'generic_error';
+        }
+        
+        $errorResponse = [
+            'success' => false,
+            'message' => $userMessage,
+            'error_category' => $errorCategory,
+            'error_code' => $errorCode,
+            'execution_time_ms' => $executionTime,
+            'debug' => [
+                'raw_error' => substr($rawMessage, 0, 200),
+                'error_location' => $e->getFile() . ':' . $e->getLine(),
+                'connection_params' => [
+                    'host' => $host,
+                    'database' => $name,
+                    'user' => $user
+                ]
+            ]
+        ];
+        
+        return $errorResponse;
+        
     } catch (Exception $e) {
+        $executionTime = round((microtime(true) - $startTime) * 1000, 2);
+        
+        // Log unexpected errors
+        $unexpectedErrorDetails = [
+            'message' => $e->getMessage(),
+            'file' => $e->getFile(),
+            'line' => $e->getLine(),
+            'trace' => $e->getTraceAsString(),
+            'execution_time_ms' => $executionTime
+        ];
+        logModuleCall('orrism', 'testDatabaseConnection_unexpected_error', $unexpectedErrorDetails, 'Unexpected exception during connection test');
+        
         return [
             'success' => false,
-            'message' => 'Unexpected error: ' . $e->getMessage()
+            'message' => 'Unexpected error occurred during connection test: ' . $e->getMessage(),
+            'error_category' => 'unexpected',
+            'execution_time_ms' => $executionTime,
+            'debug' => [
+                'error_type' => get_class($e),
+                'error_location' => $e->getFile() . ':' . $e->getLine()
+            ]
         ];
     }
 }
