@@ -282,12 +282,9 @@ class Controller
             // Navigation
             $content .= $this->renderNavigationTabs('users');
             
-            // Handle user sync if POST request
+            // Handle POST requests
             if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-                if ($_POST['action'] === 'sync_users') {
-                    $syncResult = $this->handleUserSync();
-                    $content .= '<div class="orrism-alert orrism-alert-info">' . $syncResult['message'] . '</div>';
-                } elseif ($_POST['action'] === 'reset_traffic') {
+                if ($_POST['action'] === 'reset_traffic') {
                     $resetResult = $this->handleTrafficReset();
                     $content .= '<div class="orrism-alert orrism-alert-info">' . $resetResult['message'] . '</div>';
                 }
@@ -295,25 +292,23 @@ class Controller
             
             // User management interface
             $content .= '<div class="orrism-panel">';
-            $content .= '<div class="orrism-panel-heading">User Synchronization</div>';
+            $content .= '<div class="orrism-panel-heading">Service User Management</div>';
             $content .= '<div class="orrism-panel-body">';
             
-            $content .= '<p>ORRISM module accounts are created per WHMCS service. Use the tools below to manage synchronization and traffic.</p>';
+            $content .= '<p>ORRISM users are automatically created when WHMCS services are provisioned. Each service corresponds to one ORRISM user account.</p>';
             
             $content .= '<div class="btn-group" style="margin-bottom: 20px;">';
-            $content .= '<form method="post" style="display: inline-block; margin-right: 10px;">';
-            $content .= '<input type="hidden" name="action" value="sync_users">';
-            $content .= '<button type="submit" class="btn btn-primary"><i class="fa fa-sync"></i> Sync Users</button>';
-            $content .= '</form>';
-            
             $content .= '<form method="post" style="display: inline-block;">';
             $content .= '<input type="hidden" name="action" value="reset_traffic">';
-            $content .= '<button type="submit" class="btn btn-warning"><i class="fa fa-undo"></i> Reset Traffic</button>';
+            $content .= '<button type="submit" class="btn btn-warning"><i class="fa fa-undo"></i> Reset All Traffic</button>';
             $content .= '</form>';
             $content .= '</div>';
             
-            $content .= '<div class="orrism-alert orrism-alert-info">';
-            $content .= 'Advanced user management features including bulk operations, traffic monitoring, and detailed user statistics will be implemented here.';
+            // Display user list
+            $content .= $this->renderUserList();
+            
+            $content .= '<div class="orrism-alert orrism-alert-info" style="margin-top: 20px;">';
+            $content .= '<i class="fa fa-info-circle"></i> Users are managed through WHMCS service provisioning. To create a new user, create a new service order in WHMCS.';
             $content .= '</div>';
             
             $content .= '</div></div>';
@@ -507,9 +502,6 @@ class Controller
                 $result = $this->handleSettingsSave();
                 return $this->renderPostResult($result, 'settings');
                 
-            case 'sync_users':
-                $result = $this->handleUserSync();
-                return $this->renderPostResult($result, 'users');
                 
             case 'reset_traffic':
                 $result = $this->handleTrafficReset();
@@ -685,27 +677,6 @@ class Controller
             return [
                 'success' => false,
                 'message' => 'Failed to save settings.'
-            ];
-        }
-    }
-    
-    /**
-     * Handle user synchronization
-     * 
-     * @return array
-     */
-    protected function handleUserSync()
-    {
-        try {
-            // Placeholder for user sync implementation
-            return [
-                'success' => true,
-                'message' => 'Automatic synchronization between WHMCS services and ORRISM module accounts is not yet implemented.'
-            ];
-        } catch (Exception $e) {
-            return [
-                'success' => false,
-                'message' => 'User Sync Error: ' . $e->getMessage()
             ];
         }
     }
@@ -1612,5 +1583,93 @@ class Controller
                 'message' => 'Error getting user statistics: ' . $e->getMessage()
             ];
         }
+    }
+    
+    /**
+     * Render user list table
+     * 
+     * @return string
+     */
+    protected function renderUserList()
+    {
+        try {
+            // Get ORRISM users from database
+            $userManager = new UserManager();
+            $users = $userManager->getUserList();
+            
+            $html = '<div class="table-responsive">';
+            $html .= '<table class="table table-striped table-hover">';
+            $html .= '<thead>';
+            $html .= '<tr>';
+            $html .= '<th>Service ID</th>';
+            $html .= '<th>Username</th>';
+            $html .= '<th>Client</th>';
+            $html .= '<th>Status</th>';
+            $html .= '<th>Traffic Used</th>';
+            $html .= '<th>Traffic Limit</th>';
+            $html .= '<th>Created</th>';
+            $html .= '<th>Actions</th>';
+            $html .= '</tr>';
+            $html .= '</thead>';
+            $html .= '<tbody>';
+            
+            if (empty($users['users'])) {
+                $html .= '<tr><td colspan="8" class="text-center">No users found</td></tr>';
+            } else {
+                foreach ($users['users'] as $user) {
+                    $statusClass = $user['status'] === 'active' ? 'success' : 'warning';
+                    $html .= '<tr>';
+                    $html .= '<td>' . htmlspecialchars($user['service_id'] ?? '-') . '</td>';
+                    $html .= '<td>' . htmlspecialchars($user['username']) . '</td>';
+                    $html .= '<td>' . htmlspecialchars($user['client_name'] ?? '-') . '</td>';
+                    $html .= '<td><span class="label label-' . $statusClass . '">' . ucfirst($user['status']) . '</span></td>';
+                    $html .= '<td>' . $this->formatTraffic($user['traffic_used'] ?? 0) . '</td>';
+                    $html .= '<td>' . $this->formatTraffic($user['bandwidth_limit'] ?? 0) . '</td>';
+                    $html .= '<td>' . htmlspecialchars($user['created_at'] ?? '-') . '</td>';
+                    $html .= '<td>';
+                    $html .= '<button class="btn btn-xs btn-info" onclick="viewUserDetails(' . $user['id'] . ')">View</button> ';
+                    $html .= '<button class="btn btn-xs btn-warning" onclick="resetUserTraffic(' . $user['id'] . ')">Reset</button>';
+                    $html .= '</td>';
+                    $html .= '</tr>';
+                }
+            }
+            
+            $html .= '</tbody>';
+            $html .= '</table>';
+            $html .= '</div>';
+            
+            // Add JavaScript for actions
+            $html .= '<script>
+            function viewUserDetails(userId) {
+                alert("View details for user #" + userId + " - Feature coming soon");
+            }
+            function resetUserTraffic(userId) {
+                if (confirm("Reset traffic for this user?")) {
+                    alert("Reset traffic for user #" + userId + " - Feature coming soon");
+                }
+            }
+            </script>';
+            
+            return $html;
+            
+        } catch (Exception $e) {
+            return '<div class="alert alert-danger">Failed to load user list: ' . htmlspecialchars($e->getMessage()) . '</div>';
+        }
+    }
+    
+    /**
+     * Format traffic bytes to readable format
+     * 
+     * @param int $bytes
+     * @return string
+     */
+    protected function formatTraffic($bytes)
+    {
+        if ($bytes == 0) return '0 B';
+        
+        $units = ['B', 'KB', 'MB', 'GB', 'TB'];
+        $factor = floor((strlen($bytes) - 1) / 3);
+        
+        return sprintf("%.2f", $bytes / pow(1024, $factor)) . ' ' . $units[$factor];
     }
 }
