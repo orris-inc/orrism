@@ -32,6 +32,21 @@ $dependencies = [
     'helper.php' => $serverModulePath . '/helper.php'
 ];
 
+/**
+ * Safe wrapper for logModuleCall to prevent errors
+ */
+function safeLogModuleCall($module, $action, $request, $response) {
+    try {
+        if (function_exists('logModuleCall')) {
+            logModuleCall($module, $action, $request, $response);
+        } else {
+            error_log("ORRISM $action: " . (is_string($response) ? $response : json_encode($response)));
+        }
+    } catch (Exception $e) {
+        error_log("ORRISM: Failed to log [$action]: " . $e->getMessage());
+    }
+}
+
 $loadErrors = [];
 foreach ($dependencies as $name => $path) {
     if (file_exists($path)) {
@@ -328,19 +343,48 @@ function orrism_admin_output($vars)
         
         // Handle AJAX test connection requests
         if ($action === 'test_connection' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-            // Enhanced debugging headers
-            header('Content-Type: application/json');
-            header('X-ORRISM-Debug: Connection-Test');
+            // Prevent any output before JSON response
+            if (ob_get_level()) {
+                ob_clean();
+            }
             
-            // Comprehensive request logging
+            try {
+                // Enhanced debugging headers  
+                if (!headers_sent()) {
+                    header('Content-Type: application/json');
+                    header('X-ORRISM-Debug: Connection-Test');
+                }
+            
+            // Comprehensive request logging with safe header collection
+            $headers = [];
+            if (function_exists('getallheaders')) {
+                $headers = getallheaders();
+            } else {
+                // Fallback for environments where getallheaders() is not available
+                foreach ($_SERVER as $key => $value) {
+                    if (strpos($key, 'HTTP_') === 0) {
+                        $header = str_replace('_', '-', substr($key, 5));
+                        $headers[$header] = $value;
+                    }
+                }
+            }
+            
+            // Safely read PHP input
+            $phpInput = '';
+            try {
+                $phpInput = file_get_contents('php://input');
+            } catch (Exception $e) {
+                $phpInput = 'Error reading php://input: ' . $e->getMessage();
+            }
+            
             $requestData = [
                 'POST' => $_POST,
-                'headers' => getallheaders(),
-                'php_input' => file_get_contents('php://input'),
+                'headers' => $headers,
+                'php_input' => $phpInput,
                 'request_uri' => $_SERVER['REQUEST_URI'] ?? '',
                 'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? ''
             ];
-            logModuleCall('orrism', 'test_connection_request_detailed', $requestData, 'Database connection test requested with full context');
+            safeLogModuleCall('orrism', 'test_connection_request_detailed', $requestData, 'Database connection test requested with full context');
             
             try {
                 // Check if testDatabaseConnection function exists
@@ -357,7 +401,7 @@ function orrism_admin_output($vars)
                     'memory_usage' => memory_get_usage(true),
                     'peak_memory' => memory_get_peak_usage(true)
                 ];
-                logModuleCall('orrism', 'test_connection_result_detailed', $responseData, 'Database connection test completed with performance metrics');
+                safeLogModuleCall('orrism', 'test_connection_result_detailed', $responseData, 'Database connection test completed with performance metrics');
                 
                 echo json_encode($result);
                 exit; // Important: prevent any additional output
@@ -376,7 +420,7 @@ function orrism_admin_output($vars)
                         'HTTP_ACCEPT' => $_SERVER['HTTP_ACCEPT'] ?? ''
                     ]
                 ];
-                logModuleCall('orrism', 'test_connection_error_detailed', $errorData, 'Database connection test failed with full error context');
+                safeLogModuleCall('orrism', 'test_connection_error_detailed', $errorData, 'Database connection test failed with full error context');
                 
                 $errorResponse = [
                     'success' => false,
@@ -391,7 +435,29 @@ function orrism_admin_output($vars)
                 echo json_encode($errorResponse);
                 exit; // Important: prevent any additional output
             }
+            
+        } catch (Exception $topLevelException) {
+            // Catch any unexpected errors in the AJAX handler
+            header('Content-Type: application/json');
+            $criticalErrorResponse = [
+                'success' => false,
+                'message' => 'Critical server error: ' . $topLevelException->getMessage(),
+                'error_category' => 'critical_error',
+                'debug' => [
+                    'error_type' => get_class($topLevelException),
+                    'error_location' => $topLevelException->getFile() . ':' . $topLevelException->getLine(),
+                    'trace' => $topLevelException->getTraceAsString()
+                ]
+            ];
+            
+            // Log the critical error
+            safeLogModuleCall('orrism', 'test_connection_critical_error', $criticalErrorResponse, 'Critical error in AJAX test connection handler');
+            
+            echo json_encode($criticalErrorResponse);
             exit;
+        }
+        
+        exit;
         }
         
         if ($action === 'test_redis' && $_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -1418,7 +1484,7 @@ function testDatabaseConnection()
     
     try {
         // Log function entry
-        logModuleCall('orrism', 'testDatabaseConnection_start', $_POST, 'Starting database connection test');
+        safeLogModuleCall('orrism', 'testDatabaseConnection_start', $_POST, 'Starting database connection test');
         
         $host = $_POST['test_host'] ?? '';
         $name = $_POST['test_name'] ?? '';
@@ -1440,7 +1506,7 @@ function testDatabaseConnection()
                     'received_params' => array_keys($_POST)
                 ]
             ];
-            logModuleCall('orrism', 'testDatabaseConnection_validation_error', $errorResponse, 'Parameter validation failed');
+            safeLogModuleCall('orrism', 'testDatabaseConnection_validation_error', $errorResponse, 'Parameter validation failed');
             return $errorResponse;
         }
         
@@ -1454,7 +1520,7 @@ function testDatabaseConnection()
             PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8"
         ];
         
-        logModuleCall('orrism', 'testDatabaseConnection_attempt', [
+        safeLogModuleCall('orrism', 'testDatabaseConnection_attempt', [
             'dsn' => "mysql:host=$host;dbname=$name;charset=utf8",
             'user' => $user,
             'options' => array_keys($options)
@@ -1470,7 +1536,7 @@ function testDatabaseConnection()
         $serverInfo = $pdo->getAttribute(PDO::ATTR_SERVER_INFO);
         $connectionStatus = $pdo->getAttribute(PDO::ATTR_CONNECTION_STATUS);
         
-        logModuleCall('orrism', 'testDatabaseConnection_connected', [
+        safeLogModuleCall('orrism', 'testDatabaseConnection_connected', [
             'server_version' => $serverVersion,
             'server_info' => $serverInfo,
             'connection_status' => $connectionStatus
@@ -1506,7 +1572,7 @@ function testDatabaseConnection()
             ]
         ];
         
-        logModuleCall('orrism', 'testDatabaseConnection_success', $successResponse, 'Database connection test completed successfully');
+        safeLogModuleCall('orrism', 'testDatabaseConnection_success', $successResponse, 'Database connection test completed successfully');
         return $successResponse;
         
     } catch (PDOException $e) {
@@ -1526,7 +1592,7 @@ function testDatabaseConnection()
             'execution_time_ms' => $executionTime,
             'dsn_used' => "mysql:host=$host;dbname=$name;charset=utf8"
         ];
-        logModuleCall('orrism', 'testDatabaseConnection_pdo_error', $errorDetails, 'PDO Exception occurred during connection test');
+        safeLogModuleCall('orrism', 'testDatabaseConnection_pdo_error', $errorDetails, 'PDO Exception occurred during connection test');
         
         // Clean up error message for user-friendly display
         $userMessage = '';
@@ -1582,7 +1648,7 @@ function testDatabaseConnection()
             'trace' => $e->getTraceAsString(),
             'execution_time_ms' => $executionTime
         ];
-        logModuleCall('orrism', 'testDatabaseConnection_unexpected_error', $unexpectedErrorDetails, 'Unexpected exception during connection test');
+        safeLogModuleCall('orrism', 'testDatabaseConnection_unexpected_error', $unexpectedErrorDetails, 'Unexpected exception during connection test');
         
         return [
             'success' => false,
