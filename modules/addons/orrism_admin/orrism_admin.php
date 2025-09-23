@@ -605,6 +605,34 @@ function handlePostRequest($vars)
 }
 
 /**
+ * Render navigation tabs with active state
+ *
+ * @param string $activeAction
+ * @return string
+ */
+function renderNavigationTabs($activeAction)
+{
+    $tabs = [
+        'dashboard' => 'Dashboard',
+        'database' => 'Database Setup',
+        'nodes' => 'Node Management',
+        'users' => 'User Management',
+        'traffic' => 'Traffic Management',
+        'settings' => 'Settings'
+    ];
+
+    $nav = '<div class="orrism-nav-tabs">';
+    foreach ($tabs as $action => $label) {
+        $isActive = ($action === $activeAction);
+        $classes = $isActive ? 'btn btn-primary btn-sm' : 'btn btn-default btn-sm';
+        $nav .= '<a href="?module=orrism_admin&action=' . $action . '" class="' . $classes . '">' . $label . '</a>';
+    }
+    $nav .= '</div>';
+
+    return $nav;
+}
+
+/**
  * Render main dashboard
  * 
  * @param array $vars Module variables
@@ -617,14 +645,7 @@ function renderDashboard($vars)
         $content .= '<h2>ORRISM System Dashboard</h2>';
     
     // Navigation menu with responsive design
-    $content .= '<div class="orrism-nav-tabs">';
-    $content .= '<a href="?module=orrism_admin&action=dashboard" class="btn btn-primary btn-sm">Dashboard</a>';
-    $content .= '<a href="?module=orrism_admin&action=database" class="btn btn-default btn-sm">Database Setup</a>';
-    $content .= '<a href="?module=orrism_admin&action=nodes" class="btn btn-default btn-sm">Node Management</a>';
-    $content .= '<a href="?module=orrism_admin&action=users" class="btn btn-default btn-sm">User Management</a>';
-    $content .= '<a href="?module=orrism_admin&action=traffic" class="btn btn-default btn-sm">Traffic Management</a>';
-    $content .= '<a href="?module=orrism_admin&action=settings" class="btn btn-default btn-sm">Settings</a>';
-    $content .= '</div>';
+    $content .= renderNavigationTabs('dashboard');
     
     // System status with responsive columns
     $content .= '<div class="row">';
@@ -753,10 +774,7 @@ function renderDatabaseSetup($vars)
         $content .= '<h2>Database Setup & Installation</h2>';
     
     // Navigation with responsive design
-    $content .= '<div class="orrism-nav-tabs">';
-    $content .= '<a href="?module=orrism_admin&action=dashboard" class="btn btn-default btn-sm">Dashboard</a>';
-    $content .= '<a href="?module=orrism_admin&action=database" class="btn btn-primary btn-sm">Database Setup</a>';
-    $content .= '</div>';
+    $content .= renderNavigationTabs('database');
     
     // Database installation form with responsive panel
     $content .= '<div class="orrism-panel">';
@@ -933,10 +951,7 @@ function renderNodeManagement($vars)
         $content .= '<h2>Node Management</h2>';
     
     // Navigation with responsive design
-    $content .= '<div class="orrism-nav-tabs">';
-    $content .= '<a href="?module=orrism_admin&action=dashboard" class="btn btn-default btn-sm">Dashboard</a>';
-    $content .= '<a href="?module=orrism_admin&action=nodes" class="btn btn-primary btn-sm">Node Management</a>';
-    $content .= '</div>';
+    $content .= renderNavigationTabs('nodes');
     
     $content .= '<div class="orrism-alert orrism-alert-info">Node management functionality will be implemented here.</div>';
     $content .= '</div>';
@@ -961,10 +976,7 @@ function renderUserManagement($vars)
         $content .= '<h2>User Management</h2>';
     
     // Navigation with responsive design
-    $content .= '<div class="orrism-nav-tabs">';
-    $content .= '<a href="?module=orrism_admin&action=dashboard" class="btn btn-default btn-sm">Dashboard</a>';
-    $content .= '<a href="?module=orrism_admin&action=users" class="btn btn-primary btn-sm">User Management</a>';
-    $content .= '</div>';
+    $content .= renderNavigationTabs('users');
     
     $content .= '<div class="orrism-alert orrism-alert-info">User management functionality will be implemented here.</div>';
     $content .= '</div>';
@@ -989,10 +1001,7 @@ function renderTrafficManagement($vars)
         $content .= '<h2>Traffic Management</h2>';
     
     // Navigation with responsive design
-    $content .= '<div class="orrism-nav-tabs">';
-    $content .= '<a href="?module=orrism_admin&action=dashboard" class="btn btn-default btn-sm">Dashboard</a>';
-    $content .= '<a href="?module=orrism_admin&action=traffic" class="btn btn-primary btn-sm">Traffic Management</a>';
-    $content .= '</div>';
+    $content .= renderNavigationTabs('traffic');
     
     $content .= '<div class="orrism-alert orrism-alert-info">Traffic management functionality will be implemented here.</div>';
     $content .= '</div>';
@@ -1017,10 +1026,7 @@ function renderSettings($vars)
         $content .= '<h2>ORRISM Settings</h2>';
     
     // Navigation with responsive design
-    $content .= '<div class="orrism-nav-tabs">';
-    $content .= '<a href="?module=orrism_admin&action=dashboard" class="btn btn-default btn-sm">Dashboard</a>';
-    $content .= '<a href="?module=orrism_admin&action=settings" class="btn btn-primary btn-sm">Settings</a>';
-    $content .= '</div>';
+    $content .= renderNavigationTabs('settings');
     
     // Get current settings from database
     $settings = getOrrisSettings();
