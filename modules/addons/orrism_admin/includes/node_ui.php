@@ -303,10 +303,7 @@ function renderNodeModal($nodeTypes, $nodeGroups)
                         <div class="form-group">
                             <label for="nodeMethod">Encryption Method</label>
                             <select class="form-control" id="nodeMethod" name="node_method">
-                                <option value="aes-256-gcm">AES-256-GCM</option>
-                                <option value="aes-128-gcm">AES-128-GCM</option>
-                                <option value="chacha20-ietf-poly1305">ChaCha20-IETF-Poly1305</option>
-                                <option value="none">None</option>
+                                <!-- Options will be loaded dynamically based on node type -->
                             </select>
                         </div>
                         
@@ -382,6 +379,10 @@ function renderNodeJavaScript()
         $("#nodeModalTitle").text("Add Node");
         $("#nodeForm")[0].reset();
         $("#nodeId").val("");
+        
+        // Trigger node type change to load encryption methods
+        $("#nodeType").trigger("change");
+        
         $("#nodeModal").modal("show");
     }
     
@@ -402,14 +403,61 @@ function renderNodeJavaScript()
                 $("#nodeAddress").val(node.address);
                 $("#nodePort").val(node.port);
                 $("#nodeGroup").val(node.group_id);
-                $("#nodeMethod").val(node.node_method);
                 $("#nodeRate").val(node.rate);
                 $("#nodeSortOrder").val(node.sort_order);
                 $("#nodeStatus").prop("checked", node.status == 1);
+                
+                // Load encryption methods for this node type, then set the value
+                loadEncryptionMethods(node.node_type, function() {
+                    $("#nodeMethod").val(node.node_method);
+                });
+                
                 $("#nodeModal").modal("show");
             } else {
                 alert("Failed to load node: " + (response.message || "Unknown error"));
             }
+        }, "json");
+    }
+    
+    // Load encryption methods for a specific node type
+    function loadEncryptionMethods(nodeType, callback) {
+        var methodSelect = $("#nodeMethod");
+        methodSelect.empty().append($("<option>").text("Loading..."));
+        
+        $.post("addonmodules.php?module=orrism_admin&action=node_get_methods", {
+            node_type: nodeType
+        }, function(response) {
+            methodSelect.empty();
+            
+            if (response.success && response.methods) {
+                $.each(response.methods, function(value, label) {
+                    methodSelect.append($("<option>").attr("value", value).text(label));
+                });
+            } else {
+                // Fallback methods
+                var fallback = {
+                    shadowsocks: {
+                        "aes-128-gcm": "AES-128-GCM",
+                        "aes-192-gcm": "AES-192-GCM",
+                        "aes-256-gcm": "AES-256-GCM",
+                        "chacha20-ietf-poly1305": "ChaCha20-IETF-Poly1305"
+                    },
+                    vless: {"none": "None"},
+                    vmess: {
+                        "auto": "Auto",
+                        "aes-128-gcm": "AES-128-GCM",
+                        "chacha20-poly1305": "ChaCha20-Poly1305",
+                        "none": "None"
+                    },
+                    trojan: {"none": "None"}
+                }[nodeType] || {"none": "None"};
+                
+                $.each(fallback, function(value, label) {
+                    methodSelect.append($("<option>").attr("value", value).text(label));
+                });
+            }
+            
+            if (callback) callback();
         }, "json");
     }
     
@@ -508,62 +556,7 @@ function renderNodeJavaScript()
     // Update encryption methods based on node type
     $("#nodeType").on("change", function() {
         var nodeType = $(this).val();
-        var methodSelect = $("#nodeMethod");
-        
-        // Show loading state
-        methodSelect.empty().append($("<option>").text("Loading..."));
-        
-        // Get methods from server
-        $.post("addonmodules.php?module=orrism_admin&action=node_get_methods", {
-            node_type: nodeType
-        }, function(response) {
-            methodSelect.empty();
-            
-            if (response.success && response.methods) {
-                var hasOptions = false;
-                $.each(response.methods, function(value, label) {
-                    methodSelect.append($("<option>").attr("value", value).text(label));
-                    hasOptions = true;
-                });
-                
-                // If no methods returned, use default
-                if (!hasOptions) {
-                    methodSelect.append($("<option>").attr("value", "none").text("None"));
-                }
-            } else {
-                // Fallback to local methods
-                var methods = {
-                    shadowsocks: {
-                        "aes-128-gcm": "AES-128-GCM",
-                        "aes-192-gcm": "AES-192-GCM",
-                        "aes-256-gcm": "AES-256-GCM",
-                        "chacha20-ietf-poly1305": "ChaCha20-IETF-Poly1305"
-                    },
-                    vless: {"none": "None"},
-                    vmess: {
-                        "auto": "Auto",
-                        "aes-128-gcm": "AES-128-GCM",
-                        "chacha20-poly1305": "ChaCha20-Poly1305",
-                        "none": "None"
-                    },
-                    trojan: {"none": "None"}
-                };
-                
-                var typeMethods = methods[nodeType] || {"none": "None"};
-                $.each(typeMethods, function(value, label) {
-                    methodSelect.append($("<option>").attr("value", value).text(label));
-                });
-            }
-        }, "json").fail(function() {
-            // On error, provide basic default
-            methodSelect.empty();
-            methodSelect.append($("<option>").attr("value", "aes-256-gcm").text("AES-256-GCM"));
-        });
-    });
-    
-    // Trigger change on page load to set initial methods
-    $(document).ready(function() {
-        $("#nodeType").trigger("change");
+        loadEncryptionMethods(nodeType);
     });
     </script>';
 }

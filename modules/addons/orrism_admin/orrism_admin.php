@@ -614,9 +614,6 @@ function orrism_admin_output($vars)
                 case 'users':
                     $output .= renderUserManagement($vars);
                     break;
-                case 'traffic':
-                    $output .= renderTrafficManagement($vars);
-                    break;
                 case 'settings':
                     $output .= renderSettings($vars);
                     break;
@@ -687,7 +684,6 @@ function renderNavigationTabs($activeAction)
         'database' => 'Database Setup',
         'nodes' => 'Node Management',
         'users' => 'User Management',
-        'traffic' => 'Traffic Management',
         'settings' => 'Settings'
     ];
 
@@ -1054,31 +1050,6 @@ function renderUserManagement($vars)
     
     } catch (Exception $e) {
         return '<div class="orrism-alert orrism-alert-danger">User Management Error: ' . htmlspecialchars($e->getMessage()) . '</div>';
-    }
-}
-
-/**
- * Render traffic management page
- * 
- * @param array $vars Module variables
- * @return string
- */
-function renderTrafficManagement($vars)
-{
-    try {
-        $content = '<div class="orrism-admin-dashboard">';
-        $content .= '<h2>Traffic Management</h2>';
-    
-    // Navigation with responsive design
-    $content .= renderNavigationTabs('traffic');
-    
-    $content .= '<div class="orrism-alert orrism-alert-info">Traffic management functionality will be implemented here.</div>';
-    $content .= '</div>';
-    
-    return $content;
-    
-    } catch (Exception $e) {
-        return '<div class="orrism-alert orrism-alert-danger">Traffic Management Error: ' . htmlspecialchars($e->getMessage()) . '</div>';
     }
 }
 
