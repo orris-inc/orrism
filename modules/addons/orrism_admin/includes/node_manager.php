@@ -13,6 +13,8 @@ if (!defined('WHMCS')) {
     die('This file cannot be accessed directly');
 }
 
+use PDO;
+
 // Include OrrisDB connection manager
 $orrisDbPath = dirname(__DIR__, 3) . '/servers/orrism/includes/orris_db.php';
 if (file_exists($orrisDbPath)) {
@@ -27,6 +29,7 @@ class NodeManager
 {
     private $db = null;
     private $queryLog = [];
+    private $pdo = null;
     
     /**
      * Constructor
@@ -46,12 +49,60 @@ class NodeManager
             // Check if OrrisDB class is available
             if (class_exists('OrrisDB')) {
                 $this->db = OrrisDB::connection();
+                if ($this->db) {
+                    $this->pdo = $this->db->getPdo();
+                }
             } else {
                 error_log('NodeManager: OrrisDB class not found');
             }
         } catch (Exception $e) {
             error_log('NodeManager: Failed to initialize database - ' . $e->getMessage());
         }
+    }
+    
+    /**
+     * Execute a query and return results
+     */
+    private function query($sql, $bindings = [])
+    {
+        if (!$this->pdo) {
+            return false;
+        }
+        
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($bindings);
+        return $stmt;
+    }
+    
+    /**
+     * Execute a query and return all results
+     */
+    private function selectAll($sql, $bindings = [])
+    {
+        $stmt = $this->query($sql, $bindings);
+        return $stmt ? $stmt->fetchAll(PDO::FETCH_OBJ) : [];
+    }
+    
+    /**
+     * Execute a query and return first result
+     */
+    private function selectOne($sql, $bindings = [])
+    {
+        $stmt = $this->query($sql, $bindings);
+        return $stmt ? $stmt->fetch(PDO::FETCH_OBJ) : null;
+    }
+    
+    /**
+     * Execute an insert/update/delete query
+     */
+    private function execute($sql, $bindings = [])
+    {
+        if (!$this->pdo) {
+            return false;
+        }
+        
+        $stmt = $this->pdo->prepare($sql);
+        return $stmt->execute($bindings);
     }
     
     /**
@@ -138,8 +189,13 @@ class NodeManager
             
             // Execute count query
             if ($this->db) {
-                $totalResult = \OrrisDB::select($countQuery, $bindings);
-                $total = $totalResult[0]->total ?? 0;
+                $stmt = $this->db->getPdo()->prepare($countQuery);
+                foreach ($bindings as $index => $value) {
+                    $stmt->bindValue($index + 1, $value);
+                }
+                $stmt->execute();
+                $totalResult = $stmt->fetch(PDO::FETCH_OBJ);
+                $total = $totalResult ? $totalResult->total : 0;
             } else {
                 $total = 0;
             }
@@ -151,7 +207,12 @@ class NodeManager
             
             // Execute main query
             if ($this->db) {
-                $nodes = \OrrisDB::select($query, $bindings);
+                $stmt = $this->db->getPdo()->prepare($query);
+                foreach ($bindings as $index => $value) {
+                    $stmt->bindValue($index + 1, $value);
+                }
+                $stmt->execute();
+                $nodes = $stmt->fetchAll(PDO::FETCH_OBJ);
             } else {
                 $nodes = [];
             }
@@ -197,20 +258,23 @@ class NodeManager
                 throw new Exception('Database connection not available');
             }
             
-            $node = \OrrisDB::table('nodes')
-                ->leftJoin('node_groups', 'nodes.group_id', '=', 'node_groups.id')
-                ->select('nodes.*', 'node_groups.name as group_name')
-                ->where('nodes.id', $nodeId)
-                ->first();
+            $query = "SELECT n.*, ng.name as group_name 
+                     FROM nodes n 
+                     LEFT JOIN node_groups ng ON n.group_id = ng.id 
+                     WHERE n.id = ?";
+            
+            $stmt = $this->db->getPdo()->prepare($query);
+            $stmt->execute([$nodeId]);
+            $node = $stmt->fetch(PDO::FETCH_OBJ);
             
             if ($node) {
                 // Get current users count
-                $userCount = \OrrisDB::table('users')
-                    ->where('node_group_id', $node->group_id)
-                    ->where('status', 'active')
-                    ->count();
+                $countQuery = "SELECT COUNT(*) as count FROM users WHERE node_group_id = ? AND status = 'active'";
+                $stmt = $this->db->getPdo()->prepare($countQuery);
+                $stmt->execute([$node->group_id]);
+                $result = $stmt->fetch(PDO::FETCH_OBJ);
                 
-                $node->current_users = $userCount;
+                $node->current_users = $result ? $result->count : 0;
                 
                 return [
                     'success' => true,
@@ -237,7 +301,7 @@ class NodeManager
     public function createNode($data)
     {
         try {
-            if (!$this->db) {
+            if (!$this->pdo) {
                 throw new Exception('Database connection not available');
             }
             
@@ -249,25 +313,29 @@ class NodeManager
                 }
             }
             
-            // Prepare data
-            $nodeData = [
-                'node_type' => $data['node_type'],
-                'node_name' => $data['node_name'],
-                'address' => $data['address'],
-                'port' => (int)$data['port'],
-                'group_id' => $data['group_id'] ?? 1,
-                'rate' => $data['rate'] ?? 1.0,
-                'node_method' => $data['node_method'] ?? 'aes-256-gcm',
-                'network_type' => $data['network_type'] ?? 'tcp',
-                'status' => $data['status'] ?? 1,
-                'sort_order' => $data['sort_order'] ?? 0,
-                'tag' => $data['tag'] ?? '',
-                'created_at' => date('Y-m-d H:i:s'),
-                'updated_at' => date('Y-m-d H:i:s')
+            // Prepare insert query
+            $sql = "INSERT INTO nodes (node_type, node_name, address, port, group_id, rate, node_method, network_type, status, sort_order, tag, created_at, updated_at) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+            
+            $bindings = [
+                $data['node_type'],
+                $data['node_name'],
+                $data['address'],
+                (int)$data['port'],
+                $data['group_id'] ?? 1,
+                $data['rate'] ?? 1.0,
+                $data['node_method'] ?? 'aes-256-gcm',
+                $data['network_type'] ?? 'tcp',
+                $data['status'] ?? 1,
+                $data['sort_order'] ?? 0,
+                $data['tag'] ?? '',
+                date('Y-m-d H:i:s'),
+                date('Y-m-d H:i:s')
             ];
             
             // Insert node
-            $nodeId = \OrrisDB::table('nodes')->insertGetId($nodeData);
+            $this->execute($sql, $bindings);
+            $nodeId = $this->pdo->lastInsertId();
             
             return [
                 'success' => true,
@@ -289,14 +357,13 @@ class NodeManager
     public function updateNode($nodeId, $data)
     {
         try {
-            if (!$this->db) {
+            if (!$this->pdo) {
                 throw new Exception('Database connection not available');
             }
             
-            // Prepare update data
-            $updateData = [
-                'updated_at' => date('Y-m-d H:i:s')
-            ];
+            // Build update query dynamically
+            $updates = [];
+            $bindings = [];
             
             // Only update provided fields
             $allowedFields = [
@@ -307,19 +374,32 @@ class NodeManager
             
             foreach ($allowedFields as $field) {
                 if (isset($data[$field])) {
-                    $updateData[$field] = $data[$field];
+                    $updates[] = "$field = ?";
+                    $bindings[] = $data[$field];
                 }
             }
             
+            if (empty($updates)) {
+                return [
+                    'success' => false,
+                    'message' => 'No fields to update'
+                ];
+            }
+            
+            // Add updated_at
+            $updates[] = "updated_at = ?";
+            $bindings[] = date('Y-m-d H:i:s');
+            
+            // Add nodeId for WHERE clause
+            $bindings[] = $nodeId;
+            
             // Update node
-            $affected = \OrrisDB::table('nodes')
-                ->where('id', $nodeId)
-                ->update($updateData);
+            $sql = "UPDATE nodes SET " . implode(', ', $updates) . " WHERE id = ?";
+            $this->execute($sql, $bindings);
             
             return [
                 'success' => true,
-                'message' => 'Node updated successfully',
-                'affected' => $affected
+                'message' => 'Node updated successfully'
             ];
             
         } catch (Exception $e) {
@@ -336,30 +416,32 @@ class NodeManager
     public function deleteNode($nodeId)
     {
         try {
-            if (!$this->db) {
+            if (!$this->pdo) {
                 throw new Exception('Database connection not available');
             }
             
             // Begin transaction
-            \OrrisDB::beginTransaction();
+            $this->pdo->beginTransaction();
             
-            // Delete related usage records first
-            \OrrisDB::table('user_usage')
-                ->where('node_id', $nodeId)
-                ->delete();
-            
-            // Delete node
-            $deleted = \OrrisDB::table('nodes')
-                ->where('id', $nodeId)
-                ->delete();
-            
-            \OrrisDB::commit();
-            
-            return [
-                'success' => true,
-                'message' => 'Node deleted successfully',
-                'deleted' => $deleted
-            ];
+            try {
+                // Delete related usage records first
+                $sql = "DELETE FROM user_usage WHERE node_id = ?";
+                $this->execute($sql, [$nodeId]);
+                
+                // Delete node
+                $sql = "DELETE FROM nodes WHERE id = ?";
+                $this->execute($sql, [$nodeId]);
+                
+                $this->pdo->commit();
+                
+                return [
+                    'success' => true,
+                    'message' => 'Node deleted successfully'
+                ];
+            } catch (Exception $e) {
+                $this->pdo->rollBack();
+                throw $e;
+            }
             
         } catch (Exception $e) {
             \OrrisDB::rollback();
@@ -376,15 +458,13 @@ class NodeManager
     public function toggleNodeStatus($nodeId)
     {
         try {
-            if (!$this->db) {
+            if (!$this->pdo) {
                 throw new Exception('Database connection not available');
             }
             
             // Get current status
-            $node = \OrrisDB::table('nodes')
-                ->select('status')
-                ->where('id', $nodeId)
-                ->first();
+            $sql = "SELECT status FROM nodes WHERE id = ?";
+            $node = $this->selectOne($sql, [$nodeId]);
             
             if (!$node) {
                 throw new Exception('Node not found');
@@ -393,12 +473,8 @@ class NodeManager
             // Toggle status
             $newStatus = $node->status ? 0 : 1;
             
-            \OrrisDB::table('nodes')
-                ->where('id', $nodeId)
-                ->update([
-                    'status' => $newStatus,
-                    'updated_at' => date('Y-m-d H:i:s')
-                ]);
+            $sql = "UPDATE nodes SET status = ?, updated_at = ? WHERE id = ?";
+            $this->execute($sql, [$newStatus, date('Y-m-d H:i:s'), $nodeId]);
             
             return [
                 'success' => true,
@@ -420,7 +496,7 @@ class NodeManager
     public function batchUpdateNodes($nodeIds, $action, $data = [])
     {
         try {
-            if (!$this->db) {
+            if (!$this->pdo) {
                 throw new Exception('Database connection not available');
             }
             
@@ -428,61 +504,64 @@ class NodeManager
                 throw new Exception('No nodes selected');
             }
             
-            \OrrisDB::beginTransaction();
+            // Create placeholders for IN clause
+            $placeholders = str_repeat('?,', count($nodeIds) - 1) . '?';
             
-            switch ($action) {
-                case 'enable':
-                    \OrrisDB::table('nodes')
-                        ->whereIn('id', $nodeIds)
-                        ->update(['status' => 1, 'updated_at' => date('Y-m-d H:i:s')]);
-                    $message = 'Nodes enabled successfully';
-                    break;
-                    
-                case 'disable':
-                    \OrrisDB::table('nodes')
-                        ->whereIn('id', $nodeIds)
-                        ->update(['status' => 0, 'updated_at' => date('Y-m-d H:i:s')]);
-                    $message = 'Nodes disabled successfully';
-                    break;
-                    
-                case 'delete':
-                    // Delete usage records first
-                    \OrrisDB::table('user_usage')
-                        ->whereIn('node_id', $nodeIds)
-                        ->delete();
-                    
-                    \OrrisDB::table('nodes')
-                        ->whereIn('id', $nodeIds)
-                        ->delete();
-                    $message = 'Nodes deleted successfully';
-                    break;
-                    
-                case 'change_group':
-                    if (empty($data['group_id'])) {
-                        throw new Exception('Group ID is required');
-                    }
-                    \OrrisDB::table('nodes')
-                        ->whereIn('id', $nodeIds)
-                        ->update([
-                            'group_id' => $data['group_id'],
-                            'updated_at' => date('Y-m-d H:i:s')
-                        ]);
-                    $message = 'Node group changed successfully';
-                    break;
-                    
-                default:
-                    throw new Exception('Invalid action');
+            $this->pdo->beginTransaction();
+            
+            try {
+                switch ($action) {
+                    case 'enable':
+                        $sql = "UPDATE nodes SET status = 1, updated_at = ? WHERE id IN ($placeholders)";
+                        $bindings = array_merge([date('Y-m-d H:i:s')], $nodeIds);
+                        $this->execute($sql, $bindings);
+                        $message = 'Nodes enabled successfully';
+                        break;
+                        
+                    case 'disable':
+                        $sql = "UPDATE nodes SET status = 0, updated_at = ? WHERE id IN ($placeholders)";
+                        $bindings = array_merge([date('Y-m-d H:i:s')], $nodeIds);
+                        $this->execute($sql, $bindings);
+                        $message = 'Nodes disabled successfully';
+                        break;
+                        
+                    case 'delete':
+                        // Delete usage records first
+                        $sql = "DELETE FROM user_usage WHERE node_id IN ($placeholders)";
+                        $this->execute($sql, $nodeIds);
+                        
+                        $sql = "DELETE FROM nodes WHERE id IN ($placeholders)";
+                        $this->execute($sql, $nodeIds);
+                        $message = 'Nodes deleted successfully';
+                        break;
+                        
+                    case 'change_group':
+                        if (empty($data['group_id'])) {
+                            throw new Exception('Group ID is required');
+                        }
+                        $sql = "UPDATE nodes SET group_id = ?, updated_at = ? WHERE id IN ($placeholders)";
+                        $bindings = array_merge([$data['group_id'], date('Y-m-d H:i:s')], $nodeIds);
+                        $this->execute($sql, $bindings);
+                        $message = 'Node group changed successfully';
+                        break;
+                        
+                    default:
+                        throw new Exception('Invalid action');
+                }
+                
+                $this->pdo->commit();
+                
+                return [
+                    'success' => true,
+                    'message' => $message
+                ];
+                
+            } catch (Exception $e) {
+                $this->pdo->rollBack();
+                throw $e;
             }
             
-            \OrrisDB::commit();
-            
-            return [
-                'success' => true,
-                'message' => $message
-            ];
-            
         } catch (Exception $e) {
-            \OrrisDB::rollback();
             return [
                 'success' => false,
                 'message' => 'Batch operation failed: ' . $e->getMessage()
@@ -496,17 +575,12 @@ class NodeManager
     public function getNodeGroups()
     {
         try {
-            if (!$this->db) {
+            if (!$this->pdo) {
                 return [];
             }
             
-            $groups = \OrrisDB::table('node_groups')
-                ->select('id', 'name', 'description', 'status')
-                ->where('status', 1)
-                ->orderBy('name', 'asc')
-                ->get();
-            
-            return $groups;
+            $sql = "SELECT id, name, description, status FROM node_groups WHERE status = 1 ORDER BY name ASC";
+            return $this->selectAll($sql);
             
         } catch (Exception $e) {
             error_log('NodeManager::getNodeGroups error: ' . $e->getMessage());
