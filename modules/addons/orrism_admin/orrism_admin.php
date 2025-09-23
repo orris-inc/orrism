@@ -75,7 +75,7 @@ function orrism_admin_config()
 {
     return [
         'name' => 'ORRISM Administration',
-        'description' => 'Centralized management for the ORRISM system including database setup, node management, and user administration.',
+        'description' => 'Centralized management for the ORRISM system including settings configuration, node management, and user administration.',
         'version' => '2.0',
         'author' => 'ORRISM Development Team',
         'language' => 'english',
@@ -325,18 +325,6 @@ function orrism_admin_output($vars)
             }
         }
         
-        /* Dark mode compatibility */
-        @media (prefers-color-scheme: dark) {
-            .orrism-panel {
-                background-color: #2d2d2d;
-                border-color: #444;
-            }
-            .orrism-panel-heading {
-                background-color: #333;
-                border-color: #444;
-                color: #e0e0e0;
-            }
-        }
         </style>';
         
         $action = isset($_GET['action']) ? $_GET['action'] : 'dashboard';
@@ -605,9 +593,6 @@ function orrism_admin_output($vars)
         } else {
             // Generate output based on action
             switch ($action) {
-                case 'database':
-                    $output .= renderDatabaseSetup($vars);
-                    break;
                 case 'nodes':
                     $output .= renderNodeManagement($vars);
                     break;
@@ -681,7 +666,6 @@ function renderNavigationTabs($activeAction)
 {
     $tabs = [
         'dashboard' => 'Dashboard',
-        'database' => 'Database Setup',
         'nodes' => 'Node Management',
         'users' => 'User Management',
         'settings' => 'Settings'
@@ -841,52 +825,6 @@ function renderDashboard($vars)
     }
 }
 
-/**
- * Render database setup page
- * 
- * @param array $vars Module variables
- * @return string
- */
-function renderDatabaseSetup($vars)
-{
-    try {
-        $content = '<div class="orrism-admin-dashboard">';
-        $content .= '<h2>Database Setup & Installation</h2>';
-
-        $storedSettings = getOrrisSettings();
-        $currentHost = $storedSettings['database_host'] ?? ($vars['database_host'] ?? 'localhost');
-        $currentPort = $storedSettings['database_port'] ?? ($vars['database_port'] ?? '3306');
-        $currentName = $storedSettings['database_name'] ?? ($vars['database_name'] ?? 'orrism');
-        $currentUser = $storedSettings['database_user'] ?? ($vars['database_user'] ?? 'orrism_user');
-
-        // Navigation with responsive design
-        $content .= renderNavigationTabs('database');
-
-        // Database installation form with responsive panel
-        $content .= '<div class="orrism-panel">';
-        $content .= '<div class="orrism-panel-heading">Install ORRISM Database</div>';
-        $content .= '<div class="orrism-panel-body">';
-        $content .= '<form method="post">';
-        $content .= '<input type="hidden" name="action" value="install_database">';
-        $content .= '<p>This will create the necessary database tables for ORRISM integration.</p>';
-        $content .= '<p><strong>Current Configuration:</strong></p>';
-        $content .= '<ul>';
-        $content .= '<li>Host: ' . htmlspecialchars($currentHost) . '</li>';
-        $content .= '<li>Port: ' . htmlspecialchars($currentPort) . '</li>';
-        $content .= '<li>Database: ' . htmlspecialchars($currentName) . '</li>';
-        $content .= '<li>Username: ' . htmlspecialchars($currentUser) . '</li>';
-        $content .= '</ul>';
-        $content .= '<button type="submit" class="btn btn-success btn-sm">Install Database Tables</button>';
-        $content .= '</form>';
-        $content .= '</div></div>';
-        $content .= '</div>';
-    
-    return $content;
-    
-    } catch (Exception $e) {
-        return '<div class="orrism-alert orrism-alert-danger">Database Setup Error: ' . htmlspecialchars($e->getMessage()) . '</div>';
-    }
-}
 
 /**
  * Handle database installation
@@ -908,7 +846,7 @@ function handleDatabaseInstall($vars)
         
         // Check if already installed
         if ($dbManager->isInstalled()) {
-            return '<div class="orrism-alert orrism-alert-warning">Database tables already exist. If you need to reinstall, please uninstall first.</div>' . renderDatabaseSetup($vars);
+            return '<div class="orrism-alert orrism-alert-warning">Database tables already exist. If you need to reinstall, please uninstall first.</div>' . renderSettings($vars);
         }
         
         // Run installation
@@ -925,9 +863,9 @@ function handleDatabaseInstall($vars)
                 error_log('ORRISM: Failed to update addon settings: ' . $updateError->getMessage());
             }
             
-            return '<div class="orrism-alert orrism-alert-success">Database installed successfully! ' . $result['message'] . '</div>' . renderDatabaseSetup($vars);
+            return '<div class="orrism-alert orrism-alert-success">Database installed successfully! ' . $result['message'] . '</div>' . renderSettings($vars);
         } else {
-            return '<div class="orrism-alert orrism-alert-danger">Database installation failed: ' . $result['message'] . '</div>' . renderDatabaseSetup($vars);
+            return '<div class="orrism-alert orrism-alert-danger">Database installation failed: ' . $result['message'] . '</div>' . renderSettings($vars);
         }
         
     } catch (Exception $e) {
@@ -1015,13 +953,13 @@ function handleSimpleTableCreation($vars)
                 error_log('ORRISM: Failed to insert default data: ' . $dataError->getMessage());
             }
             
-            return '<div class="orrism-alert orrism-alert-success">Database tables created successfully! Created: ' . implode(', ', $createdTables) . '</div>' . renderDatabaseSetup($vars);
+            return '<div class="orrism-alert orrism-alert-success">Database tables created successfully! Created: ' . implode(', ', $createdTables) . '</div>' . renderSettings($vars);
         } else {
-            return '<div class="orrism-alert orrism-alert-danger">Failed to create any database tables. Please check error logs.</div>' . renderDatabaseSetup($vars);
+            return '<div class="orrism-alert orrism-alert-danger">Failed to create any database tables. Please check error logs.</div>' . renderSettings($vars);
         }
         
     } catch (Exception $e) {
-        return '<div class="orrism-alert orrism-alert-danger">Simple installation also failed: ' . $e->getMessage() . '</div>' . renderDatabaseSetup($vars);
+        return '<div class="orrism-alert orrism-alert-danger">Simple installation also failed: ' . $e->getMessage() . '</div>' . renderSettings($vars);
     }
 }
 
@@ -1063,13 +1001,62 @@ function renderSettings($vars)
 {
     try {
         $content = '<div class="orrism-admin-dashboard">';
-        $content .= '<h2>ORRISM Settings</h2>';
+        $content .= '<h2>ORRISM Settings & Database Setup</h2>';
     
     // Navigation with responsive design
     $content .= renderNavigationTabs('settings');
     
     // Get current settings from database
     $settings = getOrrisSettings();
+    
+    // Database Installation Section
+    $content .= '<div class="orrism-panel" style="margin-bottom: 20px;">';
+    $content .= '<div class="orrism-panel-heading">Database Installation</div>';
+    $content .= '<div class="orrism-panel-body">';
+    
+    // Check database status
+    $dbStatus = 'Not Configured';
+    $dbStatusClass = 'orrism-text-warning';
+    $showInstallButton = true;
+    
+    if (!empty($settings['database_host']) && !empty($settings['database_name'])) {
+        if (class_exists('OrrisDatabaseManager')) {
+            $dbManager = new OrrisDatabaseManager();
+            if ($dbManager->testConnection()) {
+                if ($dbManager->isInstalled()) {
+                    $dbStatus = 'Installed & Connected';
+                    $dbStatusClass = 'orrism-text-success';
+                    $showInstallButton = false;
+                } else {
+                    $dbStatus = 'Connected (Not Installed)';
+                    $dbStatusClass = 'orrism-text-warning';
+                }
+            } else {
+                $dbStatus = 'Configuration Error';
+                $dbStatusClass = 'orrism-text-danger';
+            }
+        } else {
+            $dbStatus = 'Manager Not Available';
+            $dbStatusClass = 'orrism-text-danger';
+        }
+    }
+    
+    $content .= '<p><strong>Status:</strong> <span class="' . $dbStatusClass . '">' . $dbStatus . '</span></p>';
+    $content .= '<p>This will create the necessary database tables for ORRISM integration.</p>';
+    
+    if ($showInstallButton) {
+        $content .= '<form method="post" style="display: inline;">';
+        $content .= '<input type="hidden" name="action" value="install_database">';
+        $content .= '<button type="submit" class="btn btn-success btn-sm">';
+        $content .= '<i class="fa fa-database"></i> Install Database Tables</button>';
+        $content .= '</form>';
+    } else {
+        $content .= '<div class="orrism-alert orrism-alert-success">';
+        $content .= '<i class="fa fa-check-circle"></i> Database tables are already installed and working correctly.';
+        $content .= '</div>';
+    }
+    
+    $content .= '</div></div>';
     
     // Settings form
     $content .= '<div class="row">';
@@ -1092,7 +1079,7 @@ function renderSettings($vars)
     $content .= '<div class="form-group">';
     $content .= '<label for="db_port">Database Port</label>';
     $content .= '<input type="number" class="form-control" id="db_port" name="database_port" value="' . htmlspecialchars($settings['database_port'] ?? '3306') . '" min="1" max="65535" required>';
-    $content .= '<small class="form-text text-muted">MySQL 端口（默认 3306）</small>';
+    $content .= '<small class="form-text text-muted">MySQL port (default 3306)</small>';
     $content .= '</div>';
 
     $content .= '<div class="form-group">';
@@ -1144,7 +1131,7 @@ function renderSettings($vars)
     $content .= '<div class="form-group">';
     $content .= '<label for="redis_db">Redis Database</label>';
     $content .= '<input type="number" class="form-control" id="redis_db" name="redis_db" value="' . htmlspecialchars($settings['redis_db'] ?? '0') . '" min="0">';
-    $content .= '<small class="form-text text-muted">Redis 数据库编号（默认 0）</small>';
+    $content .= '<small class="form-text text-muted">Redis database number (default 0)</small>';
     $content .= '</div>';
 
     $content .= '<div class="form-group">';
@@ -1270,7 +1257,7 @@ function renderSettings($vars)
                             if (response.tables_exist && response.existing_tables && response.existing_tables.length > 0) {
                                 tableInfo = \'<span class="text-info">✓ ORRISM tables detected (\' + response.existing_tables.length + \' tables)</span>\';
                             } else {
-                                tableInfo = \'<span class="text-warning">⚠ No ORRISM tables found (run Database Setup)</span>\';
+                                tableInfo = \'<span class="text-warning">⚠ No ORRISM tables found (go to Settings to install)</span>\';
                             }
                             
                             var hostInfo = "N/A";
