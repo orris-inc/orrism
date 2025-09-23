@@ -1198,7 +1198,7 @@ function renderSettings($vars)
         // Disable button and show loading
         btn.disabled = true;
         btn.innerHTML = \'<i class="fa fa-spinner fa-spin"></i> Testing...\';
-        resultDiv.innerHTML = \'<div class="alert alert-info"><i class="fa fa-spinner fa-spin"></i> Testing connection to \' + host + ':' + (port || \'3306\') + \'...</div>\';
+        resultDiv.innerHTML = \'<div class="alert alert-info"><i class="fa fa-spinner fa-spin"></i> Testing connection to \' + host + ":" + (port || "3306") + \'...</div>\';
         
         // Make AJAX request
         var xhr = new XMLHttpRequest();
