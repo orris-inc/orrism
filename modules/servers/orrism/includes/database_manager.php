@@ -271,7 +271,9 @@ class OrrisDatabaseManager
             // Run specific migrations based on version
             $migrations = $this->getAvailableMigrations($currentVersion);
             
-            Capsule::beginTransaction();
+            // Get appropriate connection for transactions
+            $connection = $this->useOrrisDB ? OrrisDB::connection() : Capsule::connection();
+            $connection->beginTransaction();
             
             foreach ($migrations as $migration) {
                 $this->runMigration($migration);
@@ -280,7 +282,7 @@ class OrrisDatabaseManager
             // Update database version
             $this->updateConfig('database_version', $this->currentVersion);
             
-            Capsule::commit();
+            $connection->commit();
             
             $message = 'Database migrated successfully to version ' . $this->currentVersion;
             logModuleCall('orrism', __METHOD__, [], $message);
@@ -291,7 +293,7 @@ class OrrisDatabaseManager
             ];
             
         } catch (Exception $e) {
-            Capsule::rollback();
+            $connection->rollback();
             
             $errorMsg = 'Database migration failed: ' . $e->getMessage();
             logModuleCall('orrism', __METHOD__, [], $errorMsg);
@@ -544,7 +546,19 @@ class OrrisDatabaseManager
     public function testConnection()
     {
         try {
-            Capsule::connection()->getPdo();
+            // Use appropriate connection based on configuration
+            if ($this->useOrrisDB) {
+                $connection = OrrisDB::connection();
+                if (!$connection) {
+                    return [
+                        'success' => false,
+                        'message' => 'Failed to establish ORRISM database connection'
+                    ];
+                }
+                $connection->getPdo();
+            } else {
+                Capsule::connection()->getPdo();
+            }
             
             return [
                 'success' => true,
@@ -590,8 +604,15 @@ class OrrisDatabaseManager
         
         foreach ($tables as $table) {
             try {
-                $exists = Capsule::schema()->hasTable($table);
-                $count = $exists ? Capsule::table($table)->count() : 0;
+                // Use appropriate schema and table based on configuration
+                if ($this->useOrrisDB) {
+                    $schema = OrrisDB::schema();
+                    $exists = $schema ? $schema->hasTable($table) : false;
+                    $count = $exists ? OrrisDB::table($table)->count() : 0;
+                } else {
+                    $exists = Capsule::schema()->hasTable($table);
+                    $count = $exists ? Capsule::table($table)->count() : 0;
+                }
                 
                 $status['tables'][$table] = [
                     'exists' => $exists,

@@ -92,20 +92,14 @@ class OrrisDB
         }
         
         try {
-            // Create new Capsule instance for ORRISM database
-            self::$capsule = new Capsule();
+            // Use existing WHMCS Capsule instance instead of creating new one
+            self::$capsule = WhmcsCapsule::getFacadeRoot();
             
-            // Add the ORRISM database connection
+            // Add the ORRISM database connection to existing Capsule
             self::$capsule->addConnection($config, 'orrism');
             
-            // Make this Capsule instance available globally via static methods
-            self::$capsule->setAsGlobal();
-            
-            // Setup the Eloquent ORM
-            self::$capsule->bootEloquent();
-            
-            // Set default connection
-            self::$capsule->getDatabaseManager()->setDefaultConnection('orrism');
+            // Do NOT set as global or change default connection
+            // This prevents interfering with WHMCS's database operations
             
             logModuleCall('orrism', __METHOD__, ['host' => $config['host'], 'database' => $config['database']], 'ORRISM database connected');
             
