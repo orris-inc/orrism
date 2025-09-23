@@ -343,16 +343,21 @@ function orrism_admin_output($vars)
         
         // Handle AJAX test connection requests
         if ($action === 'test_connection' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-            // Prevent any output before JSON response
-            if (ob_get_level()) {
-                ob_clean();
+            // Clean all output buffers and suppress errors for clean JSON response
+            while (ob_get_level()) {
+                ob_end_clean();
             }
             
+            // Start fresh output buffering
+            ob_start();
+            
             try {
-                // Enhanced debugging headers  
+                // Set HTTP status code to 200 and headers
                 if (!headers_sent()) {
-                    header('Content-Type: application/json');
+                    http_response_code(200);
+                    header('Content-Type: application/json; charset=utf-8');
                     header('X-ORRISM-Debug: Connection-Test');
+                    header('Cache-Control: no-cache, must-revalidate');
                 }
             
             // Comprehensive request logging with safe header collection
@@ -403,7 +408,10 @@ function orrism_admin_output($vars)
                 ];
                 safeLogModuleCall('orrism', 'test_connection_result_detailed', $responseData, 'Database connection test completed with performance metrics');
                 
+                // Clean output buffer and send JSON response
+                ob_clean();
                 echo json_encode($result);
+                ob_end_flush();
                 exit; // Important: prevent any additional output
                 
             } catch (Exception $e) {
@@ -432,7 +440,10 @@ function orrism_admin_output($vars)
                         'request_data' => $_POST
                     ]
                 ];
+                // Clean output buffer and send error response
+                ob_clean();
                 echo json_encode($errorResponse);
+                ob_end_flush();
                 exit; // Important: prevent any additional output
             }
             
@@ -453,7 +464,10 @@ function orrism_admin_output($vars)
             // Log the critical error
             safeLogModuleCall('orrism', 'test_connection_critical_error', $criticalErrorResponse, 'Critical error in AJAX test connection handler');
             
+            // Ensure clean JSON output
+            ob_clean();
             echo json_encode($criticalErrorResponse);
+            ob_end_flush();
             exit;
         }
         
@@ -1114,15 +1128,26 @@ function renderSettings($vars)
                 console.log("ORRISM DB Test - Response Text Length:", xhr.responseText ? xhr.responseText.length : 0);
                 console.log("ORRISM DB Test - Raw Response:", xhr.responseText);
                 
-                if (xhr.status === 200) {
-                    try {
-                        // Check if response is empty or only whitespace
-                        if (!xhr.responseText || xhr.responseText.trim() === "") {
-                            throw new Error("Empty response received from server");
-                        }
-                        
-                        var response = JSON.parse(xhr.responseText);
-                        console.log("ORRISM DB Test - Parsed response:", response);
+                // Try to parse JSON response regardless of HTTP status code
+                // This handles cases where server returns valid JSON with non-200 status
+                var response = null;
+                var parseError = null;
+                
+                try {
+                    // Check if response is empty or only whitespace
+                    if (!xhr.responseText || xhr.responseText.trim() === "") {
+                        throw new Error("Empty response received from server");
+                    }
+                    
+                    response = JSON.parse(xhr.responseText);
+                    console.log("ORRISM DB Test - Parsed response:", response);
+                } catch (parseErr) {
+                    parseError = parseErr;
+                    console.error("ORRISM DB Test - JSON parse error:", parseErr);
+                }
+                
+                // If we successfully parsed JSON, process it regardless of HTTP status
+                if (response && !parseError) {
                         
                         if (response.success) {
                             var tableInfo = \'\';
@@ -1182,62 +1207,57 @@ function renderSettings($vars)
                                 (response.message || "Unknown error") + debugInfo +
                                 \'</div>\';
                         }
-                    } catch (e) {
-                        console.error("ORRISM DB Test - JSON parse error:", e);
-                        console.log("ORRISM DB Test - First 500 chars:", xhr.responseText.substring(0, 500));
-                        
-                        // Check for common response issues
-                        var errorDetails = "";
-                        if (xhr.responseText.indexOf("Fatal error") !== -1) {
-                            errorDetails = "PHP Fatal Error detected in response";
-                        } else if (xhr.responseText.indexOf("Parse error") !== -1) {
-                            errorDetails = "PHP Parse Error detected in response";
-                        } else if (xhr.responseText.indexOf("Warning") !== -1) {
-                            errorDetails = "PHP Warning detected in response";
-                        } else if (xhr.responseText.indexOf("<html") !== -1) {
-                            errorDetails = "HTML response received instead of JSON";
-                        } else if (xhr.responseText.trim() === "") {
-                            errorDetails = "Empty response received";
-                        } else {
-                            errorDetails = "Invalid JSON format";
-                        }
-                        
-                        resultDiv.innerHTML = \'<div class="alert alert-danger">\' +
-                            \'<i class="fa fa-times-circle"></i> <strong>Response Parse Error</strong><br>\' +
-                            \'Issue: \' + errorDetails + \'<br>\' +
-                            \'<details><summary>Raw Response (first 500 chars)</summary><pre style="white-space: pre-wrap; font-size: 11px;">\' +
-                            xhr.responseText.substring(0, 500).replace(/</g, "&lt;").replace(/>/g, "&gt;") +
-                            (xhr.responseText.length > 500 ? "..." : "") + \'</pre></details>\' +
-                            \'</div>\';
-                    }
                 } else {
-                    console.error("ORRISM DB Test - HTTP error:", xhr.status, xhr.statusText);
+                    // Handle cases where JSON parsing failed or response is invalid
+                    console.log("ORRISM DB Test - Failed to parse JSON or no valid response");
+                    console.log("ORRISM DB Test - First 500 chars:", xhr.responseText ? xhr.responseText.substring(0, 500) : "No response text");
                     
-                    var httpErrorMsg = "";
-                    switch(xhr.status) {
-                        case 0:
-                            httpErrorMsg = "No response from server (connection failed)";
-                            break;
-                        case 404:
-                            httpErrorMsg = "Addon module not found (404)";
-                            break;
-                        case 500:
-                            httpErrorMsg = "Internal server error (500)";
-                            break;
-                        case 403:
-                            httpErrorMsg = "Access forbidden (403)";
-                            break;
-                        default:
-                            httpErrorMsg = "HTTP " + xhr.status + ": " + (xhr.statusText || "Unknown error");
+                    // Check for common response issues
+                    var errorDetails = "";
+                    if (!xhr.responseText || xhr.responseText.trim() === "") {
+                        errorDetails = "Empty response received";
+                    } else if (xhr.responseText.indexOf("Fatal error") !== -1) {
+                        errorDetails = "PHP Fatal Error detected in response";
+                    } else if (xhr.responseText.indexOf("Parse error") !== -1) {
+                        errorDetails = "PHP Parse Error detected in response";
+                    } else if (xhr.responseText.indexOf("Warning") !== -1) {
+                        errorDetails = "PHP Warning detected in response";
+                    } else if (xhr.responseText.indexOf("<html") !== -1) {
+                        errorDetails = "HTML response received instead of JSON";
+                    } else if (parseError) {
+                        errorDetails = "Invalid JSON format: " + parseError.message;
+                    } else {
+                        errorDetails = "Unknown response format";
+                    }
+                    
+                    // Handle HTTP error status codes
+                    var httpStatusInfo = "";
+                    if (xhr.status === 500) {
+                        httpStatusInfo = "Server returned HTTP 500 but response may contain useful data. ";
+                    } else if (xhr.status !== 200) {
+                        var httpErrorMsg = "";
+                        switch(xhr.status) {
+                            case 0:
+                                httpErrorMsg = "No response from server (connection failed)";
+                                break;
+                            case 404:
+                                httpErrorMsg = "Addon module not found (404)";
+                                break;
+                            case 403:
+                                httpErrorMsg = "Access forbidden (403)";
+                                break;
+                            default:
+                                httpErrorMsg = "HTTP " + xhr.status + ": " + (xhr.statusText || "Unknown error");
+                        }
+                        httpStatusInfo = httpErrorMsg + ". ";
                     }
                     
                     resultDiv.innerHTML = \'<div class="alert alert-danger">\' +
-                        \'<i class="fa fa-times-circle"></i> <strong>Request Failed</strong><br>\' +
-                        httpErrorMsg + \'<br>\' +
-                        \'URL: \' + requestUrl + \'<br>\' +
-                        \'<details><summary>Response Details</summary><pre style="white-space: pre-wrap; font-size: 11px; max-height: 200px; overflow-y: auto;">\' +
-                        (xhr.responseText ? xhr.responseText.substring(0, 1000).replace(/</g, "&lt;").replace(/>/g, "&gt;") : "No response content") +
-                        (xhr.responseText && xhr.responseText.length > 1000 ? "\\n...truncated" : "") + \'</pre></details>\' +
+                        \'<i class="fa fa-times-circle"></i> <strong>Response Error</strong><br>\' +
+                        httpStatusInfo + errorDetails + \'<br>\' +
+                        \'<details><summary>Raw Response (first 500 chars)</summary><pre style="white-space: pre-wrap; font-size: 11px;">\' +
+                        (xhr.responseText ? xhr.responseText.substring(0, 500).replace(/</g, "&lt;").replace(/>/g, "&gt;") : "No response content") +
+                        (xhr.responseText && xhr.responseText.length > 500 ? "..." : "") + \'</pre></details>\' +
                         \'</div>\';
                 }
             }
