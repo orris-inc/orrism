@@ -341,6 +341,67 @@ function orrism_admin_output($vars)
         
         $action = isset($_GET['action']) ? $_GET['action'] : 'dashboard';
         
+        // Handle AJAX node management requests
+        if (strpos($action, 'node_') === 0 && $_SERVER['REQUEST_METHOD'] === 'POST') {
+            require_once __DIR__ . '/includes/node_manager.php';
+            $nodeManager = new NodeManager();
+            
+            // Clean output buffers
+            while (ob_get_level()) {
+                ob_end_clean();
+            }
+            ob_start();
+            
+            header('Content-Type: application/json; charset=utf-8');
+            
+            $response = ['success' => false, 'message' => 'Invalid action'];
+            
+            switch ($action) {
+                case 'node_list':
+                    $page = isset($_POST['page']) ? max(1, (int)$_POST['page']) : 1;
+                    $filters = $_POST['filters'] ?? [];
+                    $response = $nodeManager->getNodesWithStats($page, 20, $filters);
+                    break;
+                    
+                case 'node_get':
+                    $nodeId = (int)$_POST['node_id'];
+                    $response = $nodeManager->getNode($nodeId);
+                    break;
+                    
+                case 'node_create':
+                    $response = $nodeManager->createNode($_POST);
+                    break;
+                    
+                case 'node_update':
+                    $nodeId = (int)$_POST['node_id'];
+                    unset($_POST['node_id']);
+                    $response = $nodeManager->updateNode($nodeId, $_POST);
+                    break;
+                    
+                case 'node_delete':
+                    $nodeId = (int)$_POST['node_id'];
+                    $response = $nodeManager->deleteNode($nodeId);
+                    break;
+                    
+                case 'node_toggle':
+                    $nodeId = (int)$_POST['node_id'];
+                    $response = $nodeManager->toggleNodeStatus($nodeId);
+                    break;
+                    
+                case 'node_batch':
+                    $nodeIds = $_POST['node_ids'] ?? [];
+                    $batchAction = $_POST['batch_action'] ?? '';
+                    $data = $_POST['data'] ?? [];
+                    $response = $nodeManager->batchUpdateNodes($nodeIds, $batchAction, $data);
+                    break;
+            }
+            
+            ob_clean();
+            echo json_encode($response);
+            ob_end_flush();
+            exit;
+        }
+        
         // Handle AJAX test connection requests
         if ($action === 'test_connection' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             // Clean all output buffers and suppress errors for clean JSON response
@@ -959,30 +1020,8 @@ function handleSimpleTableCreation($vars)
     }
 }
 
-/**
- * Render node management page
- * 
- * @param array $vars Module variables
- * @return string
- */
-function renderNodeManagement($vars)
-{
-    try {
-        $content = '<div class="orrism-admin-dashboard">';
-        $content .= '<h2>Node Management</h2>';
-    
-    // Navigation with responsive design
-    $content .= renderNavigationTabs('nodes');
-    
-    $content .= '<div class="orrism-alert orrism-alert-info">Node management functionality will be implemented here.</div>';
-    $content .= '</div>';
-    
-    return $content;
-    
-    } catch (Exception $e) {
-        return '<div class="orrism-alert orrism-alert-danger">Node Management Error: ' . htmlspecialchars($e->getMessage()) . '</div>';
-    }
-}
+// Include node UI functions
+require_once __DIR__ . '/includes/node_ui.php';
 
 /**
  * Render user management page
