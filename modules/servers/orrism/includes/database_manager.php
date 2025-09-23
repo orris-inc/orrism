@@ -267,18 +267,21 @@ class OrrisDatabaseManager
     private function createTables()
     {
         // Create node groups table
-        Capsule::schema()->create('mod_orrism_node_groups', function ($table) {
-            $table->increments('id');
-            $table->string('name', 100)->unique();
-            $table->text('description')->nullable();
-            $table->decimal('bandwidth_ratio', 3, 2)->default(1.00);
-            $table->integer('max_devices')->default(3);
-            $table->boolean('status')->default(true);
-            $table->timestamps();
-        });
+        if (!Capsule::schema()->hasTable('mod_orrism_node_groups')) {
+            Capsule::schema()->create('mod_orrism_node_groups', function ($table) {
+                $table->increments('id');
+                $table->string('name', 100)->unique();
+                $table->text('description')->nullable();
+                $table->decimal('bandwidth_ratio', 3, 2)->default(1.00);
+                $table->integer('max_devices')->default(3);
+                $table->boolean('status')->default(true);
+                $table->timestamps();
+            });
+        }
         
         // Create nodes table
-        Capsule::schema()->create('mod_orrism_nodes', function ($table) {
+        if (!Capsule::schema()->hasTable('mod_orrism_nodes')) {
+            Capsule::schema()->create('mod_orrism_nodes', function ($table) {
             $table->increments('id');
             $table->string('node_type', 40)->default('shadowsocks');
             $table->integer('group_id')->default(1);
@@ -297,10 +300,12 @@ class OrrisDatabaseManager
             
             $table->index(['group_id', 'status']);
             $table->index(['node_type', 'status']);
-        });
+            });
+        }
         
         // Create users table
-        Capsule::schema()->create('mod_orrism_users', function ($table) {
+        if (!Capsule::schema()->hasTable('mod_orrism_users')) {
+            Capsule::schema()->create('mod_orrism_users', function ($table) {
             $table->increments('id');
             $table->integer('service_id')->unique();
             $table->integer('client_id');
@@ -321,10 +326,12 @@ class OrrisDatabaseManager
             $table->index('email');
             $table->index('status');
             $table->index(['node_group_id', 'status']);
-        });
+            });
+        }
         
         // Create user usage table
-        Capsule::schema()->create('mod_orrism_user_usage', function ($table) {
+        if (!Capsule::schema()->hasTable('mod_orrism_user_usage')) {
+            Capsule::schema()->create('mod_orrism_user_usage', function ($table) {
             $table->increments('id');
             $table->integer('user_id');
             $table->integer('service_id');
@@ -344,10 +351,12 @@ class OrrisDatabaseManager
             
             $table->foreign('user_id')->references('id')->on('mod_orrism_users')->onDelete('cascade');
             $table->foreign('node_id')->references('id')->on('mod_orrism_nodes')->onDelete('cascade');
-        });
+            });
+        }
         
         // Create config table
-        Capsule::schema()->create('mod_orrism_config', function ($table) {
+        if (!Capsule::schema()->hasTable('mod_orrism_config')) {
+            Capsule::schema()->create('mod_orrism_config', function ($table) {
             $table->increments('id');
             $table->string('config_key', 100)->unique();
             $table->text('config_value')->nullable();
@@ -355,15 +364,18 @@ class OrrisDatabaseManager
             $table->string('description')->nullable();
             $table->boolean('is_system')->default(false);
             $table->timestamps();
-        });
+            });
+        }
         
         // Create migrations table
-        Capsule::schema()->create('mod_orrism_migrations', function ($table) {
+        if (!Capsule::schema()->hasTable('mod_orrism_migrations')) {
+            Capsule::schema()->create('mod_orrism_migrations', function ($table) {
             $table->increments('id');
             $table->string('version', 20)->unique();
             $table->string('description');
             $table->timestamp('executed_at')->useCurrent();
-        });
+            });
+        }
     }
     
     /**
@@ -371,17 +383,19 @@ class OrrisDatabaseManager
      */
     private function insertDefaultData()
     {
-        // Insert default node group
-        Capsule::table('mod_orrism_node_groups')->insert([
-            'id' => 1,
-            'name' => 'Default',
-            'description' => 'Default node group for new users',
-            'bandwidth_ratio' => 1.00,
-            'max_devices' => 3,
-            'status' => 1,
-            'created_at' => now(),
-            'updated_at' => now()
-        ]);
+        // Insert default node group if not exists
+        if (!Capsule::table('mod_orrism_node_groups')->where('id', 1)->exists()) {
+            Capsule::table('mod_orrism_node_groups')->insert([
+                'id' => 1,
+                'name' => 'Default',
+                'description' => 'Default node group for new users',
+                'bandwidth_ratio' => 1.00,
+                'max_devices' => 3,
+                'status' => 1,
+                'created_at' => now(),
+                'updated_at' => now()
+            ]);
+        }
         
         // Insert default configuration
         $defaultConfigs = [
@@ -396,10 +410,13 @@ class OrrisDatabaseManager
         ];
         
         foreach ($defaultConfigs as $config) {
-            Capsule::table('mod_orrism_config')->insert(array_merge($config, [
-                'created_at' => now(),
-                'updated_at' => now()
-            ]));
+            // Check if config key exists before inserting
+            if (!Capsule::table('mod_orrism_config')->where('config_key', $config['config_key'])->exists()) {
+                Capsule::table('mod_orrism_config')->insert(array_merge($config, [
+                    'created_at' => now(),
+                    'updated_at' => now()
+                ]));
+            }
         }
     }
     
