@@ -452,8 +452,8 @@ class OrrisDatabaseManager
                 'bandwidth_ratio' => 1.00,
                 'max_devices' => 3,
                 'status' => 1,
-                'created_at' => now(),
-                'updated_at' => now()
+                'created_at' => date('Y-m-d H:i:s'),
+                'updated_at' => date('Y-m-d H:i:s')
             ]);
         }
         
@@ -475,8 +475,8 @@ class OrrisDatabaseManager
             
             if (!$configTable->where('config_key', $config['config_key'])->exists()) {
                 $configTable->insert(array_merge($config, [
-                    'created_at' => now(),
-                    'updated_at' => now()
+                    'created_at' => date('Y-m-d H:i:s'),
+                    'updated_at' => date('Y-m-d H:i:s')
                 ]));
             }
         }
@@ -493,7 +493,7 @@ class OrrisDatabaseManager
         Capsule::table('migrations')->insert([
             'version' => $version,
             'description' => $description,
-            'executed_at' => now()
+            'executed_at' => date('Y-m-d H:i:s')
         ]);
     }
     
@@ -541,7 +541,7 @@ class OrrisDatabaseManager
             ->where('config_key', $key)
             ->update([
                 'config_value' => $value,
-                'updated_at' => now()
+                'updated_at' => date('Y-m-d H:i:s')
             ]);
     }
     

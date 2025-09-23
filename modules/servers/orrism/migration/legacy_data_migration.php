@@ -187,8 +187,8 @@ class OrrisLegacyMigration
                     'tag' => $node['tag'] ?: '{}',
                     'status' => 1, // Assume active
                     'sort_order' => $migratedCount,
-                    'created_at' => now(),
-                    'updated_at' => now()
+                    'created_at' => date('Y-m-d H:i:s'),
+                    'updated_at' => date('Y-m-d H:i:s')
                 ]);
                 
                 $migratedCount++;
@@ -271,8 +271,8 @@ class OrrisLegacyMigration
                     'status' => $user['enable'] ? 'active' : 'suspended',
                     'need_reset' => $user['need_reset'] ?: true,
                     'last_reset_at' => null,
-                    'created_at' => isset($user['created_at']) ? date('Y-m-d H:i:s', $user['created_at']) : now(),
-                    'updated_at' => isset($user['updated_at']) ? date('Y-m-d H:i:s', $user['updated_at']) : now()
+                    'created_at' => isset($user['created_at']) ? date('Y-m-d H:i:s', $user['created_at']) : date('Y-m-d H:i:s'),
+                    'updated_at' => isset($user['updated_at']) ? date('Y-m-d H:i:s', $user['updated_at']) : date('Y-m-d H:i:s')
                 ]);
                 
                 $migratedCount++;

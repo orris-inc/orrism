@@ -87,8 +87,8 @@ class OrrisDatabase
                 'node_group_id' => $nodeGroup,
                 'status' => 'active',
                 'need_reset' => true,
-                'created_at' => now(),
-                'updated_at' => now()
+                'created_at' => date('Y-m-d H:i:s'),
+                'updated_at' => date('Y-m-d H:i:s')
             ]);
             
             // Update WHMCS service with UUID
@@ -142,7 +142,7 @@ class OrrisDatabase
                 ->where('service_id', $serviceid)
                 ->update([
                     'status' => $status,
-                    'updated_at' => now()
+                    'updated_at' => date('Y-m-d H:i:s')
                 ]);
                 
             return $updated > 0;
@@ -186,8 +186,8 @@ class OrrisDatabase
                 ->update([
                     'upload_bytes' => 0,
                     'download_bytes' => 0,
-                    'last_reset_at' => now(),
-                    'updated_at' => now()
+                    'last_reset_at' => date('Y-m-d H:i:s'),
+                    'updated_at' => date('Y-m-d H:i:s')
                 ]);
                 
             return $updated > 0;
@@ -213,7 +213,7 @@ class OrrisDatabase
                 ->where('service_id', $serviceid)
                 ->update([
                     'uuid' => $newUuid,
-                    'updated_at' => now()
+                    'updated_at' => date('Y-m-d H:i:s')
                 ]);
                 
             if ($updated > 0) {
@@ -259,7 +259,7 @@ class OrrisDatabase
                 ->update([
                     'bandwidth_limit' => $bandwidth,
                     'node_group_id' => $nodeGroup,
-                    'updated_at' => now()
+                    'updated_at' => date('Y-m-d H:i:s')
                 ]);
                 
             return $updated > 0;
@@ -354,9 +354,9 @@ class OrrisDatabase
                 'node_id' => $nodeId,
                 'upload_bytes' => $uploadBytes,
                 'download_bytes' => $downloadBytes,
-                'session_start' => now(),
+                'session_start' => date('Y-m-d H:i:s'),
                 'client_ip' => $clientIp,
-                'recorded_at' => now()
+                'recorded_at' => date('Y-m-d H:i:s')
             ]);
             
             // Update user totals
@@ -487,7 +487,7 @@ class OrrisDatabase
                 ->update([
                     'config_value' => $value,
                     'config_type' => $type,
-                    'updated_at' => now()
+                    'updated_at' => date('Y-m-d H:i:s')
                 ]);
             
             // If no rows updated, insert new config
@@ -496,8 +496,8 @@ class OrrisDatabase
                     'config_key' => $key,
                     'config_value' => $value,
                     'config_type' => $type,
-                    'created_at' => now(),
-                    'updated_at' => now()
+                    'created_at' => date('Y-m-d H:i:s'),
+                    'updated_at' => date('Y-m-d H:i:s')
                 ]);
             }
             

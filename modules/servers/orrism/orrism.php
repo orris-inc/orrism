@@ -276,7 +276,7 @@ function ChangePassword(array $params)
             ->where('service_id', $serviceid)
             ->update([
                 'password_hash' => password_hash($password, PASSWORD_DEFAULT),
-                'updated_at' => now()
+                'updated_at' => date('Y-m-d H:i:s')
             ]);
             
         if (!$updated) {

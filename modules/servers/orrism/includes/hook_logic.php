@@ -17,7 +17,7 @@ use Carbon\Carbon; // Ensure Carbon is available if used directly
  * 暂停逾期的产品并暂停相关订单的模块函数
  */
 function orrism_suspendOverdueProducts($adminUser, $allowableOverdueDays = 1) {
-    $now = Carbon::now()->startOfDay();
+    $now = Carbon::date('Y-m-d H:i:s')->startOfDay();
 
     // Step 1: Get Product IDs for the 'orrism' module
     $orrisProductIds = orrism_get_module_product_ids($adminUser, 'orrism');
@@ -60,7 +60,7 @@ function orrism_suspendOverdueProducts($adminUser, $allowableOverdueDays = 1) {
  * 检查逾期产品
  */
 function orrism_checkOverdueProducts($adminUser, $allowableOverdueDays = 1) {
-    $now = Carbon::now()->startOfDay();
+    $now = Carbon::date('Y-m-d H:i:s')->startOfDay();
 
     $orrisProductIds = orrism_get_module_product_ids($adminUser, 'orrism');
 
@@ -141,7 +141,7 @@ function orrism_process_paid_pending_orders($adminUser) {
  */
 function orrism_cancel_overdue_pending_orders($adminUser, $orderOverdueDays) {
     error_log("ORRISM_DEBUG: Starting orrism_cancel_overdue_pending_orders. Overdue days: {$orderOverdueDays}");
-    $now = Carbon::now()->startOfDay();
+    $now = Carbon::date('Y-m-d H:i:s')->startOfDay();
     $orders = orrism_callAPI('GetOrders', ['limitnum' => 10000, 'status' => 'Pending'], $adminUser, 'GetPendingOrdersForCancellation');
 
     if (isset($orders['orders']['order'])) {
@@ -166,7 +166,7 @@ function orrism_cancel_overdue_pending_orders($adminUser, $orderOverdueDays) {
  */
 function orrism_cancel_overdue_invoices($adminUser, $invoiceOverdueDays) {
     error_log("ORRISM_DEBUG: Starting orrism_cancel_overdue_invoices. Overdue days: {$invoiceOverdueDays}");
-    $now = Carbon::now()->startOfDay();
+    $now = Carbon::date('Y-m-d H:i:s')->startOfDay();
     // Note: WHMCS GetInvoices status 'Overdue' might be sufficient. 
     // If not, one might need to fetch 'Unpaid' and then check duedate.
     $invoices = orrism_callAPI('GetInvoices', ['limitnum' => 10000, 'status' => 'Overdue'], $adminUser, 'GetOverdueInvoicesForCancellation');
@@ -239,7 +239,7 @@ function orrism_perform_after_cron_traffic_checks($adminUser) {
 function orrism_perform_billing_day_traffic_reset($adminUser) {
     error_log("ORRISM_DEBUG: Starting orrism_perform_billing_day_traffic_reset.");
     try {
-        $now = Carbon::now()->startOfDay();
+        $now = Carbon::date('Y-m-d H:i:s')->startOfDay();
 
         // Step 1: Get Product IDs for the 'orrism' module
         $orrisProductIds = orrism_get_module_product_ids($adminUser, 'orrism');
