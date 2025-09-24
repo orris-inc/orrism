@@ -1,44 +1,50 @@
 <?php
 /**
  * ORRISM Database Manager
- * Handles database installation, migration, and management for WHMCS
- *
- * @package    WHMCS
+ * Handles database installation, upgrades, and management
+ * 
+ * @package    ORRISM
  * @author     ORRISM Development Team
- * @copyright  Copyright (c) 2024
  * @version    2.0
  */
 
-if (!defined('WHMCS')) {
-    die('This file cannot be accessed directly');
-}
-
 use WHMCS\Database\Capsule;
 
-// Include ORRISM database connection manager
-require_once __DIR__ . '/orris_db.php';
+// Check if Capsule is available
+if (!class_exists('WHMCS\Database\Capsule')) {
+    if (!function_exists('logModuleCall')) {
+        function logModuleCall($module, $action, $request, $response) {
+            error_log("[$module] $action: " . json_encode(['request' => $request, 'response' => $response]));
+        }
+    }
+    logModuleCall('orrism', 'database_manager_init', [], 'Capsule not available - likely CLI mode');
+}
 
-/**
- * ORRISM Database Manager Class
- */
+// Include OrrisDB helper if exists
+$orrisDbPath = __DIR__ . '/orris_db.php';
+if (file_exists($orrisDbPath)) {
+    require_once $orrisDbPath;
+}
+
 class OrrisDatabaseManager
 {
-    private static $instance = null;
-    private $currentVersion = '1.0';
-    private $moduleVersion = '2.0';
-    private $useOrrisDB = true;  // Use separate ORRISM database
+    private $currentVersion = '2.0.0';
+    private $moduleVersion = '2.0.0';
+    private $useOrrisDB = false;
     
     /**
-     * Get singleton instance
-     * 
-     * @return OrrisDatabaseManager
+     * Constructor
      */
-    public static function getInstance()
+    public function __construct()
     {
-        if (self::$instance === null) {
-            self::$instance = new self();
+        // Check if we should use OrrisDB
+        $this->useOrrisDB = class_exists('OrrisDB') && OrrisDB::isConfigured();
+        
+        if ($this->useOrrisDB) {
+            logModuleCall('orrism', 'database_manager', [], 'Using OrrisDB for database operations');
+        } else {
+            logModuleCall('orrism', 'database_manager', [], 'Using Capsule for database operations');
         }
-        return self::$instance;
     }
     
     /**
@@ -49,7 +55,6 @@ class OrrisDatabaseManager
     public function isInstalled()
     {
         try {
-            // Use ORRISM database if configured
             if ($this->useOrrisDB) {
                 $schema = OrrisDB::schema();
                 if (!$schema) {
@@ -59,13 +64,13 @@ class OrrisDatabaseManager
                        $schema->hasTable('nodes') &&
                        $schema->hasTable('config');
             } else {
-                // Fallback to WHMCS database
+                // Use Capsule for WHMCS database
                 return Capsule::schema()->hasTable('services') &&
                        Capsule::schema()->hasTable('nodes') &&
                        Capsule::schema()->hasTable('config');
             }
         } catch (Exception $e) {
-            logModuleCall('orrism', __METHOD__, [], 'Database check failed: ' . $e->getMessage());
+            logModuleCall('orrism', __METHOD__, [], 'Error: ' . $e->getMessage());
             return false;
         }
     }
@@ -78,11 +83,13 @@ class OrrisDatabaseManager
     public function getCurrentVersion()
     {
         try {
-            if (!$this->isInstalled()) {
+            // Check if config table exists
+            $schema = $this->useOrrisDB ? OrrisDB::schema() : Capsule::schema();
+            if (!$schema->hasTable('config')) {
                 return null;
             }
             
-            // Use ORRISM database if configured
+            // Get database version from config table
             if ($this->useOrrisDB) {
                 $version = OrrisDB::table('config')
                     ->where('config_key', 'database_version')
@@ -92,10 +99,11 @@ class OrrisDatabaseManager
                     ->where('config_key', 'database_version')
                     ->first();
             }
-                
+            
             return $version ? $version->config_value : null;
+            
         } catch (Exception $e) {
-            logModuleCall('orrism', __METHOD__, [], 'Version check failed: ' . $e->getMessage());
+            logModuleCall('orrism', __METHOD__, [], 'Error: ' . $e->getMessage());
             return null;
         }
     }
@@ -199,9 +207,21 @@ class OrrisDatabaseManager
                 throw new Exception('Failed to get database schema builder');
             }
             
-            if (!$keepData) {
+            if ($keepData) {
+                // Only drop configuration tables, keep user data
+                $tables = ['config'];
+                
+                foreach ($tables as $table) {
+                    if ($schema->hasTable($table)) {
+                        $schema->drop($table);
+                    }
+                }
+                
+                $message = 'Configuration tables removed, user data preserved';
+            } else {
                 // Drop all tables
                 $tables = [
+                    'service_sessions',
                     'service_usage',
                     'services', 
                     'nodes',
@@ -216,15 +236,9 @@ class OrrisDatabaseManager
                 }
                 
                 $message = 'All database tables removed successfully';
-            } else {
-                // Only drop configuration tables, keep user data
-                if ($schema->hasTable('config')) {
-                    $schema->drop('config');
-                }
-                // Migrations table no longer used - version tracked in config
-                
-                $message = 'Configuration tables removed, user data preserved';
             }
+            
+            // Migrations table no longer used - version tracked in config
             
             logModuleCall('orrism', __METHOD__, ['keepData' => $keepData], $message);
             
@@ -235,7 +249,7 @@ class OrrisDatabaseManager
             
         } catch (Exception $e) {
             $errorMsg = 'Database uninstallation failed: ' . $e->getMessage();
-            logModuleCall('orrism', __METHOD__, ['keepData' => $keepData], $errorMsg);
+            logModuleCall('orrism', __METHOD__, [], $errorMsg);
             
             return [
                 'success' => false,
@@ -245,20 +259,20 @@ class OrrisDatabaseManager
     }
     
     /**
-     * Run database migration to latest version
+     * Upgrade database to latest version
      * 
-     * @return array Migration result
+     * @return array Upgrade result
      */
-    public function migrate()
+    public function upgrade()
     {
-        // Get appropriate connection for transactions
-        $connection = $this->useOrrisDB ? OrrisDB::connection() : Capsule::connection();
-        
         try {
             $currentVersion = $this->getCurrentVersion();
             
             if (!$currentVersion) {
-                return $this->install();
+                return [
+                    'success' => false,
+                    'message' => 'Unable to determine current database version'
+                ];
             }
             
             if (version_compare($currentVersion, $this->currentVersion, '>=')) {
@@ -268,7 +282,7 @@ class OrrisDatabaseManager
                 ];
             }
             
-            // Run specific migrations based on version
+            // Future migrations can be handled here if needed
             $migrations = $this->getAvailableMigrations($currentVersion);
             
             if ($connection) {
@@ -287,20 +301,19 @@ class OrrisDatabaseManager
                 $connection->commit();
             }
             
-            $message = 'Database migrated successfully to version ' . $this->currentVersion;
-            logModuleCall('orrism', __METHOD__, [], $message);
+            logModuleCall('orrism', __METHOD__, [], 'Database upgraded from ' . $currentVersion . ' to ' . $this->currentVersion);
             
             return [
                 'success' => true,
-                'message' => $message
+                'message' => 'Database upgraded successfully to version ' . $this->currentVersion
             ];
             
         } catch (Exception $e) {
-            if ($connection) {
+            if (isset($connection) && $connection) {
                 $connection->rollback();
             }
             
-            $errorMsg = 'Database migration failed: ' . $e->getMessage();
+            $errorMsg = 'Database upgrade failed: ' . $e->getMessage();
             logModuleCall('orrism', __METHOD__, [], $errorMsg);
             
             return [
@@ -322,125 +335,221 @@ class OrrisDatabaseManager
             throw new Exception('Failed to get database schema builder');
         }
         
-        // Create node groups table
+        // Set default string length for utf8mb4
+        if (method_exists($schema->getConnection()->getSchemaBuilder(), 'defaultStringLength')) {
+            $schema->getConnection()->getSchemaBuilder()->defaultStringLength(191);
+        }
+        
+        // Create node_groups table
         if (!$schema->hasTable('node_groups')) {
             $schema->create('node_groups', function ($table) {
-                $table->increments('id');
+                $table->bigIncrements('id');
                 $table->string('name', 100)->unique();
                 $table->text('description')->nullable();
-                $table->decimal('bandwidth_ratio', 3, 2)->default(1.00);
-                $table->integer('max_devices')->default(3);
+                $table->decimal('bandwidth_ratio', 5, 2)->default(1.00);
+                $table->unsignedInteger('max_devices')->default(3);
+                $table->integer('sort_order')->default(0);
                 $table->boolean('status')->default(true);
-                $table->timestamps();
+                $table->json('metadata')->nullable();
+                $table->timestamp('created_at')->useCurrent();
+                $table->timestamp('updated_at')->useCurrent();
+                
+                // Indexes
+                $table->index(['status', 'sort_order'], 'idx_status_sort');
             });
+            
+            // Set table options for utf8mb4
+            Capsule::statement("ALTER TABLE `node_groups` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
         }
         
         // Create nodes table
         if (!$schema->hasTable('nodes')) {
             $schema->create('nodes', function ($table) {
-            $table->increments('id');
-            $table->string('node_type', 40)->default('shadowsocks');
-            $table->integer('group_id')->default(1);
-            $table->string('node_name');
-            $table->string('address');
-            $table->integer('port');
-            $table->string('node_method', 50)->default('aes-256-gcm');
-            $table->decimal('rate', 3, 2)->default(1.00);
-            $table->string('network_type', 10)->default('tcp');
-            $table->text('tag');
-            $table->boolean('status')->default(true);
-            $table->integer('sort_order')->default(0);
-            $table->integer('max_users')->default(0);
-            $table->integer('current_users')->default(0);
-            $table->timestamps();
-            
-            $table->index(['group_id', 'status']);
-            $table->index(['node_type', 'status']);
+                $table->bigIncrements('id');
+                $table->string('name', 100);
+                $table->enum('type', ['shadowsocks', 'v2ray', 'trojan', 'vless', 'vmess', 'hysteria'])->default('shadowsocks');
+                $table->string('address', 255);
+                $table->unsignedInteger('port');
+                $table->string('method', 50)->nullable();
+                $table->unsignedBigInteger('group_id')->nullable();
+                $table->unsignedInteger('capacity')->default(1000);
+                $table->unsignedInteger('current_load')->default(0);
+                $table->unsignedBigInteger('bandwidth_limit')->nullable();
+                $table->integer('sort_order')->default(0);
+                $table->enum('status', ['active', 'inactive', 'maintenance'])->default('active');
+                $table->integer('health_score')->default(100);
+                $table->timestamp('last_check_at')->nullable();
+                $table->json('config')->nullable();
+                $table->json('metadata')->nullable();
+                $table->timestamp('created_at')->useCurrent();
+                $table->timestamp('updated_at')->useCurrent();
+                
+                // Indexes
+                $table->index(['group_id', 'status'], 'idx_group_status');
+                $table->index(['type', 'status'], 'idx_type_status');
+                $table->index(['current_load', 'capacity'], 'idx_load_capacity');
             });
+            
+            // Set table options for utf8mb4
+            Capsule::statement("ALTER TABLE `nodes` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
         }
         
         // Create services table
         if (!$schema->hasTable('services')) {
             $schema->create('services', function ($table) {
-            $table->increments('id');
-            
-            // WHMCS Service Relationship
-            $table->integer('service_id')->unique()->comment('WHMCS tblhosting.id');
-            $table->integer('client_id')->comment('WHMCS tblclients.userid');
-            $table->string('domain', 255)->nullable()->comment('Service identifier/domain');
-            $table->integer('product_id')->nullable()->comment('WHMCS tblproducts.id');
-            
-            // WHMCS Account Info (who owns this service)
-            $table->string('whmcs_username', 100)->nullable()->comment('WHMCS account username');
-            $table->string('whmcs_email')->comment('WHMCS account email');
-            
-            // ORRISM Service Credentials
-            $table->string('service_username', 100)->unique()->comment('ORRISM service login username');
-            $table->string('service_password', 255)->nullable()->comment('ORRISM service password (encrypted)');
-            $table->string('uuid', 36)->unique()->comment('ORRISM service UUID');
-            
-            // Traffic and Limits
-            $table->bigInteger('upload_bytes')->default(0);
-            $table->bigInteger('download_bytes')->default(0);
-            $table->bigInteger('bandwidth_limit')->default(0)->comment('Monthly bandwidth limit in bytes');
-            $table->integer('node_group_id')->default(1)->comment('Allowed node group');
-            
-            // Service Status
-            $table->enum('status', ['active', 'suspended', 'terminated'])->default('active');
-            $table->boolean('need_reset')->default(true);
-            
-            // Dates
-            $table->timestamp('last_reset_at')->nullable()->comment('Last traffic reset');
-            $table->timestamp('expired_at')->nullable()->comment('Service expiry date');
-            $table->timestamps();
-            
-            // Indexes
-            $table->index('service_id');
-            $table->index('client_id');
-            $table->index('whmcs_email');
-            $table->index('service_username');
-            $table->index('status');
-            $table->index(['node_group_id', 'status']);
+                $table->bigIncrements('id');
+                $table->unsignedBigInteger('service_id')->unique();
+                $table->string('email', 255);
+                $table->string('uuid', 36)->unique();
+                $table->string('password', 255);
+                $table->string('password_algo', 20)->default('bcrypt');
+                
+                // Traffic management
+                $table->unsignedBigInteger('bandwidth_limit')->default(0);
+                $table->unsignedBigInteger('upload_bytes')->default(0);
+                $table->unsignedBigInteger('download_bytes')->default(0);
+                // Note: total_bytes is a generated column, added via raw SQL below
+                
+                // Monthly traffic tracking
+                $table->unsignedBigInteger('monthly_upload')->default(0);
+                $table->unsignedBigInteger('monthly_download')->default(0);
+                $table->unsignedTinyInteger('monthly_reset_day')->default(1);
+                $table->timestamp('last_reset_at')->nullable();
+                
+                // Service management
+                $table->enum('status', ['active', 'suspended', 'expired', 'banned', 'pending'])->default('pending');
+                $table->unsignedBigInteger('node_group_id')->nullable();
+                $table->unsignedInteger('max_devices')->default(3);
+                $table->unsignedInteger('current_devices')->default(0);
+                
+                // Timestamps
+                $table->timestamp('last_used_at')->nullable();
+                $table->timestamp('expires_at')->nullable();
+                $table->timestamp('created_at')->useCurrent();
+                $table->timestamp('updated_at')->useCurrent();
+                
+                // Additional data
+                $table->json('metadata')->nullable();
+                
+                // Indexes
+                $table->unique('email', 'uk_email');
+                $table->unique('uuid', 'uk_uuid');
+                $table->index(['status', 'expires_at'], 'idx_status_expires');
+                $table->index('node_group_id', 'idx_node_group');
+                $table->index('last_used_at', 'idx_last_used');
+                $table->index(['monthly_reset_day', 'last_reset_at'], 'idx_monthly_reset');
             });
+            
+            // Add generated column and additional index
+            Capsule::statement("ALTER TABLE `services` ADD COLUMN `total_bytes` BIGINT UNSIGNED GENERATED ALWAYS AS (`upload_bytes` + `download_bytes`) STORED");
+            Capsule::statement("ALTER TABLE `services` ADD INDEX `idx_traffic_check` (`total_bytes`, `bandwidth_limit`, `status`)");
+            
+            // Set table options for utf8mb4
+            Capsule::statement("ALTER TABLE `services` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
         }
         
-        // Create service usage table
+        // Create service_usage table
         if (!$schema->hasTable('service_usage')) {
             $schema->create('service_usage', function ($table) {
-            $table->increments('id');
-            $table->integer('service_id');
-            $table->integer('node_id');
-            $table->bigInteger('upload_bytes')->default(0);
-            $table->bigInteger('download_bytes')->default(0);
-            $table->timestamp('session_start');
-            $table->timestamp('session_end')->nullable();
-            $table->string('client_ip', 45)->nullable();
-            $table->text('user_agent')->nullable();
-            $table->timestamp('recorded_at')->useCurrent();
-            
-            $table->index('service_id');
-            $table->index('node_id');
-            $table->index('recorded_at');
-            
-            // Foreign key constraints removed for MySQL compatibility
-            // Data integrity will be maintained through application logic
+                $table->bigIncrements('id');
+                $table->unsignedBigInteger('service_id');
+                $table->unsignedBigInteger('node_id');
+                $table->unsignedBigInteger('upload_bytes')->default(0);
+                $table->unsignedBigInteger('download_bytes')->default(0);
+                $table->timestamp('session_start')->useCurrent();
+                $table->timestamp('session_end')->nullable();
+                $table->unsignedInteger('session_duration')->nullable();
+                $table->string('client_ip', 45)->nullable();
+                $table->string('device_id', 100)->nullable();
+                $table->timestamp('created_at')->useCurrent();
+                
+                // Indexes
+                $table->index(['service_id', 'created_at'], 'idx_service_time');
+                $table->index(['node_id', 'created_at'], 'idx_node_time');
+                $table->index(['service_id', 'session_start', 'session_end'], 'idx_session');
+                $table->index(['device_id', 'service_id'], 'idx_device');
             });
+            
+            // Set table options for utf8mb4
+            Capsule::statement("ALTER TABLE `service_usage` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
         }
         
         // Create config table
         if (!$schema->hasTable('config')) {
             $schema->create('config', function ($table) {
-            $table->increments('id');
-            $table->string('config_key', 100)->unique();
-            $table->text('config_value')->nullable();
-            $table->enum('config_type', ['string', 'integer', 'boolean', 'json', 'encrypted'])->default('string');
-            $table->string('description')->nullable();
-            $table->boolean('is_system')->default(false);
-            $table->timestamps();
+                $table->increments('id');
+                $table->string('config_key', 100)->unique();
+                $table->text('config_value')->nullable();
+                $table->enum('config_type', ['string', 'integer', 'boolean', 'json', 'encrypted'])->default('string');
+                $table->string('category', 50)->default('general');
+                $table->text('description')->nullable();
+                $table->boolean('is_system')->default(false);
+                $table->boolean('is_public')->default(false);
+                $table->json('validation_rules')->nullable();
+                $table->timestamp('created_at')->useCurrent();
+                $table->timestamp('updated_at')->useCurrent();
+                
+                // Indexes
+                $table->unique('config_key', 'uk_config_key');
+                $table->index('category', 'idx_category');
+                $table->index('is_system', 'idx_system');
+                $table->index('is_public', 'idx_public');
             });
+            
+            // Set table options for utf8mb4
+            Capsule::statement("ALTER TABLE `config` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
         }
         
-        // Note: Migrations tracking is done through config table, not a separate migrations table
+        // Create service_sessions table
+        if (!$schema->hasTable('service_sessions')) {
+            $schema->create('service_sessions', function ($table) {
+                $table->bigIncrements('id');
+                $table->unsignedBigInteger('service_id');
+                $table->unsignedBigInteger('node_id');
+                $table->string('session_token', 64)->unique();
+                $table->string('device_id', 100)->nullable();
+                $table->string('client_ip', 45)->nullable();
+                $table->unsignedInteger('client_port')->nullable();
+                $table->unsignedBigInteger('bytes_sent')->default(0);
+                $table->unsignedBigInteger('bytes_received')->default(0);
+                $table->timestamp('connected_at')->useCurrent();
+                $table->timestamp('last_activity')->useCurrent();
+                $table->json('metadata')->nullable();
+                
+                // Indexes
+                $table->unique('session_token', 'uk_session_token');
+                $table->index(['service_id', 'connected_at'], 'idx_service_active');
+                $table->index(['node_id', 'connected_at'], 'idx_node_active');
+                $table->index(['device_id', 'service_id'], 'idx_device');
+                $table->index('last_activity', 'idx_last_activity');
+            });
+            
+            // Set table options for utf8mb4
+            Capsule::statement("ALTER TABLE `service_sessions` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+        }
+        
+        // Create additional indexes for better performance
+        if ($this->useOrrisDB) {
+            OrrisDB::statement("CREATE INDEX IF NOT EXISTS `idx_services_traffic` ON `services` (`upload_bytes`, `download_bytes`)");
+            OrrisDB::statement("CREATE INDEX IF NOT EXISTS `idx_usage_created` ON `service_usage` (`created_at`)");
+            OrrisDB::statement("CREATE INDEX IF NOT EXISTS `idx_nodes_health` ON `nodes` (`health_score`, `status`)");
+        } else {
+            // Check if indexes exist before creating
+            $existingIndexes = Capsule::select("SHOW INDEX FROM `services` WHERE Key_name = 'idx_services_traffic'");
+            if (empty($existingIndexes)) {
+                Capsule::statement("CREATE INDEX `idx_services_traffic` ON `services` (`upload_bytes`, `download_bytes`)");
+            }
+            
+            $existingIndexes = Capsule::select("SHOW INDEX FROM `service_usage` WHERE Key_name = 'idx_usage_created'");
+            if (empty($existingIndexes)) {
+                Capsule::statement("CREATE INDEX `idx_usage_created` ON `service_usage` (`created_at`)");
+            }
+            
+            $existingIndexes = Capsule::select("SHOW INDEX FROM `nodes` WHERE Key_name = 'idx_nodes_health'");
+            if (empty($existingIndexes)) {
+                Capsule::statement("CREATE INDEX `idx_nodes_health` ON `nodes` (`health_score`, `status`)");
+            }
+        }
     }
     
     /**
@@ -455,7 +564,7 @@ class OrrisDatabaseManager
             $table->insert([
                 'id' => 1,
                 'name' => 'Default',
-                'description' => 'Default node group for new users',
+                'description' => 'Default node group',
                 'bandwidth_ratio' => 1.00,
                 'max_devices' => 3,
                 'status' => 1,
@@ -466,14 +575,15 @@ class OrrisDatabaseManager
         
         // Insert default configuration
         $defaultConfigs = [
-            ['config_key' => 'module_version', 'config_value' => $this->moduleVersion, 'description' => 'Current module version', 'is_system' => true],
-            ['config_key' => 'database_version', 'config_value' => $this->currentVersion, 'description' => 'Current database schema version', 'is_system' => true],
-            ['config_key' => 'subscription_base_url', 'config_value' => '', 'description' => 'Base URL for subscription services'],
-            ['config_key' => 'default_encryption', 'config_value' => 'aes-256-gcm', 'description' => 'Default encryption method for new nodes'],
-            ['config_key' => 'auto_reset_traffic', 'config_value' => '0', 'config_type' => 'boolean', 'description' => 'Enable automatic traffic reset'],
-            ['config_key' => 'reset_day', 'config_value' => '1', 'config_type' => 'integer', 'description' => 'Day of month for traffic reset (1-28)'],
-            ['config_key' => 'max_devices_per_user', 'config_value' => '3', 'config_type' => 'integer', 'description' => 'Maximum concurrent devices per user'],
-            ['config_key' => 'enable_usage_logging', 'config_value' => '1', 'config_type' => 'boolean', 'description' => 'Enable detailed usage logging']
+            ['config_key' => 'database_version', 'config_value' => $this->currentVersion, 'config_type' => 'string', 'category' => 'system', 'description' => 'Current database schema version', 'is_system' => true],
+            ['config_key' => 'module_version', 'config_value' => $this->moduleVersion, 'config_type' => 'string', 'category' => 'system', 'description' => 'Current module version', 'is_system' => true],
+            ['config_key' => 'default_encryption', 'config_value' => 'aes-256-gcm', 'config_type' => 'string', 'category' => 'node', 'description' => 'Default encryption method for new nodes', 'is_system' => false],
+            ['config_key' => 'auto_reset_traffic', 'config_value' => '0', 'config_type' => 'boolean', 'category' => 'traffic', 'description' => 'Enable automatic monthly traffic reset', 'is_system' => false],
+            ['config_key' => 'reset_day', 'config_value' => '1', 'config_type' => 'integer', 'category' => 'traffic', 'description' => 'Day of month for traffic reset (1-28)', 'is_system' => false],
+            ['config_key' => 'max_devices_per_user', 'config_value' => '3', 'config_type' => 'integer', 'category' => 'service', 'description' => 'Default maximum devices per service', 'is_system' => false],
+            ['config_key' => 'enable_usage_logging', 'config_value' => '1', 'config_type' => 'boolean', 'category' => 'logging', 'description' => 'Enable detailed usage logging', 'is_system' => false],
+            ['config_key' => 'session_timeout', 'config_value' => '86400', 'config_type' => 'integer', 'category' => 'session', 'description' => 'Session timeout in seconds (24 hours)', 'is_system' => false],
+            ['config_key' => 'subscription_base_url', 'config_value' => '', 'config_type' => 'string', 'category' => 'api', 'description' => 'Base URL for subscription services', 'is_system' => false]
         ];
         
         foreach ($defaultConfigs as $config) {
@@ -493,33 +603,19 @@ class OrrisDatabaseManager
     /**
      * Get available migrations for current version
      * 
-     * @param string $fromVersion Current version
+     * @param string $currentVersion Current database version
      * @return array List of migrations to run
      */
-    private function getAvailableMigrations($fromVersion)
+    private function getAvailableMigrations($currentVersion)
     {
         // Define available migrations
         $migrations = [];
         
         // Add future migrations here
-        // Example: if (version_compare($fromVersion, '1.1', '<')) {
-        //     $migrations[] = ['version' => '1.1', 'method' => 'migrateTo11'];
-        // }
+        // Example:
+        //     $migrations[] = ['version' => '2.1', 'method' => 'migrateTo21'];
         
         return $migrations;
-    }
-    
-    /**
-     * Run specific migration
-     * 
-     * @param array $migration Migration details
-     */
-    private function runMigration($migration)
-    {
-        if (method_exists($this, $migration['method'])) {
-            $this->{$migration['method']}();
-            $this->recordMigration($migration['version'], $migration['description'] ?? 'Migration to version ' . $migration['version']);
-        }
     }
     
     /**
@@ -539,124 +635,93 @@ class OrrisDatabaseManager
     }
     
     /**
-     * Check database connection
+     * Test database connection
      * 
-     * @return array Connection test result
+     * @return bool
      */
     public function testConnection()
     {
         try {
-            // Use appropriate connection based on configuration
             if ($this->useOrrisDB) {
-                $connection = OrrisDB::connection();
-                if (!$connection) {
-                    return [
-                        'success' => false,
-                        'message' => 'Failed to establish ORRISM database connection'
-                    ];
-                }
-                $connection->getPdo();
+                $pdo = OrrisDB::connection()->getPdo();
             } else {
-                Capsule::connection()->getPdo();
+                $pdo = Capsule::connection()->getPdo();
             }
             
-            return [
-                'success' => true,
-                'message' => 'Database connection successful'
-            ];
-            
+            return $pdo !== null;
         } catch (Exception $e) {
-            return [
-                'success' => false,
-                'message' => 'Database connection failed: ' . $e->getMessage()
-            ];
+            logModuleCall('orrism', __METHOD__, [], 'Connection test failed: ' . $e->getMessage());
+            return false;
         }
     }
     
     /**
-     * Get database status information
-     * 
-     * @return array Database status
-     */
-    public function getStatus()
-    {
-        $status = [
-            'installed' => $this->isInstalled(),
-            'current_version' => $this->getCurrentVersion(),
-            'latest_version' => $this->currentVersion,
-            'needs_migration' => false,
-            'tables' => []
-        ];
-        
-        if ($status['installed'] && $status['current_version']) {
-            $status['needs_migration'] = version_compare($status['current_version'], $this->currentVersion, '<');
-        }
-        
-        // Check table status
-        $tables = [
-            'services',
-            'nodes', 
-            'service_usage',
-            'node_groups',
-            'config'
-        ];
-        
-        foreach ($tables as $table) {
-            try {
-                // Use appropriate schema and table based on configuration
-                if ($this->useOrrisDB) {
-                    $schema = OrrisDB::schema();
-                    $exists = $schema ? $schema->hasTable($table) : false;
-                    $count = $exists ? OrrisDB::table($table)->count() : 0;
-                } else {
-                    $exists = Capsule::schema()->hasTable($table);
-                    $count = $exists ? Capsule::table($table)->count() : 0;
-                }
-                
-                $status['tables'][$table] = [
-                    'exists' => $exists,
-                    'records' => $count
-                ];
-            } catch (Exception $e) {
-                $status['tables'][$table] = [
-                    'exists' => false,
-                    'error' => $e->getMessage()
-                ];
-            }
-        }
-        
-        return $status;
-    }
-    
-    /**
-     * Get count of services in the ORRISM database
+     * Get service count
      * 
      * @return int Number of services
      */
     public function getServiceCount()
     {
         try {
-            if (!$this->isInstalled()) {
-                return 0;
-            }
-            
             $table = $this->useOrrisDB ? OrrisDB::table('services') : Capsule::table('services');
             return $table->count();
-            
         } catch (Exception $e) {
-            logModuleCall('orrism', __METHOD__, [], 'Error: ' . $e->getMessage());
             return 0;
         }
     }
     
-}
-
-/**
- * Helper function to get database manager instance
- * 
- * @return OrrisDatabaseManager
- */
-function db_manager()
-{
-    return OrrisDatabaseManager::getInstance();
+    /**
+     * Check if specific table exists
+     * 
+     * @param string $tableName Table name to check
+     * @return bool
+     */
+    public function tableExists($tableName)
+    {
+        try {
+            $schema = $this->useOrrisDB ? OrrisDB::schema() : Capsule::schema();
+            return $schema->hasTable($tableName);
+        } catch (Exception $e) {
+            return false;
+        }
+    }
+    
+    /**
+     * Get all installed tables
+     * 
+     * @return array List of table names
+     */
+    public function getInstalledTables()
+    {
+        $tables = [
+            'services',
+            'nodes', 
+            'service_usage',
+            'service_sessions',
+            'node_groups',
+            'config'
+        ];
+        
+        $installed = [];
+        foreach ($tables as $table) {
+            try {
+                // Use appropriate schema and table based on configuration
+                if ($this->useOrrisDB) {
+                    $schema = OrrisDB::schema();
+                    $exists = $schema ? $schema->hasTable($table) : false;
+                } else {
+                    $exists = Capsule::schema()->hasTable($table);
+                }
+                
+                if ($exists) {
+                    $installed[] = $table;
+                }
+            } catch (Exception $e) {
+                // Continue checking other tables
+                continue;
+            }
+        }
+        
+        return $installed;
+    }
 }
