@@ -173,6 +173,50 @@ class OrrisDB
     }
     
     /**
+     * Execute a raw SQL statement
+     * 
+     * @param string $sql
+     * @param array $bindings
+     * @return bool
+     */
+    public static function statement($sql, $bindings = [])
+    {
+        $connection = self::connection();
+        if (!$connection) {
+            return false;
+        }
+        
+        try {
+            return $connection->statement($sql, $bindings);
+        } catch (Exception $e) {
+            logModuleCall('orrism', __METHOD__, ['sql' => $sql], 'Statement execution failed: ' . $e->getMessage());
+            return false;
+        }
+    }
+    
+    /**
+     * Execute a select query
+     * 
+     * @param string $sql
+     * @param array $bindings
+     * @return array
+     */
+    public static function select($sql, $bindings = [])
+    {
+        $connection = self::connection();
+        if (!$connection) {
+            return [];
+        }
+        
+        try {
+            return $connection->select($sql, $bindings);
+        } catch (Exception $e) {
+            logModuleCall('orrism', __METHOD__, ['sql' => $sql], 'Select query failed: ' . $e->getMessage());
+            return [];
+        }
+    }
+    
+    /**
      * Test database connection
      * 
      * @return bool

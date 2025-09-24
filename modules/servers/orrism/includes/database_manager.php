@@ -555,10 +555,21 @@ class OrrisDatabaseManager
         // Create additional indexes for better performance
         try {
             if ($this->useOrrisDB) {
-                // For OrrisDB, use CREATE INDEX IF NOT EXISTS syntax
-                OrrisDB::statement("CREATE INDEX IF NOT EXISTS `idx_services_traffic` ON `services` (`upload_bytes`, `download_bytes`)");
-                OrrisDB::statement("CREATE INDEX IF NOT EXISTS `idx_usage_created` ON `service_usage` (`created_at`)");
-                OrrisDB::statement("CREATE INDEX IF NOT EXISTS `idx_nodes_health` ON `nodes` (`health_score`, `status`)");
+                // For OrrisDB, check if indexes exist before creating
+                $existingIndexes = OrrisDB::select("SHOW INDEX FROM `services` WHERE Key_name = 'idx_services_traffic'");
+                if (empty($existingIndexes)) {
+                    OrrisDB::statement("CREATE INDEX `idx_services_traffic` ON `services` (`upload_bytes`, `download_bytes`)");
+                }
+                
+                $existingIndexes = OrrisDB::select("SHOW INDEX FROM `service_usage` WHERE Key_name = 'idx_usage_created'");
+                if (empty($existingIndexes)) {
+                    OrrisDB::statement("CREATE INDEX `idx_usage_created` ON `service_usage` (`created_at`)");
+                }
+                
+                $existingIndexes = OrrisDB::select("SHOW INDEX FROM `nodes` WHERE Key_name = 'idx_nodes_health'");
+                if (empty($existingIndexes)) {
+                    OrrisDB::statement("CREATE INDEX `idx_nodes_health` ON `nodes` (`health_score`, `status`)");
+                }
             } else {
                 // For Capsule, check if indexes exist before creating
                 $existingIndexes = Capsule::select("SHOW INDEX FROM `services` WHERE Key_name = 'idx_services_traffic'");
