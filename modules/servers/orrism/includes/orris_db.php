@@ -202,4 +202,15 @@ class OrrisDB
         self::$capsule = null;
         self::$config = null;
     }
+    
+    /**
+     * Check if ORRISM database is configured
+     * 
+     * @return bool
+     */
+    public static function isConfigured()
+    {
+        $config = self::getConfig();
+        return $config !== false && !empty($config['database']) && !empty($config['host']);
+    }
 }
