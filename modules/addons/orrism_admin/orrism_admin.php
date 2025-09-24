@@ -138,11 +138,62 @@ function orrism_admin_config()
  */
 function orrism_admin_activate()
 {
-    // No custom tables needed - using WHMCS standard addon configuration
-    return [
-        'status' => 'success',
-        'description' => 'ORRISM Administration module activated successfully.'
-    ];
+    try {
+        // Load database manager
+        $dbConfigFile = __DIR__ . '/../../servers/orrism/config/database.php';
+        $dbManagerFile = __DIR__ . '/../../servers/orrism/includes/database_manager.php';
+        $orrisDbFile = __DIR__ . '/../../servers/orrism/includes/orris_db.php';
+        
+        if (file_exists($dbConfigFile)) {
+            require_once $dbConfigFile;
+        }
+        if (file_exists($orrisDbFile)) {
+            require_once $orrisDbFile;
+        }
+        if (file_exists($dbManagerFile)) {
+            require_once $dbManagerFile;
+        }
+        
+        // Initialize database manager
+        if (class_exists('OrrisDatabaseManager')) {
+            $dbManager = new OrrisDatabaseManager();
+            
+            // Check if already installed
+            if ($dbManager->isInstalled()) {
+                return [
+                    'status' => 'success',
+                    'description' => 'ORRISM Administration module activated. Database tables already exist.'
+                ];
+            }
+            
+            // Install database tables
+            $result = $dbManager->install();
+            
+            if ($result['success']) {
+                return [
+                    'status' => 'success',
+                    'description' => 'ORRISM Administration module activated and database tables installed successfully.'
+                ];
+            } else {
+                return [
+                    'status' => 'error',
+                    'description' => 'Module activation failed: ' . $result['message']
+                ];
+            }
+        } else {
+            // Database manager not available, but module can still function
+            return [
+                'status' => 'success',
+                'description' => 'ORRISM Administration module activated (without database installation).'
+            ];
+        }
+        
+    } catch (Exception $e) {
+        return [
+            'status' => 'error',
+            'description' => 'Module activation failed: ' . $e->getMessage()
+        ];
+    }
 }
 
 /**
@@ -153,10 +204,41 @@ function orrism_admin_activate()
 function orrism_admin_deactivate()
 {
     try {
-        // Note: We don't drop tables on deactivation for safety
+        // Load database manager
+        $dbConfigFile = __DIR__ . '/../../servers/orrism/config/database.php';
+        $dbManagerFile = __DIR__ . '/../../servers/orrism/includes/database_manager.php';
+        $orrisDbFile = __DIR__ . '/../../servers/orrism/includes/orris_db.php';
+        
+        if (file_exists($dbConfigFile)) {
+            require_once $dbConfigFile;
+        }
+        if (file_exists($orrisDbFile)) {
+            require_once $orrisDbFile;
+        }
+        if (file_exists($dbManagerFile)) {
+            require_once $dbManagerFile;
+        }
+        
+        // Optional: Uncomment to drop tables on deactivation
+        // WARNING: This will delete all data!
+        /*
+        if (class_exists('OrrisDatabaseManager')) {
+            $dbManager = new OrrisDatabaseManager();
+            $result = $dbManager->uninstall(false); // false = drop all tables
+            
+            if (!$result['success']) {
+                return [
+                    'status' => 'error',
+                    'description' => 'Module deactivation warning: ' . $result['message']
+                ];
+            }
+        }
+        */
+        
+        // By default, keep tables for safety
         return [
             'status' => 'success',
-            'description' => 'ORRISM Administration module deactivated successfully.'
+            'description' => 'ORRISM Administration module deactivated. Database tables retained for safety.'
         ];
         
     } catch (Exception $e) {

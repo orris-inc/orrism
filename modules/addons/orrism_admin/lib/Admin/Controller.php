@@ -359,7 +359,7 @@ class Controller
     }
     
     /**
-     * Database installation interface
+     * Database status interface
      * 
      * @param array $vars Module variables
      * @return string
@@ -369,44 +369,31 @@ class Controller
         try {
             $content = $this->getStyles();
             $content .= '<div class="orrism-admin-dashboard">';
-            $content .= '<h2>Database Installation</h2>';
+            $content .= '<h2>Database Status</h2>';
             
             $content .= $this->renderNavigationTabs('settings');
-            
-            // Handle database installation if POST request
-            if ($_SERVER['REQUEST_METHOD'] === 'POST' && $_POST['action'] === 'install_database') {
-                $installResult = $this->handleDatabaseInstall();
-                if ($installResult['success']) {
-                    $content .= '<div class="orrism-alert orrism-alert-success">' . $installResult['message'] . '</div>';
-                } else {
-                    $content .= '<div class="orrism-alert orrism-alert-danger">' . $installResult['message'] . '</div>';
-                }
-            }
             
             // Check database status
             $dbStatus = $this->checkDatabaseStatus();
             
             $content .= '<div class="orrism-panel">';
-            $content .= '<div class="orrism-panel-heading">Database Status</div>';
+            $content .= '<div class="orrism-panel-heading">Database Information</div>';
             $content .= '<div class="orrism-panel-body">';
             
             $content .= '<p><strong>Current Status:</strong> <span class="' . $dbStatus['class'] . '">' . $dbStatus['status'] . '</span></p>';
             
-            if ($dbStatus['can_install']) {
-                $content .= '<p>Click the button below to install the ORRISM database tables.</p>';
-                $content .= '<form method="post">';
-                $content .= '<input type="hidden" name="action" value="install_database">';
-                $content .= '<button type="submit" class="btn btn-success">';
-                $content .= '<i class="fa fa-database"></i> Install Database Tables';
-                $content .= '</button>';
-                $content .= '</form>';
+            if ($dbStatus['status'] === 'Not Installed') {
+                $content .= '<div class="orrism-alert orrism-alert-info">';
+                $content .= '<strong>Note:</strong> Database tables are automatically installed when the module is activated. ';
+                $content .= 'If you\'re seeing this message, please deactivate and reactivate the module to install the database tables.';
+                $content .= '</div>';
+            } elseif ($dbStatus['status'] === 'Not Configured') {
+                $content .= '<p>' . $dbStatus['message'] . '</p>';
+                $content .= '<a href="?module=orrism_admin&action=settings" class="btn btn-info">';
+                $content .= '<i class="fa fa-cog"></i> Configure Database Settings';
+                $content .= '</a>';
             } else {
                 $content .= '<p>' . $dbStatus['message'] . '</p>';
-                if ($dbStatus['status'] === 'Not Configured') {
-                    $content .= '<a href="?module=orrism_admin&action=settings" class="btn btn-info">';
-                    $content .= '<i class="fa fa-cog"></i> Configure Database Settings';
-                    $content .= '</a>';
-                }
             }
             
             $content .= '</div></div>';
