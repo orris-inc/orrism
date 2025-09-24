@@ -126,128 +126,13 @@ class DatabaseManager
         } catch (Exception $e) {
             $this->log('Database installation error: ' . $e->getMessage(), 'error');
             
-            // Try fallback method
-            return $this->installSimpleTables();
+            return [
+                'success' => false,
+                'message' => 'Database installation failed: ' . $e->getMessage()
+            ];
         }
     }
     
-    /**
-     * Install simple database tables without OrrisDatabaseManager
-     * Migrated from handleSimpleTableCreation
-     * 
-     * @return array Installation result
-     */
-    public function installSimpleTables(): array
-    {
-        try {
-            $pdo = Capsule::connection()->getPdo();
-            
-            // Define tables to create
-            $tables = [
-                'mod_orrism_node_groups' => "CREATE TABLE IF NOT EXISTS mod_orrism_node_groups (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    name VARCHAR(100) UNIQUE,
-                    description TEXT,
-                    sort_order INT DEFAULT 0,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-                )",
-                
-                'mod_orrism_nodes' => "CREATE TABLE IF NOT EXISTS mod_orrism_nodes (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    name VARCHAR(100),
-                    type ENUM('shadowsocks', 'v2ray', 'trojan') DEFAULT 'shadowsocks',
-                    address VARCHAR(255),
-                    port INT,
-                    method VARCHAR(50),
-                    group_id INT,
-                    sort_order INT DEFAULT 0,
-                    status ENUM('active', 'inactive') DEFAULT 'active',
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-                )",
-                
-                'mod_orrism_services' => "CREATE TABLE IF NOT EXISTS mod_orrism_services (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    service_id INT UNIQUE,
-                    email VARCHAR(255),
-                    uuid VARCHAR(36) UNIQUE,
-                    password VARCHAR(255),
-                    transfer_enable BIGINT DEFAULT 0,
-                    upload BIGINT DEFAULT 0,
-                    download BIGINT DEFAULT 0,
-                    total BIGINT DEFAULT 0,
-                    status ENUM('active', 'inactive', 'suspended') DEFAULT 'active',
-                    node_group_id INT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-                )",
-                
-                'mod_orrism_config' => "CREATE TABLE IF NOT EXISTS mod_orrism_config (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    config_key VARCHAR(100) UNIQUE,
-                    config_value TEXT,
-                    config_type ENUM('string', 'boolean', 'json') DEFAULT 'string',
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-                )"
-            ];
-            
-            $createdTables = [];
-            $failedTables = [];
-            
-            foreach ($tables as $tableName => $sql) {
-                try {
-                    $pdo->exec($sql);
-                    $createdTables[] = $tableName;
-                    $this->log("Created table: $tableName");
-                } catch (Exception $tableError) {
-                    $failedTables[] = $tableName;
-                    $this->log("Failed to create table $tableName: " . $tableError->getMessage(), 'error');
-                }
-            }
-            
-            // Insert default data if any tables were created
-            if (count($createdTables) > 0) {
-                try {
-                    // Insert default node group
-                    $pdo->exec("INSERT IGNORE INTO mod_orrism_node_groups (name, description) VALUES ('Default Group', 'Default node group')");
-                    
-                    // Update installation status
-                    $this->updateInstallationStatus(true);
-                    
-                } catch (Exception $dataError) {
-                    $this->log('Failed to insert default data: ' . $dataError->getMessage(), 'warning');
-                }
-                
-                $message = 'Database tables created successfully! Created: ' . implode(', ', $createdTables);
-                if (count($failedTables) > 0) {
-                    $message .= ' Failed: ' . implode(', ', $failedTables);
-                }
-                
-                return [
-                    'success' => true,
-                    'message' => $message,
-                    'created_tables' => $createdTables,
-                    'failed_tables' => $failedTables
-                ];
-            } else {
-                return [
-                    'success' => false,
-                    'message' => 'Failed to create any database tables. Please check error logs.',
-                    'failed_tables' => $failedTables
-                ];
-            }
-            
-        } catch (Exception $e) {
-            $this->log('Simple installation failed: ' . $e->getMessage(), 'error');
-            
-            return [
-                'success' => false,
-                'message' => 'Simple installation also failed: ' . $e->getMessage()
-            ];
-        }
-    }
     
     /**
      * Test database connection with custom parameters
@@ -547,13 +432,9 @@ class DatabaseManager
                 return $this->orrisDatabaseManager->isInstalled();
             }
             
-            // Fallback to checking addon settings
-            $pdo = Capsule::connection()->getPdo();
-            $stmt = $pdo->prepare("SELECT setting_value FROM mod_orrism_admin_settings WHERE setting_key = 'db_initialized'");
-            $stmt->execute();
-            $result = $stmt->fetch();
-            
-            return $result && $result['setting_value'] === '1';
+            // Without OrrisDatabaseManager, we can't properly check installation
+            // Return false to indicate need for installation
+            return false;
             
         } catch (Exception $e) {
             $this->log('Failed to check installation status: ' . $e->getMessage(), 'warning');
@@ -562,50 +443,37 @@ class DatabaseManager
     }
     
     /**
-     * Get user count from ORRISM database
+     * Get service count from ORRISM database
      * 
-     * @return int Number of users
+     * @return int Number of services
      */
-    public function getUserCount(): int
+    public function getServiceCount(): int
     {
         try {
             // Use OrrisDatabaseManager if available
             if ($this->orrisDatabaseManager) {
-                return $this->orrisDatabaseManager->getUserCount();
+                return $this->orrisDatabaseManager->getServiceCount();
             }
             
-            // Fallback to direct query
-            $pdo = Capsule::connection()->getPdo();
-            $stmt = $pdo->query("SELECT COUNT(*) as count FROM mod_orrism_users");
-            $result = $stmt->fetch();
-            
-            return (int)($result['count'] ?? 0);
+            // No fallback - OrrisDatabaseManager is required
+            return 0;
             
         } catch (Exception $e) {
-            $this->log('Failed to get user count: ' . $e->getMessage(), 'warning');
+            $this->log('Failed to get service count: ' . $e->getMessage(), 'warning');
             return 0;
         }
     }
     
     /**
-     * Update installation status in addon settings
+     * Update installation status
      * 
      * @param bool $installed Installation status
      * @return bool Success status
      */
     private function updateInstallationStatus(bool $installed): bool
     {
-        try {
-            $pdo = Capsule::connection()->getPdo();
-            $stmt = $pdo->prepare("UPDATE mod_orrism_admin_settings SET setting_value = ? WHERE setting_key = 'db_initialized'");
-            $stmt->execute([$installed ? '1' : '0']);
-            
-            return true;
-            
-        } catch (Exception $e) {
-            $this->log('Failed to update installation status: ' . $e->getMessage(), 'warning');
-            return false;
-        }
+        // No longer needed - installation status is checked directly from database
+        return true;
     }
     
     /**

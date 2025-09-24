@@ -20,10 +20,16 @@ use Redis;
 class SettingsManager
 {
     /**
-     * Settings table name
+     * Addon module name
      * @var string
      */
-    private $tableName = 'mod_orrism_admin_settings';
+    private $moduleName = 'orrism_admin';
+    
+    /**
+     * WHMCS addon settings table
+     * @var string
+     */
+    private $tableName = 'tbladdonmodules';
     
     /**
      * Valid setting types
@@ -70,19 +76,23 @@ class SettingsManager
     
     /**
      * Get all settings from database
+     * Uses standard WHMCS method to retrieve addon module configuration
      *
      * @return array Settings array
      */
     public function getSettings()
     {
         try {
-            $pdo = Capsule::connection()->getPdo();
-            $stmt = $pdo->query("SELECT setting_key, setting_value FROM {$this->tableName}");
             $settings = [];
             
-            while ($row = $stmt->fetch()) {
-                $settings[$row['setting_key']] = $row['setting_value'];
-            }
+            // Standard WHMCS way: Get settings from addon modules table
+            $result = Capsule::table($this->tableName)
+                ->where('module', $this->moduleName)
+                ->pluck('value', 'setting');
+            
+            // Convert to array
+            $settings = $result->toArray();
+            
             
             // Ensure default values for important settings
             $this->ensureDefaultSettings($settings);
@@ -103,20 +113,24 @@ class SettingsManager
     public function saveSettings($settings)
     {
         try {
-            $pdo = Capsule::connection()->getPdo();
-            
             foreach ($settings as $key => $value) {
                 // Skip invalid settings keys
                 if (!$this->isValidSettingKey($key)) {
                     continue;
                 }
                 
-                $stmt = $pdo->prepare("
-                    INSERT INTO {$this->tableName} (setting_key, setting_value, updated_at) 
-                    VALUES (?, ?, NOW())
-                    ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_at = NOW()
-                ");
-                $stmt->execute([$key, $value]);
+                // Check if this is a core addon setting or custom setting
+                if ($this->isCoreAddonSetting($key)) {
+                    // Save to WHMCS addon modules table
+                    Capsule::table($this->tableName)
+                        ->updateOrInsert(
+                            ['module' => $this->moduleName, 'setting' => $key],
+                            ['value' => $value]
+                        );
+                } else {
+                    // Non-core settings are not saved (they should be added to core settings if needed)
+                    continue;
+                }
             }
             
             // Clear cached configuration if OrrisDB exists
@@ -751,5 +765,22 @@ class SettingsManager
         } else {
             error_log("ORRISM Admin Error [$action]: $error");
         }
+    }
+    
+    /**
+     * Check if a setting is a core addon setting
+     *
+     * @param string $key Setting key
+     * @return bool
+     */
+    private function isCoreAddonSetting($key)
+    {
+        $coreSettings = array_merge(
+            $this->databaseSettingKeys,
+            $this->redisSettingKeys,
+            ['enable_traffic_log', 'traffic_reset_day']
+        );
+        
+        return in_array($key, $coreSettings);
     }
 }

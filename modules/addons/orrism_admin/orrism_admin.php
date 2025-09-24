@@ -138,43 +138,11 @@ function orrism_admin_config()
  */
 function orrism_admin_activate()
 {
-    try {
-        // Create addon configuration tables if needed
-        $pdo = Capsule::connection()->getPdo();
-        
-        // Create addon settings table
-        $sql = "CREATE TABLE IF NOT EXISTS mod_orrism_admin_settings (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            setting_key VARCHAR(100) UNIQUE NOT NULL,
-            setting_value TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-        )";
-        $pdo->exec($sql);
-        
-        // Insert default settings
-        $defaultSettings = [
-            'db_initialized' => '0',
-            'last_sync' => '',
-            'sync_enabled' => '1'
-        ];
-        
-        foreach ($defaultSettings as $key => $value) {
-            $stmt = $pdo->prepare("INSERT IGNORE INTO mod_orrism_admin_settings (setting_key, setting_value) VALUES (?, ?)");
-            $stmt->execute([$key, $value]);
-        }
-        
-        return [
-            'status' => 'success',
-            'description' => 'ORRISM Administration module activated successfully.'
-        ];
-        
-    } catch (Exception $e) {
-        return [
-            'status' => 'error',
-            'description' => 'Failed to activate module: ' . $e->getMessage()
-        ];
-    }
+    // No custom tables needed - using WHMCS standard addon configuration
+    return [
+        'status' => 'success',
+        'description' => 'ORRISM Administration module activated successfully.'
+    ];
 }
 
 /**
@@ -272,7 +240,7 @@ function orrism_admin_output($vars)
         class OrrisDatabaseManager {
             public function testConnection() { return false; }
             public function isInstalled() { return false; }
-            public function getUserCount() { return 0; }
+            public function getServiceCount() { return 0; }
             public function install() { return ['success' => false, 'message' => 'Database manager not available']; }
         }
     }

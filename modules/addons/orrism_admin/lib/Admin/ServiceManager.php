@@ -48,13 +48,12 @@ class ServiceManager
     private function loadSettings()
     {
         try {
-            $stmt = Capsule::connection()->getPdo()->query(
-                "SELECT setting_key, setting_value FROM mod_orrism_admin_settings"
-            );
+            // Load settings from WHMCS addon modules table
+            $result = Capsule::table('tbladdonmodules')
+                ->where('module', 'orrism_admin')
+                ->pluck('value', 'setting');
             
-            while ($row = $stmt->fetch()) {
-                $this->settings[$row['setting_key']] = $row['setting_value'];
-            }
+            $this->settings = $result->toArray();
         } catch (Exception $e) {
             $this->logError('Failed to load settings', $e);
         }
@@ -734,15 +733,12 @@ class ServiceManager
     private function updateSetting($key, $value)
     {
         try {
-            $stmt = Capsule::connection()->getPdo()->prepare("
-                INSERT INTO mod_orrism_admin_settings (setting_key, setting_value, updated_at)
-                VALUES (?, ?, NOW())
-                ON DUPLICATE KEY UPDATE 
-                    setting_value = VALUES(setting_value),
-                    updated_at = NOW()
-            ");
-            
-            $stmt->execute([$key, $value]);
+            // Update setting in WHMCS addon modules table
+            Capsule::table('tbladdonmodules')
+                ->updateOrInsert(
+                    ['module' => 'orrism_admin', 'setting' => $key],
+                    ['value' => $value]
+                );
             
         } catch (Exception $e) {
             $this->logError('Failed to update setting', $e);

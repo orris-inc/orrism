@@ -27,6 +27,7 @@ class OrrisDB
     
     /**
      * Get database configuration from addon module settings
+     * Uses standard WHMCS method to retrieve configuration
      * 
      * @return array|false
      */
@@ -37,26 +38,23 @@ class OrrisDB
         }
         
         try {
-            // First check if the settings table exists
-            if (!WhmcsCapsule::schema()->hasTable('mod_orrism_admin_settings')) {
-                logModuleCall('orrism', __METHOD__, [], 'ORRISM settings table not found');
-                return false;
-            }
-            
-            // Get configuration from mod_orrism_admin_settings table
-            $settings = WhmcsCapsule::table('mod_orrism_admin_settings')
-                ->whereIn('setting_key', ['database_host', 'database_name', 'database_user', 'database_password'])
-                ->pluck('setting_value', 'setting_key')
+            // Standard WHMCS way: Get all settings at once using pluck
+            $settings = WhmcsCapsule::table('tbladdonmodules')
+                ->where('module', 'orrism_admin')
+                ->whereIn('setting', ['database_host', 'database_port', 'database_name', 'database_user', 'database_password'])
+                ->pluck('value', 'setting')
                 ->toArray();
             
+            // Check if configuration exists
             if (empty($settings['database_host']) || empty($settings['database_name'])) {
-                logModuleCall('orrism', __METHOD__, [], 'ORRISM database not configured in settings');
+                logModuleCall('orrism', __METHOD__, [], 'ORRISM database not configured in addon settings');
                 return false;
             }
             
             self::$config = [
                 'driver' => 'mysql',
                 'host' => $settings['database_host'] ?? 'localhost',
+                'port' => $settings['database_port'] ?? '3306',
                 'database' => $settings['database_name'] ?? 'orrism',
                 'username' => $settings['database_user'] ?? 'root',
                 'password' => $settings['database_password'] ?? '',

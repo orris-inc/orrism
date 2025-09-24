@@ -569,15 +569,7 @@ class Controller
             $result = $dbManager->install();
             
             if ($result['success']) {
-                // Update addon settings
-                try {
-                    $pdo = Capsule::connection()->getPdo();
-                    $stmt = $pdo->prepare("UPDATE mod_orrism_admin_settings SET setting_value = '1' WHERE setting_key = 'db_initialized'");
-                    $stmt->execute();
-                } catch (Exception $e) {
-                    // Log but don't fail
-                    error_log('ORRISM Controller: Failed to update addon settings: ' . $e->getMessage());
-                }
+                // No need to track installation status - checked directly from database
             }
             
             return $result;
@@ -595,40 +587,11 @@ class Controller
      */
     protected function handleSimpleTableCreation()
     {
-        try {
-            $pdo = Capsule::connection()->getPdo();
-            
-            // Simple table creation SQL
-            $tables = [
-                'mod_orrism_node_groups',
-                'mod_orrism_nodes',
-                'mod_orrism_users',
-                'mod_orrism_traffic'
-            ];
-            
-            // Create tables (simplified for brevity)
-            $createdTables = 0;
-            foreach ($tables as $table) {
-                // Check if table exists
-                $stmt = $pdo->prepare("SHOW TABLES LIKE ?");
-                $stmt->execute([$table]);
-                if (!$stmt->fetch()) {
-                    // Table doesn't exist, would create it here
-                    $createdTables++;
-                }
-            }
-            
-            return [
-                'success' => true,
-                'message' => "Database installation completed. Created $createdTables tables."
-            ];
-            
-        } catch (Exception $e) {
-            return [
-                'success' => false,
-                'message' => 'Failed to create database tables: ' . $e->getMessage()
-            ];
-        }
+        // Fallback method removed - use OrrisDatabaseManager directly
+        return [
+            'success' => false,
+            'message' => 'Database installation failed. Please check the error logs.'
+        ];
     }
     
     /**
@@ -843,24 +806,48 @@ class Controller
     
     /**
      * Get ORRISM settings from database
+     * Uses standard WHMCS method for addon modules
      * 
      * @return array
      */
     protected function getOrrisSettings()
     {
-        try {
-            $pdo = Capsule::connection()->getPdo();
-            $stmt = $pdo->query("SELECT setting_key, setting_value FROM mod_orrism_admin_settings");
-            $settings = [];
+        // Use the vars passed to the module which contains all configuration
+        $settings = [];
+        
+        // The module configuration is already loaded in $this->vars
+        if (!empty($this->vars)) {
+            // Extract configuration fields from vars
+            $configFields = [
+                'database_host', 'database_port', 'database_name', 'database_user', 'database_password',
+                'redis_host', 'redis_port', 'redis_db', 'redis_username', 'redis_password',
+                'enable_traffic_log', 'traffic_reset_day'
+            ];
             
-            while ($row = $stmt->fetch()) {
-                $settings[$row['setting_key']] = $row['setting_value'];
+            foreach ($configFields as $field) {
+                if (isset($this->vars[$field])) {
+                    $settings[$field] = $this->vars[$field];
+                }
             }
-            
-            return $settings;
-        } catch (Exception $e) {
-            return [];
         }
+        
+        // If vars not available, fallback to direct query
+        if (empty($settings)) {
+            try {
+                $result = Capsule::table('tbladdonmodules')
+                    ->where('module', 'orrism_admin')
+                    ->get();
+                
+                foreach ($result as $row) {
+                    $settings[$row->setting] = $row->value;
+                }
+            } catch (Exception $e) {
+                // Log error but continue
+            }
+        }
+        
+        
+        return $settings;
     }
     
     /**
@@ -872,15 +859,24 @@ class Controller
     protected function saveOrrisSettings($settings)
     {
         try {
-            $pdo = Capsule::connection()->getPdo();
+            $coreSettings = [
+                'database_host', 'database_port', 'database_name', 'database_user', 'database_password',
+                'redis_host', 'redis_port', 'redis_db', 'redis_username', 'redis_password',
+                'enable_traffic_log', 'traffic_reset_day'
+            ];
             
             foreach ($settings as $key => $value) {
-                $stmt = $pdo->prepare("
-                    INSERT INTO mod_orrism_admin_settings (setting_key, setting_value, updated_at) 
-                    VALUES (?, ?, NOW())
-                    ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_at = NOW()
-                ");
-                $stmt->execute([$key, $value]);
+                if (in_array($key, $coreSettings)) {
+                    // Save to WHMCS addon modules table
+                    Capsule::table('tbladdonmodules')
+                        ->updateOrInsert(
+                            ['module' => 'orrism_admin', 'setting' => $key],
+                            ['value' => $value]
+                        );
+                } else {
+                    // Non-core settings are ignored
+                    continue;
+                }
             }
             
             // Clear cached configuration if OrrisDB exists
