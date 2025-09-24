@@ -1097,14 +1097,26 @@ class Controller
         $dbStatus = $this->checkDatabaseStatus();
         
         $content .= '<p><strong>Status:</strong> <span class="' . $dbStatus['class'] . '">' . $dbStatus['status'] . '</span></p>';
-        $content .= '<p>This will create the necessary database tables for ORRISM integration.</p>';
         
-        if ($dbStatus['can_install']) {
+        // Check if database is configured
+        if (empty($settings['database_host']) || empty($settings['database_name']) || empty($settings['database_user'])) {
+            $content .= '<div class="orrism-alert orrism-alert-warning">';
+            $content .= '<i class="fa fa-exclamation-triangle"></i> <strong>Important:</strong> Please configure database settings below first, then come back here to install the tables.';
+            $content .= '<ol style="margin-top: 10px;">';
+            $content .= '<li>Fill in the Database Configuration form below</li>';
+            $content .= '<li>Click "Save Database Settings"</li>';
+            $content .= '<li>Test the connection to ensure it works</li>';
+            $content .= '<li>Return here and click "Install Database Tables"</li>';
+            $content .= '</ol>';
+            $content .= '</div>';
+        } elseif ($dbStatus['can_install']) {
+            $content .= '<p>The database is configured and connected. Click the button below to create the necessary tables for ORRISM integration.</p>';
             $content .= '<form method="post" style="display: inline;">';
             $content .= '<input type="hidden" name="action" value="install_database">';
             $content .= '<button type="submit" class="btn btn-success btn-sm">';
             $content .= '<i class="fa fa-database"></i> Install Database Tables</button>';
             $content .= '</form>';
+            $content .= '<p style="margin-top: 10px;"><small class="text-muted">This will create tables in the <strong>' . htmlspecialchars($settings['database_name']) . '</strong> database.</small></p>';
         } else {
             $content .= '<div class="orrism-alert orrism-alert-' . 
                         ($dbStatus['status'] === 'Installed' ? 'success' : 'info') . '">';

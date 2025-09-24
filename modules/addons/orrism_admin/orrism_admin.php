@@ -139,54 +139,12 @@ function orrism_admin_config()
 function orrism_admin_activate()
 {
     try {
-        // Load database manager
-        $dbConfigFile = __DIR__ . '/../../servers/orrism/config/database.php';
-        $dbManagerFile = __DIR__ . '/../../servers/orrism/includes/database_manager.php';
-        $orrisDbFile = __DIR__ . '/../../servers/orrism/includes/orris_db.php';
-        
-        if (file_exists($dbConfigFile)) {
-            require_once $dbConfigFile;
-        }
-        if (file_exists($orrisDbFile)) {
-            require_once $orrisDbFile;
-        }
-        if (file_exists($dbManagerFile)) {
-            require_once $dbManagerFile;
-        }
-        
-        // Initialize database manager
-        if (class_exists('OrrisDatabaseManager')) {
-            $dbManager = new OrrisDatabaseManager();
-            
-            // Check if already installed
-            if ($dbManager->isInstalled()) {
-                return [
-                    'status' => 'success',
-                    'description' => 'ORRISM Administration module activated. Database tables already exist.'
-                ];
-            }
-            
-            // Install database tables
-            $result = $dbManager->install();
-            
-            if ($result['success']) {
-                return [
-                    'status' => 'success',
-                    'description' => 'ORRISM Administration module activated and database tables installed successfully.'
-                ];
-            } else {
-                return [
-                    'status' => 'error',
-                    'description' => 'Module activation failed: ' . $result['message']
-                ];
-            }
-        } else {
-            // Database manager not available, but module can still function
-            return [
-                'status' => 'success',
-                'description' => 'ORRISM Administration module activated (without database installation).'
-            ];
-        }
+        // Module activation successful
+        // Database tables will be installed manually after configuration
+        return [
+            'status' => 'success',
+            'description' => 'ORRISM Administration module activated successfully. Please configure database settings and install tables from the Settings page.'
+        ];
         
     } catch (Exception $e) {
         return [
@@ -204,41 +162,10 @@ function orrism_admin_activate()
 function orrism_admin_deactivate()
 {
     try {
-        // Load database manager
-        $dbConfigFile = __DIR__ . '/../../servers/orrism/config/database.php';
-        $dbManagerFile = __DIR__ . '/../../servers/orrism/includes/database_manager.php';
-        $orrisDbFile = __DIR__ . '/../../servers/orrism/includes/orris_db.php';
-        
-        if (file_exists($dbConfigFile)) {
-            require_once $dbConfigFile;
-        }
-        if (file_exists($orrisDbFile)) {
-            require_once $orrisDbFile;
-        }
-        if (file_exists($dbManagerFile)) {
-            require_once $dbManagerFile;
-        }
-        
-        // Optional: Uncomment to drop tables on deactivation
-        // WARNING: This will delete all data!
-        /*
-        if (class_exists('OrrisDatabaseManager')) {
-            $dbManager = new OrrisDatabaseManager();
-            $result = $dbManager->uninstall(false); // false = drop all tables
-            
-            if (!$result['success']) {
-                return [
-                    'status' => 'error',
-                    'description' => 'Module deactivation warning: ' . $result['message']
-                ];
-            }
-        }
-        */
-        
-        // By default, keep tables for safety
+        // By default, keep tables and configuration for safety
         return [
             'status' => 'success',
-            'description' => 'ORRISM Administration module deactivated. Database tables retained for safety.'
+            'description' => 'ORRISM Administration module deactivated. Database tables and configuration retained for safety.'
         ];
         
     } catch (Exception $e) {
