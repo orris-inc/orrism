@@ -359,7 +359,11 @@ class OrrisDatabaseManager
             });
             
             // Set table options for utf8mb4
-            Capsule::statement("ALTER TABLE `node_groups` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+            if ($this->useOrrisDB) {
+                OrrisDB::statement("ALTER TABLE `node_groups` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+            } else {
+                Capsule::statement("ALTER TABLE `node_groups` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+            }
         }
         
         // Create nodes table
@@ -391,7 +395,11 @@ class OrrisDatabaseManager
             });
             
             // Set table options for utf8mb4
-            Capsule::statement("ALTER TABLE `nodes` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+            if ($this->useOrrisDB) {
+                OrrisDB::statement("ALTER TABLE `nodes` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+            } else {
+                Capsule::statement("ALTER TABLE `nodes` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+            }
         }
         
         // Create services table
@@ -441,11 +449,15 @@ class OrrisDatabaseManager
             });
             
             // Add generated column and additional index
-            Capsule::statement("ALTER TABLE `services` ADD COLUMN `total_bytes` BIGINT UNSIGNED GENERATED ALWAYS AS (`upload_bytes` + `download_bytes`) STORED");
-            Capsule::statement("ALTER TABLE `services` ADD INDEX `idx_traffic_check` (`total_bytes`, `bandwidth_limit`, `status`)");
-            
-            // Set table options for utf8mb4
-            Capsule::statement("ALTER TABLE `services` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+            if ($this->useOrrisDB) {
+                OrrisDB::statement("ALTER TABLE `services` ADD COLUMN `total_bytes` BIGINT UNSIGNED GENERATED ALWAYS AS (`upload_bytes` + `download_bytes`) STORED");
+                OrrisDB::statement("ALTER TABLE `services` ADD INDEX `idx_traffic_check` (`total_bytes`, `bandwidth_limit`, `status`)");
+                OrrisDB::statement("ALTER TABLE `services` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+            } else {
+                Capsule::statement("ALTER TABLE `services` ADD COLUMN `total_bytes` BIGINT UNSIGNED GENERATED ALWAYS AS (`upload_bytes` + `download_bytes`) STORED");
+                Capsule::statement("ALTER TABLE `services` ADD INDEX `idx_traffic_check` (`total_bytes`, `bandwidth_limit`, `status`)");
+                Capsule::statement("ALTER TABLE `services` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+            }
         }
         
         // Create service_usage table
@@ -471,7 +483,11 @@ class OrrisDatabaseManager
             });
             
             // Set table options for utf8mb4
-            Capsule::statement("ALTER TABLE `service_usage` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+            if ($this->useOrrisDB) {
+                OrrisDB::statement("ALTER TABLE `service_usage` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+            } else {
+                Capsule::statement("ALTER TABLE `service_usage` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+            }
         }
         
         // Create config table
@@ -497,7 +513,11 @@ class OrrisDatabaseManager
             });
             
             // Set table options for utf8mb4
-            Capsule::statement("ALTER TABLE `config` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+            if ($this->useOrrisDB) {
+                OrrisDB::statement("ALTER TABLE `config` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+            } else {
+                Capsule::statement("ALTER TABLE `config` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+            }
         }
         
         // Create service_sessions table
@@ -525,30 +545,40 @@ class OrrisDatabaseManager
             });
             
             // Set table options for utf8mb4
-            Capsule::statement("ALTER TABLE `service_sessions` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+            if ($this->useOrrisDB) {
+                OrrisDB::statement("ALTER TABLE `service_sessions` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+            } else {
+                Capsule::statement("ALTER TABLE `service_sessions` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+            }
         }
         
         // Create additional indexes for better performance
-        if ($this->useOrrisDB) {
-            OrrisDB::statement("CREATE INDEX IF NOT EXISTS `idx_services_traffic` ON `services` (`upload_bytes`, `download_bytes`)");
-            OrrisDB::statement("CREATE INDEX IF NOT EXISTS `idx_usage_created` ON `service_usage` (`created_at`)");
-            OrrisDB::statement("CREATE INDEX IF NOT EXISTS `idx_nodes_health` ON `nodes` (`health_score`, `status`)");
-        } else {
-            // Check if indexes exist before creating
-            $existingIndexes = Capsule::select("SHOW INDEX FROM `services` WHERE Key_name = 'idx_services_traffic'");
-            if (empty($existingIndexes)) {
-                Capsule::statement("CREATE INDEX `idx_services_traffic` ON `services` (`upload_bytes`, `download_bytes`)");
+        try {
+            if ($this->useOrrisDB) {
+                // For OrrisDB, use CREATE INDEX IF NOT EXISTS syntax
+                OrrisDB::statement("CREATE INDEX IF NOT EXISTS `idx_services_traffic` ON `services` (`upload_bytes`, `download_bytes`)");
+                OrrisDB::statement("CREATE INDEX IF NOT EXISTS `idx_usage_created` ON `service_usage` (`created_at`)");
+                OrrisDB::statement("CREATE INDEX IF NOT EXISTS `idx_nodes_health` ON `nodes` (`health_score`, `status`)");
+            } else {
+                // For Capsule, check if indexes exist before creating
+                $existingIndexes = Capsule::select("SHOW INDEX FROM `services` WHERE Key_name = 'idx_services_traffic'");
+                if (empty($existingIndexes)) {
+                    Capsule::statement("CREATE INDEX `idx_services_traffic` ON `services` (`upload_bytes`, `download_bytes`)");
+                }
+                
+                $existingIndexes = Capsule::select("SHOW INDEX FROM `service_usage` WHERE Key_name = 'idx_usage_created'");
+                if (empty($existingIndexes)) {
+                    Capsule::statement("CREATE INDEX `idx_usage_created` ON `service_usage` (`created_at`)");
+                }
+                
+                $existingIndexes = Capsule::select("SHOW INDEX FROM `nodes` WHERE Key_name = 'idx_nodes_health'");
+                if (empty($existingIndexes)) {
+                    Capsule::statement("CREATE INDEX `idx_nodes_health` ON `nodes` (`health_score`, `status`)");
+                }
             }
-            
-            $existingIndexes = Capsule::select("SHOW INDEX FROM `service_usage` WHERE Key_name = 'idx_usage_created'");
-            if (empty($existingIndexes)) {
-                Capsule::statement("CREATE INDEX `idx_usage_created` ON `service_usage` (`created_at`)");
-            }
-            
-            $existingIndexes = Capsule::select("SHOW INDEX FROM `nodes` WHERE Key_name = 'idx_nodes_health'");
-            if (empty($existingIndexes)) {
-                Capsule::statement("CREATE INDEX `idx_nodes_health` ON `nodes` (`health_score`, `status`)");
-            }
+        } catch (Exception $e) {
+            // Log but don't fail on index creation errors
+            logModuleCall('orrism', 'createTables_indexes', [], 'Index creation warning: ' . $e->getMessage());
         }
     }
     
@@ -626,8 +656,8 @@ class OrrisDatabaseManager
      */
     private function updateConfig($key, $value)
     {
-        Capsule::table('config')
-            ->where('config_key', $key)
+        $table = $this->useOrrisDB ? OrrisDB::table('config') : Capsule::table('config');
+        $table->where('config_key', $key)
             ->update([
                 'config_value' => $value,
                 'updated_at' => date('Y-m-d H:i:s')
