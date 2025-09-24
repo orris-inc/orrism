@@ -144,8 +144,8 @@ class OrrisDatabaseManager
                 // Insert default data
                 $this->insertDefaultData();
                 
-                // Record installation
-                $this->recordMigration('1.0', 'Initial database installation');
+                // Version tracking is handled through the config table
+                // No need for separate migrations table
                 
                 // Commit only if we started the transaction
                 if ($inTransaction) {
@@ -206,8 +206,7 @@ class OrrisDatabaseManager
                     'services', 
                     'nodes',
                     'node_groups',
-                    'config',
-                    'migrations'
+                    'config'
                 ];
                 
                 foreach ($tables as $table) {
@@ -222,9 +221,7 @@ class OrrisDatabaseManager
                 if ($schema->hasTable('config')) {
                     $schema->drop('config');
                 }
-                if ($schema->hasTable('migrations')) {
-                    $schema->drop('migrations');
-                }
+                // Migrations table no longer used - version tracked in config
                 
                 $message = 'Configuration tables removed, user data preserved';
             }
@@ -278,8 +275,9 @@ class OrrisDatabaseManager
                 $connection->beginTransaction();
             }
             
+            // Future migrations can be handled here if needed
             foreach ($migrations as $migration) {
-                $this->runMigration($migration);
+                // Migration logic would go here
             }
             
             // Update database version
@@ -442,15 +440,7 @@ class OrrisDatabaseManager
             });
         }
         
-        // Create migrations table
-        if (!$schema->hasTable('migrations')) {
-            $schema->create('migrations', function ($table) {
-            $table->increments('id');
-            $table->string('version', 20)->unique();
-            $table->string('description');
-            $table->timestamp('executed_at')->useCurrent();
-            });
-        }
+        // Note: Migrations tracking is done through config table, not a separate migrations table
     }
     
     /**
@@ -499,20 +489,6 @@ class OrrisDatabaseManager
         }
     }
     
-    /**
-     * Record migration execution
-     * 
-     * @param string $version Migration version
-     * @param string $description Migration description
-     */
-    private function recordMigration($version, $description)
-    {
-        Capsule::table('migrations')->insert([
-            'version' => $version,
-            'description' => $description,
-            'executed_at' => date('Y-m-d H:i:s')
-        ]);
-    }
     
     /**
      * Get available migrations for current version
@@ -622,8 +598,7 @@ class OrrisDatabaseManager
             'nodes', 
             'service_usage',
             'node_groups',
-            'config',
-            'migrations'
+            'config'
         ];
         
         foreach ($tables as $table) {
