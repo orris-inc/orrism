@@ -138,13 +138,14 @@ if (php_sapi_name() !== 'cli' && !defined('ORRISM_API_INCLUDED')) {
                 if (class_exists('OrrisDB') && OrrisDB::isConfigured()) {
                     $nodes = OrrisDB::table('nodes')
                         ->select('id', 'name', 'type', 'address', 'port', 'method', 'status',
-                                 'group_id', 'sort_order', 'capacity', 'current_load')
+                                 'group_id', 'sort_order')
                         ->orderBy('sort_order')
                         ->get();
                 } else {
                     $conn = orris_get_db_connection();
+                    // Try to get only fields that definitely exist
                     $sql = "SELECT id, name, type, address, port, method, status,
-                            group_id, sort_order, capacity, current_load
+                            group_id, sort_order
                             FROM nodes ORDER BY sort_order";
                     $stmt = $conn->prepare($sql);
                     $stmt->execute();
