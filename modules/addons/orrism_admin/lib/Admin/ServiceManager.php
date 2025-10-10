@@ -388,16 +388,12 @@ class ServiceManager
                 $sortOrder = 'DESC';
             }
             
-            // Build query
+            // Build query - using actual services table structure
             $query = "
-                SELECT 
+                SELECT
                     s.id,
                     s.service_id,
-                    s.client_id,
-                    s.domain,
-                    s.whmcs_username,
-                    s.whmcs_email,
-                    s.service_username,
+                    s.email,
                     s.uuid,
                     s.upload_bytes,
                     s.download_bytes,
@@ -405,13 +401,15 @@ class ServiceManager
                     s.node_group_id,
                     s.status,
                     s.last_reset_at,
-                    s.expired_at,
+                    s.expires_at,
                     s.created_at,
                     s.updated_at,
+                    s.max_devices,
+                    s.current_devices,
                     ng.name as node_group_name,
                     (s.upload_bytes + s.download_bytes) as total_usage,
-                    CASE 
-                        WHEN s.bandwidth_limit > 0 THEN 
+                    CASE
+                        WHEN s.bandwidth_limit > 0 THEN
                             ROUND((s.upload_bytes + s.download_bytes) / s.bandwidth_limit * 100, 2)
                         ELSE 0
                     END as usage_percentage
