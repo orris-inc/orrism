@@ -715,16 +715,26 @@ if (php_sapi_name() !== 'cli' && !defined('ORRISM_API_INCLUDED')) {
                 $limit = (int)($_GET['limit'] ?? 100);
                 $offset = (int)($_GET['offset'] ?? 0);
 
-                // Use PDO connection to query the configured database
-                $conn = orris_get_db_connection();
-                $sql = "SELECT id, sid as service_id, email, uuid, enable as status, bandwidth,
-                        u as upload_bytes, d as download_bytes, created_at, updated_at
-                        FROM user LIMIT :limit OFFSET :offset";
-                $stmt = $conn->prepare($sql);
-                $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
-                $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
-                $stmt->execute();
-                $services = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                // Use OrrisDB or Capsule to query services table
+                if (class_exists('OrrisDB') && OrrisDB::isConfigured()) {
+                    $services = OrrisDB::table('services')
+                        ->select('id', 'service_id', 'email', 'uuid', 'status', 'bandwidth_limit',
+                                 'upload_bytes', 'download_bytes', 'created_at', 'updated_at')
+                        ->limit($limit)
+                        ->offset($offset)
+                        ->get();
+                } else {
+                    // Fallback: try to get from addon database using PDO
+                    $conn = orris_get_db_connection();
+                    $sql = "SELECT id, service_id, email, uuid, status, bandwidth_limit,
+                            upload_bytes, download_bytes, created_at, updated_at
+                            FROM services LIMIT :limit OFFSET :offset";
+                    $stmt = $conn->prepare($sql);
+                    $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+                    $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+                    $stmt->execute();
+                    $services = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                }
 
                 echo json_encode([
                     'success' => true,
@@ -743,15 +753,22 @@ if (php_sapi_name() !== 'cli' && !defined('ORRISM_API_INCLUDED')) {
                     throw new Exception('Service ID is required');
                 }
 
-                $conn = orris_get_db_connection();
-                $sql = "SELECT id, sid as service_id, email, uuid, enable as status, bandwidth,
-                        u as upload_bytes, d as download_bytes, created_at, updated_at
-                        FROM user WHERE id = :id OR sid = :sid";
-                $stmt = $conn->prepare($sql);
-                $stmt->bindValue(':id', $id, PDO::PARAM_INT);
-                $stmt->bindValue(':sid', $id, PDO::PARAM_INT);
-                $stmt->execute();
-                $service = $stmt->fetch(PDO::FETCH_ASSOC);
+                if (class_exists('OrrisDB') && OrrisDB::isConfigured()) {
+                    $service = OrrisDB::table('services')
+                        ->where('id', $id)
+                        ->orWhere('service_id', $id)
+                        ->first();
+                } else {
+                    $conn = orris_get_db_connection();
+                    $sql = "SELECT id, service_id, email, uuid, status, bandwidth_limit,
+                            upload_bytes, download_bytes, created_at, updated_at
+                            FROM services WHERE id = :id OR service_id = :sid";
+                    $stmt = $conn->prepare($sql);
+                    $stmt->bindValue(':id', $id, PDO::PARAM_INT);
+                    $stmt->bindValue(':sid', $id, PDO::PARAM_INT);
+                    $stmt->execute();
+                    $service = $stmt->fetch(PDO::FETCH_ASSOC);
+                }
 
                 if (!$service) {
                     throw new Exception('Service not found');
@@ -771,36 +788,48 @@ if (php_sapi_name() !== 'cli' && !defined('ORRISM_API_INCLUDED')) {
                     throw new Exception('Service ID is required');
                 }
 
-                $conn = orris_get_db_connection();
-                $sql = "SELECT id, sid as service_id, email, uuid, enable as status, bandwidth,
-                        u as upload_bytes, d as download_bytes
-                        FROM user WHERE id = :id OR sid = :sid";
-                $stmt = $conn->prepare($sql);
-                $stmt->bindValue(':id', $id, PDO::PARAM_INT);
-                $stmt->bindValue(':sid', $id, PDO::PARAM_INT);
-                $stmt->execute();
-                $service = $stmt->fetch(PDO::FETCH_ASSOC);
+                if (class_exists('OrrisDB') && OrrisDB::isConfigured()) {
+                    $service = OrrisDB::table('services')
+                        ->where('id', $id)
+                        ->orWhere('service_id', $id)
+                        ->first();
+                } else {
+                    $conn = orris_get_db_connection();
+                    $sql = "SELECT id, service_id, email, uuid, status, bandwidth_limit,
+                            upload_bytes, download_bytes
+                            FROM services WHERE id = :id OR service_id = :sid";
+                    $stmt = $conn->prepare($sql);
+                    $stmt->bindValue(':id', $id, PDO::PARAM_INT);
+                    $stmt->bindValue(':sid', $id, PDO::PARAM_INT);
+                    $stmt->execute();
+                    $service = $stmt->fetch(PDO::FETCH_ASSOC);
+                }
 
                 if (!$service) {
                     throw new Exception('Service not found');
                 }
 
-                $totalUsage = $service['upload_bytes'] + $service['download_bytes'];
-                $usagePercent = $service['bandwidth'] > 0
-                    ? round($totalUsage / $service['bandwidth'] * 100, 2)
+                // Handle both object and array formats
+                $uploadBytes = is_object($service) ? $service->upload_bytes : $service['upload_bytes'];
+                $downloadBytes = is_object($service) ? $service->download_bytes : $service['download_bytes'];
+                $bandwidthLimit = is_object($service) ? $service->bandwidth_limit : $service['bandwidth_limit'];
+
+                $totalUsage = $uploadBytes + $downloadBytes;
+                $usagePercent = $bandwidthLimit > 0
+                    ? round($totalUsage / $bandwidthLimit * 100, 2)
                     : 0;
 
                 echo json_encode([
                     'success' => true,
                     'data' => [
-                        'service_id' => $service['service_id'],
-                        'email' => $service['email'],
-                        'bandwidth_limit' => $service['bandwidth'],
-                        'upload_bytes' => $service['upload_bytes'],
-                        'download_bytes' => $service['download_bytes'],
+                        'service_id' => is_object($service) ? $service->service_id : $service['service_id'],
+                        'email' => is_object($service) ? $service->email : $service['email'],
+                        'bandwidth_limit' => $bandwidthLimit,
+                        'upload_bytes' => $uploadBytes,
+                        'download_bytes' => $downloadBytes,
                         'total_usage' => $totalUsage,
                         'usage_percent' => $usagePercent,
-                        'status' => $service['status']
+                        'status' => is_object($service) ? $service->status : $service['status']
                     ]
                 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
                 break;
