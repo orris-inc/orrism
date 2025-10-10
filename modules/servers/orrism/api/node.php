@@ -22,6 +22,8 @@ require_once __DIR__ . '/../helper.php';
 require_once __DIR__ . '/database.php';
 require_once __DIR__ . '/service.php';
 
+use WHMCS\Database\Capsule;
+
 function orris_node_get_nodes($sid) {
     // 迁移 get_nodes 逻辑
     return orris_get_nodes($sid);
@@ -192,8 +194,6 @@ if (php_sapi_name() !== 'cli' && !defined('ORRISM_API_INCLUDED')) {
     }
 
     try {
-        use WHMCS\Database\Capsule;
-
         // Get action from request
         $action = $_GET['action'] ?? $_POST['action'] ?? 'list';
 
@@ -202,11 +202,21 @@ if (php_sapi_name() !== 'cli' && !defined('ORRISM_API_INCLUDED')) {
             case 'list':
             case 'get_list':
                 // Get node list
-                $nodes = Capsule::table('nodes')
-                    ->select('id', 'name', 'type', 'address', 'port', 'method', 'status',
-                             'group_id', 'sort_order', 'capacity', 'current_load')
-                    ->orderBy('sort_order')
-                    ->get();
+                if (class_exists('OrrisDB') && OrrisDB::isConfigured()) {
+                    $nodes = OrrisDB::table('nodes')
+                        ->select('id', 'name', 'type', 'address', 'port', 'method', 'status',
+                                 'group_id', 'sort_order', 'capacity', 'current_load')
+                        ->orderBy('sort_order')
+                        ->get();
+                } else {
+                    $conn = orris_get_db_connection();
+                    $sql = "SELECT id, name, type, address, port, method, status,
+                            group_id, sort_order, capacity, current_load
+                            FROM nodes ORDER BY sort_order";
+                    $stmt = $conn->prepare($sql);
+                    $stmt->execute();
+                    $nodes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                }
 
                 echo json_encode([
                     'success' => true,
@@ -223,9 +233,18 @@ if (php_sapi_name() !== 'cli' && !defined('ORRISM_API_INCLUDED')) {
                     throw new Exception('Node ID is required');
                 }
 
-                $node = Capsule::table('nodes')
-                    ->where('id', $id)
-                    ->first();
+                if (class_exists('OrrisDB') && OrrisDB::isConfigured()) {
+                    $node = OrrisDB::table('nodes')
+                        ->where('id', $id)
+                        ->first();
+                } else {
+                    $conn = orris_get_db_connection();
+                    $sql = "SELECT * FROM nodes WHERE id = :id";
+                    $stmt = $conn->prepare($sql);
+                    $stmt->bindValue(':id', $id, PDO::PARAM_INT);
+                    $stmt->execute();
+                    $node = $stmt->fetch(PDO::FETCH_ASSOC);
+                }
 
                 if (!$node) {
                     throw new Exception('Node not found');
@@ -239,8 +258,18 @@ if (php_sapi_name() !== 'cli' && !defined('ORRISM_API_INCLUDED')) {
 
             case 'stats':
                 // Get node statistics
-                $totalNodes = Capsule::table('nodes')->count();
-                $activeNodes = Capsule::table('nodes')->where('status', 'active')->count();
+                if (class_exists('OrrisDB') && OrrisDB::isConfigured()) {
+                    $totalNodes = OrrisDB::table('nodes')->count();
+                    $activeNodes = OrrisDB::table('nodes')->where('status', 'active')->count();
+                } else {
+                    $conn = orris_get_db_connection();
+
+                    $stmt = $conn->query("SELECT COUNT(*) as total FROM nodes");
+                    $totalNodes = $stmt->fetch(PDO::FETCH_ASSOC)['total'];
+
+                    $stmt = $conn->query("SELECT COUNT(*) as active FROM nodes WHERE status = 'active'");
+                    $activeNodes = $stmt->fetch(PDO::FETCH_ASSOC)['active'];
+                }
 
                 echo json_encode([
                     'success' => true,
