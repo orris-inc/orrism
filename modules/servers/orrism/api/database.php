@@ -8,6 +8,15 @@
  * @version    1.0
  */
 
+// Initialize WHMCS environment for direct API access
+if (!defined('WHMCS')) {
+    define('WHMCS', true);
+    $init_path = __DIR__ . '/../../../../init.php';
+    if (file_exists($init_path)) {
+        require_once $init_path;
+    }
+}
+
 require_once __DIR__ . '/../config.php';
 
 /**
