@@ -1749,13 +1749,10 @@ class Controller
                 'node_name' => $_POST['node_name'] ?? '',
                 'address' => $_POST['address'] ?? '',
                 'port' => $_POST['port'] ?? '',
-                'group_id' => $_POST['group_id'] ?? 1,
-                'rate' => $_POST['rate'] ?? 1.0,
+                'group_id' => $_POST['group_id'] ?? null,
                 'node_method' => $_POST['node_method'] ?? 'aes-256-gcm',
-                'network_type' => $_POST['network_type'] ?? 'tcp',
-                'status' => isset($_POST['status']) ? (int)$_POST['status'] : 1,
-                'sort_order' => $_POST['sort_order'] ?? 0,
-                'tag' => $_POST['tag'] ?? ''
+                'status' => isset($_POST['status']) && $_POST['status'] == '1' ? 'active' : 'inactive',
+                'sort_order' => $_POST['sort_order'] ?? 0
             ];
 
             error_log('Node data prepared: ' . json_encode($nodeData));
