@@ -431,19 +431,48 @@ class Controller
                 case 'test_connection':
                     $result = $this->testDatabaseConnection();
                     break;
-                    
+
                 case 'test_redis':
                     $result = $this->testRedisConnection();
                     break;
-                    
+
                 case 'get_node_stats':
                     $result = $this->getNodeStatistics();
                     break;
-                    
+
                 case 'get_service_stats':
                     $result = $this->getServiceStatistics();
                     break;
-                    
+
+                // Node management AJAX actions
+                case 'node_create':
+                    $result = $this->handleNodeCreate();
+                    break;
+
+                case 'node_update':
+                    $result = $this->handleNodeUpdate();
+                    break;
+
+                case 'node_get':
+                    $result = $this->handleNodeGet();
+                    break;
+
+                case 'node_delete':
+                    $result = $this->handleNodeDelete();
+                    break;
+
+                case 'node_toggle':
+                    $result = $this->handleNodeToggle();
+                    break;
+
+                case 'node_batch':
+                    $result = $this->handleNodeBatch();
+                    break;
+
+                case 'node_get_methods':
+                    $result = $this->handleNodeGetMethods();
+                    break;
+
                 default:
                     $result = [
                         'success' => false,
@@ -778,16 +807,21 @@ class Controller
     
     /**
      * Check if this is an AJAX request
-     * 
+     *
      * @return bool
      */
     protected function isAjaxRequest()
     {
-        $ajaxActions = ['test_connection', 'test_database', 'test_redis'];
+        $ajaxActions = [
+            'test_connection', 'test_database', 'test_redis',
+            'node_create', 'node_update', 'node_get', 'node_delete',
+            'node_toggle', 'node_batch', 'node_get_methods',
+            'get_node_stats', 'get_service_stats'
+        ];
         $currentAction = $_GET['action'] ?? $_POST['action'] ?? '';
-        
-        return in_array($currentAction, $ajaxActions) || 
-               (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && 
+
+        return in_array($currentAction, $ajaxActions) ||
+               (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) &&
                 strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest');
     }
     
@@ -1654,17 +1688,311 @@ class Controller
     
     /**
      * Format traffic bytes to readable format
-     * 
+     *
      * @param int $bytes
      * @return string
      */
     protected function formatTraffic($bytes)
     {
         if ($bytes == 0) return '0 B';
-        
+
         $units = ['B', 'KB', 'MB', 'GB', 'TB'];
         $factor = floor((strlen($bytes) - 1) / 3);
-        
+
         return sprintf("%.2f", $bytes / pow(1024, $factor)) . ' ' . $units[$factor];
+    }
+
+    /**
+     * Handle node creation
+     *
+     * @return array
+     */
+    protected function handleNodeCreate()
+    {
+        try {
+            // Load NodeManager
+            require_once dirname(__DIR__, 2) . '/includes/node_manager.php';
+
+            $nodeManager = new \NodeManager();
+
+            // Collect node data from POST
+            $nodeData = [
+                'node_type' => $_POST['node_type'] ?? '',
+                'node_name' => $_POST['node_name'] ?? '',
+                'address' => $_POST['address'] ?? '',
+                'port' => $_POST['port'] ?? '',
+                'group_id' => $_POST['group_id'] ?? 1,
+                'rate' => $_POST['rate'] ?? 1.0,
+                'node_method' => $_POST['node_method'] ?? 'aes-256-gcm',
+                'network_type' => $_POST['network_type'] ?? 'tcp',
+                'status' => isset($_POST['status']) ? (int)$_POST['status'] : 1,
+                'sort_order' => $_POST['sort_order'] ?? 0,
+                'tag' => $_POST['tag'] ?? ''
+            ];
+
+            // Create node
+            $result = $nodeManager->createNode($nodeData);
+
+            // Log the operation
+            error_log('Node create operation: ' . json_encode($result));
+
+            return $result;
+
+        } catch (Exception $e) {
+            error_log('Node create error: ' . $e->getMessage());
+            return [
+                'success' => false,
+                'message' => 'Failed to create node: ' . $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * Handle node update
+     *
+     * @return array
+     */
+    protected function handleNodeUpdate()
+    {
+        try {
+            // Load NodeManager
+            require_once dirname(__DIR__, 2) . '/includes/node_manager.php';
+
+            $nodeManager = new \NodeManager();
+
+            $nodeId = $_POST['node_id'] ?? null;
+
+            if (!$nodeId) {
+                return [
+                    'success' => false,
+                    'message' => 'Node ID is required'
+                ];
+            }
+
+            // Collect node data from POST
+            $nodeData = [];
+
+            $allowedFields = [
+                'node_type', 'node_name', 'address', 'port',
+                'group_id', 'rate', 'node_method', 'network_type',
+                'status', 'sort_order', 'tag'
+            ];
+
+            foreach ($allowedFields as $field) {
+                if (isset($_POST[$field])) {
+                    $nodeData[$field] = $_POST[$field];
+                }
+            }
+
+            // Update node
+            $result = $nodeManager->updateNode($nodeId, $nodeData);
+
+            // Log the operation
+            error_log('Node update operation for ID ' . $nodeId . ': ' . json_encode($result));
+
+            return $result;
+
+        } catch (Exception $e) {
+            error_log('Node update error: ' . $e->getMessage());
+            return [
+                'success' => false,
+                'message' => 'Failed to update node: ' . $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * Handle get node details
+     *
+     * @return array
+     */
+    protected function handleNodeGet()
+    {
+        try {
+            // Load NodeManager
+            require_once dirname(__DIR__, 2) . '/includes/node_manager.php';
+
+            $nodeManager = new \NodeManager();
+
+            $nodeId = $_POST['node_id'] ?? $_GET['node_id'] ?? null;
+
+            if (!$nodeId) {
+                return [
+                    'success' => false,
+                    'message' => 'Node ID is required'
+                ];
+            }
+
+            return $nodeManager->getNode($nodeId);
+
+        } catch (Exception $e) {
+            error_log('Node get error: ' . $e->getMessage());
+            return [
+                'success' => false,
+                'message' => 'Failed to get node: ' . $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * Handle node deletion
+     *
+     * @return array
+     */
+    protected function handleNodeDelete()
+    {
+        try {
+            // Load NodeManager
+            require_once dirname(__DIR__, 2) . '/includes/node_manager.php';
+
+            $nodeManager = new \NodeManager();
+
+            $nodeId = $_POST['node_id'] ?? null;
+
+            if (!$nodeId) {
+                return [
+                    'success' => false,
+                    'message' => 'Node ID is required'
+                ];
+            }
+
+            $result = $nodeManager->deleteNode($nodeId);
+
+            // Log the operation
+            error_log('Node delete operation for ID ' . $nodeId . ': ' . json_encode($result));
+
+            return $result;
+
+        } catch (Exception $e) {
+            error_log('Node delete error: ' . $e->getMessage());
+            return [
+                'success' => false,
+                'message' => 'Failed to delete node: ' . $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * Handle node status toggle
+     *
+     * @return array
+     */
+    protected function handleNodeToggle()
+    {
+        try {
+            // Load NodeManager
+            require_once dirname(__DIR__, 2) . '/includes/node_manager.php';
+
+            $nodeManager = new \NodeManager();
+
+            $nodeId = $_POST['node_id'] ?? null;
+
+            if (!$nodeId) {
+                return [
+                    'success' => false,
+                    'message' => 'Node ID is required'
+                ];
+            }
+
+            $result = $nodeManager->toggleNodeStatus($nodeId);
+
+            // Log the operation
+            error_log('Node toggle operation for ID ' . $nodeId . ': ' . json_encode($result));
+
+            return $result;
+
+        } catch (Exception $e) {
+            error_log('Node toggle error: ' . $e->getMessage());
+            return [
+                'success' => false,
+                'message' => 'Failed to toggle node: ' . $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * Handle batch node operations
+     *
+     * @return array
+     */
+    protected function handleNodeBatch()
+    {
+        try {
+            // Load NodeManager
+            require_once dirname(__DIR__, 2) . '/includes/node_manager.php';
+
+            $nodeManager = new \NodeManager();
+
+            $nodeIds = $_POST['node_ids'] ?? [];
+            $action = $_POST['batch_action'] ?? '';
+
+            if (empty($nodeIds)) {
+                return [
+                    'success' => false,
+                    'message' => 'No nodes selected'
+                ];
+            }
+
+            if (empty($action)) {
+                return [
+                    'success' => false,
+                    'message' => 'No action specified'
+                ];
+            }
+
+            $data = $_POST;
+
+            $result = $nodeManager->batchUpdateNodes($nodeIds, $action, $data);
+
+            // Log the operation
+            error_log('Node batch operation (' . $action . ') for IDs ' . implode(',', $nodeIds) . ': ' . json_encode($result));
+
+            return $result;
+
+        } catch (Exception $e) {
+            error_log('Node batch error: ' . $e->getMessage());
+            return [
+                'success' => false,
+                'message' => 'Batch operation failed: ' . $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * Handle get encryption methods for node type
+     *
+     * @return array
+     */
+    protected function handleNodeGetMethods()
+    {
+        try {
+            // Load NodeManager
+            require_once dirname(__DIR__, 2) . '/includes/node_manager.php';
+
+            $nodeManager = new \NodeManager();
+
+            $nodeType = $_POST['node_type'] ?? $_GET['node_type'] ?? '';
+
+            if (empty($nodeType)) {
+                return [
+                    'success' => false,
+                    'message' => 'Node type is required'
+                ];
+            }
+
+            $methods = $nodeManager->getEncryptionMethods($nodeType);
+
+            return [
+                'success' => true,
+                'methods' => $methods
+            ];
+
+        } catch (Exception $e) {
+            error_log('Node get methods error: ' . $e->getMessage());
+            return [
+                'success' => false,
+                'message' => 'Failed to get encryption methods: ' . $e->getMessage()
+            ];
+        }
     }
 }
