@@ -637,46 +637,45 @@ function orris_get_token($sid){
  */
 function orris_get_nodes($sid) {
     try {
-        // 获取用户信息，主要是获取node_group_id
+        // Get service info to get node_group_id
         $user = orris_get_user($sid);
         if (empty($user)) {
             return [];
         }
-        
+
         $node_group_id = $user[0]['node_group_id'] ?? 0;
-        // error_log("node_group_id: " . $node_group_id);
-        // 连接数据库
+
+        // Connect to database
         $conn = orris_get_db_connection();
-        
-        // 如果有node_group_id，获取该组的节点
+
+        // Get nodes by group_id if available
         if ($node_group_id > 0) {
             $sql = 'SELECT * FROM nodes WHERE group_id = :node_group_id AND enable = 1';
             $stmt = $conn->prepare($sql);
-            $stmt->bindValue(':node_group_id', $node_group_id, PDO::PARAM_STR); // group_id为text类型
+            $stmt->bindValue(':node_group_id', $node_group_id, PDO::PARAM_STR);
         } else {
-            // 否则获取全部状态为1的节点
+            // Otherwise get all active nodes
             $sql = 'SELECT * FROM nodes WHERE enable = 1';
             $stmt = $conn->prepare($sql);
         }
-        
+
         $stmt->execute();
         $nodes = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        // error_log("nodes: " . json_encode($nodes));
-        
-        // 处理返回结果，添加一些额外信息
+
+        // Add additional info to results
         foreach ($nodes as &$node) {
-            // 计算节点负载情况
+            // Calculate node load
             $node['load'] = isset($node['online_user']) && isset($node['max_user']) && $node['max_user'] > 0
                 ? round(($node['online_user'] / $node['max_user']) * 100, 1)
                 : 0;
-                
-            // 添加节点状态标签
-            $node['status_label'] = $node['enable'] == 1 ? '正常' : '维护中';
+
+            // Add status label
+            $node['status_label'] = $node['enable'] == 1 ? 'Active' : 'Maintenance';
         }
-        
+
         return $nodes;
     } catch (Exception $e) {
-        //error_log("获取节点列表失败: " . $e->getMessage());
+        //error_log("Failed to get node list: " . $e->getMessage());
         return [];
     }
 }
