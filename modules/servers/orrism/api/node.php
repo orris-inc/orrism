@@ -17,10 +17,10 @@ if (!defined('WHMCS')) {
     }
 }
 
-// 节点相关业务模块
+// Node management business module
 require_once __DIR__ . '/../helper.php';
 require_once __DIR__ . '/database.php';
-require_once __DIR__ . '/user.php';
+require_once __DIR__ . '/service.php';
 
 function orris_node_get_nodes($sid) {
     // 迁移 get_nodes 逻辑

@@ -17,7 +17,7 @@ if (!defined('WHMCS')) {
     }
 }
 
-// 用户相关业务模块
+// Service management business module
 require_once __DIR__ . '/../helper.php';
 require_once __DIR__ . '/database.php';
 require_once __DIR__ . '/../lib/uuid.php'; // 确保加载我们的UUID库
@@ -399,8 +399,8 @@ function orris_user_client_area($params) {
 }
 
 /**
- * 获取用户信息
- * @param int $sid
+ * Get service information
+ * @param int $sid Service ID
  * @return array
  */
 function orris_get_user($sid) {
@@ -414,7 +414,7 @@ function orris_get_user($sid) {
 }
 
 /**
- * 新建账号
+ * Create new service account
  * @param array $data
  * @return bool|string|Exception
  */
@@ -452,7 +452,7 @@ function orris_new_account($data){
 }
 
 /**
- * 设置用户状态
+ * Set service status
  * @param array $data
  * @return bool|string|Exception
  */
@@ -481,7 +481,7 @@ function orris_set_status($data){
 }
 
 /**
- * 删除账号
+ * Delete service account
  * @param array $data
  * @return bool|string|Exception
  */
@@ -502,7 +502,7 @@ function orris_delete_account($data){
 }
 
 /**
- * UUID重置
+ * Reset service UUID
  * @param array $data
  * @return bool|string|Exception
  */
@@ -542,7 +542,7 @@ function orris_reset_uuid_internal($data){
 }
 
 /**
- * 设置用户带宽
+ * Set service bandwidth
  * @param array $data
  * @return bool|string|Exception
  */
@@ -564,8 +564,8 @@ function orris_set_bandwidth($data){
 }
 
 /**
- * 重置用户流量
- * @param int $sid
+ * Reset service traffic
+ * @param int $sid Service ID
  */
 function orris_reset_user_traffic($sid) {
     if (orris_get_user($sid) != null){
@@ -579,8 +579,8 @@ function orris_reset_user_traffic($sid) {
 }
 
 /**
- * 获取用户 UUID
- * @param int $sid
+ * Get service UUID
+ * @param int $sid Service ID
  * @return string|null
  */
 function orris_get_uuid($sid){
@@ -610,8 +610,8 @@ function orris_get_uuid($sid){
 }
 
 /**
- * 获取用户 TOKEN
- * @param int $sid
+ * Get service TOKEN
+ * @param int $sid Service ID
  * @return string|null
  */
 function orris_get_token($sid){
@@ -631,9 +631,9 @@ function orris_get_token($sid){
 }
 
 /**
- * 获取用户可用节点列表
- * @param int $sid 服务ID
- * @return array 节点列表
+ * Get available nodes for service
+ * @param int $sid Service ID
+ * @return array Node list
  */
 function orris_get_nodes($sid) {
     try {
@@ -682,11 +682,11 @@ function orris_get_nodes($sid) {
 }
 
 // ============================================
-// API Endpoint Handler
+// Service API Endpoint Handler
 // ============================================
 
 /**
- * Handle direct API requests
+ * Handle direct service API requests
  */
 if (php_sapi_name() !== 'cli' && !defined('ORRISM_API_INCLUDED')) {
     // Set JSON response header
@@ -711,11 +711,11 @@ if (php_sapi_name() !== 'cli' && !defined('ORRISM_API_INCLUDED')) {
         switch ($action) {
             case 'list':
             case 'get_list':
-                // Get user list
+                // Get service list
                 $limit = (int)($_GET['limit'] ?? 100);
                 $offset = (int)($_GET['offset'] ?? 0);
 
-                $users = Capsule::table('services')
+                $services = Capsule::table('services')
                     ->select('id', 'service_id', 'email', 'uuid', 'status', 'bandwidth_limit',
                              'upload_bytes', 'download_bytes', 'created_at', 'updated_at')
                     ->limit($limit)
@@ -724,69 +724,69 @@ if (php_sapi_name() !== 'cli' && !defined('ORRISM_API_INCLUDED')) {
 
                 echo json_encode([
                     'success' => true,
-                    'count' => count($users),
+                    'count' => count($services),
                     'limit' => $limit,
                     'offset' => $offset,
-                    'data' => $users
+                    'data' => $services
                 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
                 break;
 
             case 'get':
             case 'info':
-                // Get single user
+                // Get single service
                 $id = $_GET['id'] ?? $_POST['id'] ?? null;
                 if (!$id) {
-                    throw new Exception('User ID is required');
+                    throw new Exception('Service ID is required');
                 }
 
-                $user = Capsule::table('services')
+                $service = Capsule::table('services')
                     ->where('id', $id)
                     ->orWhere('service_id', $id)
                     ->first();
 
-                if (!$user) {
-                    throw new Exception('User not found');
+                if (!$service) {
+                    throw new Exception('Service not found');
                 }
 
                 echo json_encode([
                     'success' => true,
-                    'data' => $user
+                    'data' => $service
                 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
                 break;
 
             case 'traffic':
             case 'stats':
-                // Get user traffic stats
+                // Get service traffic stats
                 $id = $_GET['id'] ?? $_POST['id'] ?? null;
                 if (!$id) {
-                    throw new Exception('User ID is required');
+                    throw new Exception('Service ID is required');
                 }
 
-                $user = Capsule::table('services')
+                $service = Capsule::table('services')
                     ->where('id', $id)
                     ->orWhere('service_id', $id)
                     ->first();
 
-                if (!$user) {
-                    throw new Exception('User not found');
+                if (!$service) {
+                    throw new Exception('Service not found');
                 }
 
-                $totalUsage = $user->upload_bytes + $user->download_bytes;
-                $usagePercent = $user->bandwidth_limit > 0
-                    ? round($totalUsage / $user->bandwidth_limit * 100, 2)
+                $totalUsage = $service->upload_bytes + $service->download_bytes;
+                $usagePercent = $service->bandwidth_limit > 0
+                    ? round($totalUsage / $service->bandwidth_limit * 100, 2)
                     : 0;
 
                 echo json_encode([
                     'success' => true,
                     'data' => [
-                        'service_id' => $user->service_id,
-                        'email' => $user->email,
-                        'bandwidth_limit' => $user->bandwidth_limit,
-                        'upload_bytes' => $user->upload_bytes,
-                        'download_bytes' => $user->download_bytes,
+                        'service_id' => $service->service_id,
+                        'email' => $service->email,
+                        'bandwidth_limit' => $service->bandwidth_limit,
+                        'upload_bytes' => $service->upload_bytes,
+                        'download_bytes' => $service->download_bytes,
                         'total_usage' => $totalUsage,
                         'usage_percent' => $usagePercent,
-                        'status' => $user->status
+                        'status' => $service->status
                     ]
                 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
                 break;

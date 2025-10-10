@@ -10,8 +10,8 @@
 
 use Symfony\Component\Yaml\Yaml;
 
-// 包含所需文件
-require_once __DIR__ . '/../user.php';
+// Include required files
+require_once __DIR__ . '/../service.php';
 require_once __DIR__ . '/../product.php';
 require_once __DIR__ . '/utils.php';
 require_once __DIR__ . '/generators.php';

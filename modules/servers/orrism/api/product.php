@@ -10,10 +10,10 @@
 
 
 require_once __DIR__ . '/../../../../init.php';
-// 产品/套餐相关业务模块
+// Product/package management business module
 require_once __DIR__ . '/../helper.php';
 require_once __DIR__ . '/database.php';
-require_once __DIR__ . '/user.php';
+require_once __DIR__ . '/service.php';
 
 function orris_product_change_package($params) {
     $sid = $params['serviceid'] ?? 0;
