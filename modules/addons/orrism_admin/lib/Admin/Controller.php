@@ -409,7 +409,7 @@ class Controller
     
     /**
      * Handle AJAX requests
-     * 
+     *
      * @param array $vars Module variables
      * @return void Outputs JSON directly and exits
      */
@@ -420,12 +420,17 @@ class Controller
             ob_end_clean();
         }
         ob_start();
-        
+
         try {
             header('Content-Type: application/json; charset=utf-8');
-            
+
             $action = $_REQUEST['ajax_action'] ?? $_REQUEST['action'] ?? '';
-            
+
+            // Debug logging
+            error_log('AJAX method called - action: ' . $action);
+            error_log('GET params: ' . json_encode($_GET));
+            error_log('POST params: ' . json_encode($_POST));
+
             switch ($action) {
                 case 'test_database':
                 case 'test_connection':
@@ -1710,10 +1715,33 @@ class Controller
     protected function handleNodeCreate()
     {
         try {
+            // Debug logging
+            error_log('handleNodeCreate called - POST data: ' . json_encode($_POST));
+
             // Load NodeManager
-            require_once dirname(__DIR__, 2) . '/includes/node_manager.php';
+            $nodeManagerPath = dirname(__DIR__, 2) . '/includes/node_manager.php';
+            error_log('Loading NodeManager from: ' . $nodeManagerPath);
+
+            if (!file_exists($nodeManagerPath)) {
+                error_log('NodeManager file not found at: ' . $nodeManagerPath);
+                return [
+                    'success' => false,
+                    'message' => 'NodeManager file not found'
+                ];
+            }
+
+            require_once $nodeManagerPath;
+
+            if (!class_exists('NodeManager')) {
+                error_log('NodeManager class not found after require');
+                return [
+                    'success' => false,
+                    'message' => 'NodeManager class not found'
+                ];
+            }
 
             $nodeManager = new \NodeManager();
+            error_log('NodeManager instance created successfully');
 
             // Collect node data from POST
             $nodeData = [
@@ -1730,11 +1758,13 @@ class Controller
                 'tag' => $_POST['tag'] ?? ''
             ];
 
+            error_log('Node data prepared: ' . json_encode($nodeData));
+
             // Create node
             $result = $nodeManager->createNode($nodeData);
 
             // Log the operation
-            error_log('Node create operation: ' . json_encode($result));
+            error_log('Node create operation result: ' . json_encode($result));
 
             return $result;
 

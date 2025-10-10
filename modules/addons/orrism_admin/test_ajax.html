@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Node AJAX</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+    <h1>Test Node AJAX Endpoint</h1>
+
+    <h2>Test 1: Create Node</h2>
+    <button id="testCreate">Test Create Node</button>
+    <div id="createResult"></div>
+
+    <h2>Test 2: Check AJAX Routing</h2>
+    <button id="testRouting">Test AJAX Routing</button>
+    <div id="routingResult"></div>
+
+    <h2>Console Output</h2>
+    <div id="console" style="background: #f0f0f0; padding: 10px; font-family: monospace; white-space: pre;"></div>
+
+    <script>
+    function log(msg) {
+        console.log(msg);
+        $('#console').append(msg + '\n');
+    }
+
+    $('#testCreate').click(function() {
+        log('=== Testing Node Create ===');
+
+        var formData = {
+            node_type: 'shadowsocks',
+            node_name: 'Test Node',
+            address: '192.168.1.1',
+            port: 8388,
+            group_id: 1,
+            rate: 1.0,
+            node_method: 'aes-256-gcm',
+            status: 1
+        };
+
+        log('Sending POST request to: addonmodules.php?module=orrism_admin&action=node_create');
+        log('Data: ' + JSON.stringify(formData));
+
+        $.ajax({
+            url: '../../../addonmodules.php?module=orrism_admin&action=node_create',
+            type: 'POST',
+            data: formData,
+            dataType: 'json',
+            success: function(response) {
+                log('SUCCESS Response received:');
+                log(JSON.stringify(response, null, 2));
+                $('#createResult').html('<pre>' + JSON.stringify(response, null, 2) + '</pre>');
+            },
+            error: function(xhr, status, error) {
+                log('ERROR occurred:');
+                log('Status: ' + status);
+                log('Error: ' + error);
+                log('Response Text: ' + xhr.responseText);
+                $('#createResult').html('<pre style="color:red">ERROR\nStatus: ' + status + '\nResponse: ' + xhr.responseText + '</pre>');
+            }
+        });
+    });
+
+    $('#testRouting').click(function() {
+        log('=== Testing AJAX Routing ===');
+        log('Sending request to check if action is recognized...');
+
+        $.ajax({
+            url: '../../../addonmodules.php?module=orrism_admin&action=node_create',
+            type: 'POST',
+            data: {},
+            success: function(response, status, xhr) {
+                log('Response received:');
+                log('Content-Type: ' + xhr.getResponseHeader('Content-Type'));
+                log('Response: ' + (typeof response === 'object' ? JSON.stringify(response, null, 2) : response));
+                $('#routingResult').html('<pre>' + (typeof response === 'object' ? JSON.stringify(response, null, 2) : response) + '</pre>');
+            },
+            error: function(xhr, status, error) {
+                log('ERROR:');
+                log('Status: ' + status);
+                log('Content-Type: ' + xhr.getResponseHeader('Content-Type'));
+                log('Response: ' + xhr.responseText);
+                $('#routingResult').html('<pre style="color:red">' + xhr.responseText + '</pre>');
+            }
+        });
+    });
+    </script>
+</body>
+</html>
