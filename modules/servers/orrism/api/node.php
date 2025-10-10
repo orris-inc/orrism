@@ -143,14 +143,30 @@ if (php_sapi_name() !== 'cli' && !defined('ORRISM_API_INCLUDED')) {
                 $sql = "SELECT id, name, type, address, port, method, status,
                         group_id, sort_order
                         FROM nodes ORDER BY sort_order";
+
+                // Log SQL
+                error_log("[Node API] Executing SQL: " . preg_replace('/\s+/', ' ', $sql));
+                error_log("[Node API] Database: " . $dbName);
+
                 $stmt = $conn->prepare($sql);
                 $stmt->execute();
                 $nodes = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+                // Log results
+                error_log("[Node API] Query returned " . count($nodes) . " rows");
+                error_log("[Node API] Raw data: " . json_encode($nodes));
+
+                // Also try a simple count query
+                $countStmt = $conn->query("SELECT COUNT(*) as total FROM nodes");
+                $totalCount = $countStmt->fetch(PDO::FETCH_ASSOC)['total'];
+                error_log("[Node API] Total rows in nodes table: " . $totalCount);
+
                 echo json_encode([
                     'success' => true,
                     'count' => count($nodes),
-                    'database' => $dbName,  // Debug info
+                    'database' => $dbName,
+                    'total_in_table' => $totalCount,  // Debug: total rows in table
+                    'sql' => preg_replace('/\s+/', ' ', $sql),  // Debug: actual SQL
                     'data' => $nodes
                 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
                 break;

@@ -723,18 +723,35 @@ if (php_sapi_name() !== 'cli' && !defined('ORRISM_API_INCLUDED')) {
                 $sql = "SELECT id, service_id, email, uuid, status, bandwidth_limit,
                         upload_bytes, download_bytes, created_at, updated_at
                         FROM services LIMIT :limit OFFSET :offset";
+
+                // Log SQL
+                error_log("[Service API] Executing SQL: " . preg_replace('/\s+/', ' ', $sql));
+                error_log("[Service API] Database: " . $dbName);
+                error_log("[Service API] Limit: " . $limit . ", Offset: " . $offset);
+
                 $stmt = $conn->prepare($sql);
                 $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
                 $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
                 $stmt->execute();
                 $services = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+                // Log results
+                error_log("[Service API] Query returned " . count($services) . " rows");
+                error_log("[Service API] Raw data: " . json_encode($services));
+
+                // Also try a simple count query
+                $countStmt = $conn->query("SELECT COUNT(*) as total FROM services");
+                $totalCount = $countStmt->fetch(PDO::FETCH_ASSOC)['total'];
+                error_log("[Service API] Total rows in services table: " . $totalCount);
+
                 echo json_encode([
                     'success' => true,
                     'count' => count($services),
                     'limit' => $limit,
                     'offset' => $offset,
-                    'database' => $dbName,  // Debug info
+                    'database' => $dbName,
+                    'total_in_table' => $totalCount,  // Debug: total rows in table
+                    'sql' => preg_replace('/\s+/', ' ', $sql),  // Debug: actual SQL
                     'data' => $services
                 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
                 break;
