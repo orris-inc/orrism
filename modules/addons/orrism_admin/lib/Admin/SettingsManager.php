@@ -746,12 +746,19 @@ class SettingsManager
     private function logActivity($action, $message, $data = [])
     {
         if (function_exists('logModuleCall')) {
-            logModuleCall('orrism_admin', $action, $data, $message);
+            logModuleCall(
+                'orrism_admin',
+                $action,
+                $data,
+                $message,
+                json_encode($data),
+                ['password', 'database_password', 'redis_password', 'apikey', 'token']
+            );
         } else {
             error_log("ORRISM Admin [$action]: $message");
         }
     }
-    
+
     /**
      * Log error
      *
@@ -761,7 +768,14 @@ class SettingsManager
     private function logError($action, $error)
     {
         if (function_exists('logModuleCall')) {
-            logModuleCall('orrism_admin', $action . '_error', [], $error);
+            logModuleCall(
+                'orrism_admin',
+                $action . '_error',
+                [],
+                $error,
+                '',
+                ['password', 'database_password', 'redis_password', 'apikey', 'token']
+            );
         } else {
             error_log("ORRISM Admin Error [$action]: $error");
         }

@@ -16,12 +16,43 @@ if (!defined('WHMCS')) {
 use WHMCS\Database\Capsule;
 
 /**
- * Safe wrapper for logModuleCall to prevent errors
+ * Safe wrapper for logModuleCall with sensitive data protection
+ *
+ * @param string $module Module name
+ * @param string $action Action being performed
+ * @param mixed $request Request data
+ * @param mixed $response Response data
+ * @param mixed $processedData Processed response data
+ * @param array $replaceVars Additional sensitive fields to hide
+ * @return void
  */
-function safeLogModuleCall($module, $action, $request, $response) {
+function safeLogModuleCall($module, $action, $request, $response, $processedData = '', $replaceVars = []) {
+    // Default sensitive fields for addon module
+    $defaultSensitiveFields = [
+        'password',
+        'database_password',
+        'redis_password',
+        'apikey',
+        'api_key',
+        'token',
+        'secret',
+        'auth_token',
+        'access_token'
+    ];
+
+    // Merge custom sensitive fields with defaults
+    $sensitiveFields = array_merge($defaultSensitiveFields, $replaceVars);
+
     try {
         if (function_exists('logModuleCall')) {
-            logModuleCall($module, $action, $request, $response);
+            logModuleCall(
+                $module,
+                $action,
+                $request,
+                $response,
+                $processedData,
+                $sensitiveFields
+            );
         } else {
             error_log("ORRISM $action: " . (is_string($response) ? $response : json_encode($response)));
         }
@@ -230,11 +261,22 @@ function orrism_admin_output($vars)
                 require_once $path;
             } catch (Exception $e) {
                 $loadErrors[] = "Failed to include $name: " . $e->getMessage();
-                safeLogModuleCall('orrism_admin', 'dependency_load', $name, $e->getMessage());
+                safeLogModuleCall(
+                    'orrism_admin',
+                    'dependency_load',
+                    ['file' => $name],
+                    $e->getMessage(),
+                    $e->getTraceAsString()
+                );
             }
         } else {
             $loadErrors[] = "File not found: $name at $path";
-            safeLogModuleCall('orrism_admin', 'dependency_missing', $name, $path);
+            safeLogModuleCall(
+                'orrism_admin',
+                'dependency_missing',
+                ['file' => $name],
+                "File not found at: $path"
+            );
         }
     }
     
@@ -292,7 +334,13 @@ function orrism_admin_output($vars)
             echo '</div>';
             
             // Log the error
-            safeLogModuleCall('orrism_admin', 'controller_error', 'Controller class not found', $controllerClass);
+            safeLogModuleCall(
+                'orrism_admin',
+                'controller_error',
+                ['expected_class' => $controllerClass],
+                'Controller class not found',
+                json_encode($loadErrors)
+            );
         }
         
     } catch (Exception $e) {
@@ -317,8 +365,14 @@ function orrism_admin_output($vars)
         }
         
         echo '</div>';
-        
+
         // Log the error
-        safeLogModuleCall('orrism_admin', 'output_error', $e->getMessage(), $e->getTraceAsString());
+        safeLogModuleCall(
+            'orrism_admin',
+            'output_error',
+            ['action' => $_GET['action'] ?? 'index'],
+            $e->getMessage(),
+            $e->getTraceAsString()
+        );
     }
 }

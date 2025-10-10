@@ -535,9 +535,16 @@ class DatabaseManager
             error_log("ORRISM DatabaseManager [$level]: $message");
         }
         
-        // Also use WHMCS logging if available
+        // Also use WHMCS logging if available with sensitive data protection
         if (function_exists('logModuleCall')) {
-            logModuleCall('orrism_admin', 'DatabaseManager', ['level' => $level], $message);
+            logModuleCall(
+                'orrism_admin',
+                'DatabaseManager',
+                ['level' => $level],
+                $message,
+                '',
+                ['password', 'database_password', 'redis_password', 'apikey', 'token']
+            );
         }
     }
     

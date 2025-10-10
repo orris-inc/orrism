@@ -770,7 +770,9 @@ class ServiceManager
                 'orrism_admin',
                 'UserManager::' . debug_backtrace()[1]['function'],
                 [],
-                $errorMessage
+                $errorMessage,
+                $exception->getTraceAsString(),
+                ['password', 'database_password', 'redis_password', 'apikey', 'token']
             );
         }
         
