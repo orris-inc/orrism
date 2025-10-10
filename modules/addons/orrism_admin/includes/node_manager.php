@@ -46,17 +46,74 @@ class NodeManager
     private function initDatabase()
     {
         try {
-            // Check if OrrisDB class is available
+            // Try OrrisDB first
             if (class_exists('OrrisDB')) {
-                $this->db = OrrisDB::connection();
-                if ($this->db) {
-                    $this->pdo = $this->db->getPdo();
+                try {
+                    $this->db = OrrisDB::connection();
+                    if ($this->db) {
+                        $this->pdo = $this->db->getPdo();
+                        error_log('NodeManager: Using OrrisDB connection');
+                        return;
+                    }
+                } catch (Exception $e) {
+                    error_log('NodeManager: OrrisDB connection failed - ' . $e->getMessage());
                 }
-            } else {
-                error_log('NodeManager: OrrisDB class not found');
             }
+
+            // Fallback to WHMCS Capsule
+            if (!$this->pdo && class_exists('Illuminate\Database\Capsule\Manager')) {
+                try {
+                    $capsule = \Illuminate\Database\Capsule\Manager::connection();
+                    $this->pdo = $capsule->getPdo();
+                    error_log('NodeManager: Using WHMCS Capsule connection');
+                    return;
+                } catch (Exception $e) {
+                    error_log('NodeManager: Capsule connection failed - ' . $e->getMessage());
+                }
+            }
+
+            // Last resort: direct PDO connection
+            if (!$this->pdo) {
+                error_log('NodeManager: Attempting direct PDO connection');
+                $this->initDirectPDO();
+            }
+
         } catch (Exception $e) {
             error_log('NodeManager: Failed to initialize database - ' . $e->getMessage());
+            throw new Exception('Database connection failed: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Initialize direct PDO connection as fallback
+     */
+    private function initDirectPDO()
+    {
+        try {
+            // Get WHMCS database config
+            global $whmcs;
+
+            $host = $whmcs->get_config('db_host') ?? 'localhost';
+            $name = $whmcs->get_config('db_name') ?? '';
+            $user = $whmcs->get_config('db_username') ?? '';
+            $pass = $whmcs->get_config('db_password') ?? '';
+
+            if (empty($name)) {
+                throw new Exception('Database configuration not found');
+            }
+
+            $dsn = "mysql:host={$host};dbname={$name};charset=utf8mb4";
+            $this->pdo = new PDO($dsn, $user, $pass, [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_OBJ,
+                PDO::ATTR_EMULATE_PREPARES => false
+            ]);
+
+            error_log('NodeManager: Direct PDO connection established');
+
+        } catch (Exception $e) {
+            error_log('NodeManager: Direct PDO connection failed - ' . $e->getMessage());
+            throw $e;
         }
     }
     
@@ -339,7 +396,16 @@ class NodeManager
             ];
 
             // Insert node
-            $this->execute($sql, $bindings);
+            $result = $this->execute($sql, $bindings);
+
+            if (!$result) {
+                throw new Exception('Failed to execute INSERT query');
+            }
+
+            if (!$this->pdo) {
+                throw new Exception('PDO connection is null');
+            }
+
             $nodeId = $this->pdo->lastInsertId();
 
             error_log('Node created successfully with ID: ' . $nodeId);
