@@ -686,8 +686,11 @@ function orris_get_nodes($sid) {
 
 /**
  * Handle direct service API requests
+ * Only execute if this file is directly accessed (not included by another file)
  */
-if (php_sapi_name() !== 'cli' && !defined('ORRISM_API_INCLUDED')) {
+if (php_sapi_name() !== 'cli' && basename($_SERVER['SCRIPT_FILENAME']) === basename(__FILE__)) {
+    error_log("[Service.php] Direct access detected, starting API endpoint handler");
+
     // Set JSON response header
     header('Content-Type: application/json; charset=utf-8');
 

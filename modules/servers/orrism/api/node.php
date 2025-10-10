@@ -17,15 +17,23 @@ if (!defined('WHMCS')) {
     }
 }
 
-// Prevent service.php API endpoint from executing when included
-define('ORRISM_API_INCLUDED', true);
+error_log("[Node.php] Starting execution");
+error_log("[Node.php] PHP SAPI: " . php_sapi_name());
+error_log("[Node.php] Request URI: " . ($_SERVER['REQUEST_URI'] ?? 'N/A'));
 
 // Node management business module
 require_once __DIR__ . '/../helper.php';
+error_log("[Node.php] Loaded helper.php");
+
 require_once __DIR__ . '/database.php';
+error_log("[Node.php] Loaded database.php");
+
 require_once __DIR__ . '/service.php';
+error_log("[Node.php] Loaded service.php");
 
 use WHMCS\Database\Capsule;
+
+error_log("[Node.php] All includes loaded, continuing to function definitions");
 
 function orris_node_get_nodes($sid) {
     // 迁移 get_nodes 逻辑
@@ -113,8 +121,11 @@ function orris_get_node_by_group_id($sid, $id) {
 
 /**
  * Handle direct API requests
+ * Only execute if this file is directly accessed (not included by another file)
  */
-if (php_sapi_name() !== 'cli' && !defined('ORRISM_API_INCLUDED')) {
+if (php_sapi_name() !== 'cli' && basename($_SERVER['SCRIPT_FILENAME']) === basename(__FILE__)) {
+    error_log("[Node.php] Direct access detected, starting API endpoint handler");
+
     // Set JSON response header
     header('Content-Type: application/json; charset=utf-8');
 
