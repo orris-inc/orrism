@@ -157,4 +157,102 @@ function orris_get_node_by_group_id($sid, $id) {
     return null;
 }
 
-// 预留节点相关函数接口 
+// 预留节点相关函数接口
+
+// ============================================
+// API Endpoint Handler
+// ============================================
+
+/**
+ * Handle direct API requests
+ */
+if (php_sapi_name() !== 'cli' && !defined('ORRISM_API_INCLUDED')) {
+    // Set JSON response header
+    header('Content-Type: application/json; charset=utf-8');
+
+    // Enable CORS
+    header('Access-Control-Allow-Origin: *');
+    header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
+    header('Access-Control-Allow-Headers: Content-Type, X-API-Key');
+
+    // Handle OPTIONS request
+    if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+        http_response_code(200);
+        exit;
+    }
+
+    try {
+        use WHMCS\Database\Capsule;
+
+        // Get action from request
+        $action = $_GET['action'] ?? $_POST['action'] ?? 'list';
+
+        // Route to appropriate function
+        switch ($action) {
+            case 'list':
+            case 'get_list':
+                // Get node list
+                $nodes = Capsule::table('nodes')
+                    ->select('id', 'name', 'type', 'address', 'port', 'method', 'status',
+                             'group_id', 'sort_order', 'capacity', 'current_load')
+                    ->orderBy('sort_order')
+                    ->get();
+
+                echo json_encode([
+                    'success' => true,
+                    'count' => count($nodes),
+                    'data' => $nodes
+                ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+                break;
+
+            case 'get':
+            case 'info':
+                // Get single node
+                $id = $_GET['id'] ?? $_POST['id'] ?? null;
+                if (!$id) {
+                    throw new Exception('Node ID is required');
+                }
+
+                $node = Capsule::table('nodes')
+                    ->where('id', $id)
+                    ->first();
+
+                if (!$node) {
+                    throw new Exception('Node not found');
+                }
+
+                echo json_encode([
+                    'success' => true,
+                    'data' => $node
+                ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+                break;
+
+            case 'stats':
+                // Get node statistics
+                $totalNodes = Capsule::table('nodes')->count();
+                $activeNodes = Capsule::table('nodes')->where('status', 'active')->count();
+
+                echo json_encode([
+                    'success' => true,
+                    'data' => [
+                        'total_nodes' => $totalNodes,
+                        'active_nodes' => $activeNodes,
+                        'inactive_nodes' => $totalNodes - $activeNodes
+                    ]
+                ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+                break;
+
+            default:
+                throw new Exception('Unknown action: ' . $action);
+        }
+
+    } catch (Exception $e) {
+        http_response_code(400);
+        echo json_encode([
+            'success' => false,
+            'error' => $e->getMessage()
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+    }
+
+    exit;
+} 

@@ -672,3 +672,128 @@ function orris_get_nodes($sid) {
         return [];
     }
 }
+
+// ============================================
+// API Endpoint Handler
+// ============================================
+
+/**
+ * Handle direct API requests
+ */
+if (php_sapi_name() !== 'cli' && !defined('ORRISM_API_INCLUDED')) {
+    // Set JSON response header
+    header('Content-Type: application/json; charset=utf-8');
+
+    // Enable CORS
+    header('Access-Control-Allow-Origin: *');
+    header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
+    header('Access-Control-Allow-Headers: Content-Type, X-API-Key');
+
+    // Handle OPTIONS request
+    if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+        http_response_code(200);
+        exit;
+    }
+
+    try {
+        // Get action from request
+        $action = $_GET['action'] ?? $_POST['action'] ?? 'list';
+
+        // Route to appropriate function
+        switch ($action) {
+            case 'list':
+            case 'get_list':
+                // Get user list
+                $limit = (int)($_GET['limit'] ?? 100);
+                $offset = (int)($_GET['offset'] ?? 0);
+
+                $users = Capsule::table('services')
+                    ->select('id', 'service_id', 'email', 'uuid', 'status', 'bandwidth_limit',
+                             'upload_bytes', 'download_bytes', 'created_at', 'updated_at')
+                    ->limit($limit)
+                    ->offset($offset)
+                    ->get();
+
+                echo json_encode([
+                    'success' => true,
+                    'count' => count($users),
+                    'limit' => $limit,
+                    'offset' => $offset,
+                    'data' => $users
+                ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+                break;
+
+            case 'get':
+            case 'info':
+                // Get single user
+                $id = $_GET['id'] ?? $_POST['id'] ?? null;
+                if (!$id) {
+                    throw new Exception('User ID is required');
+                }
+
+                $user = Capsule::table('services')
+                    ->where('id', $id)
+                    ->orWhere('service_id', $id)
+                    ->first();
+
+                if (!$user) {
+                    throw new Exception('User not found');
+                }
+
+                echo json_encode([
+                    'success' => true,
+                    'data' => $user
+                ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+                break;
+
+            case 'traffic':
+            case 'stats':
+                // Get user traffic stats
+                $id = $_GET['id'] ?? $_POST['id'] ?? null;
+                if (!$id) {
+                    throw new Exception('User ID is required');
+                }
+
+                $user = Capsule::table('services')
+                    ->where('id', $id)
+                    ->orWhere('service_id', $id)
+                    ->first();
+
+                if (!$user) {
+                    throw new Exception('User not found');
+                }
+
+                $totalUsage = $user->upload_bytes + $user->download_bytes;
+                $usagePercent = $user->bandwidth_limit > 0
+                    ? round($totalUsage / $user->bandwidth_limit * 100, 2)
+                    : 0;
+
+                echo json_encode([
+                    'success' => true,
+                    'data' => [
+                        'service_id' => $user->service_id,
+                        'email' => $user->email,
+                        'bandwidth_limit' => $user->bandwidth_limit,
+                        'upload_bytes' => $user->upload_bytes,
+                        'download_bytes' => $user->download_bytes,
+                        'total_usage' => $totalUsage,
+                        'usage_percent' => $usagePercent,
+                        'status' => $user->status
+                    ]
+                ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+                break;
+
+            default:
+                throw new Exception('Unknown action: ' . $action);
+        }
+
+    } catch (Exception $e) {
+        http_response_code(400);
+        echo json_encode([
+            'success' => false,
+            'error' => $e->getMessage()
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+    }
+
+    exit;
+}
