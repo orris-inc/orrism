@@ -17,23 +17,12 @@ if (!defined('WHMCS')) {
     }
 }
 
-error_log("[Node.php] Starting execution");
-error_log("[Node.php] PHP SAPI: " . php_sapi_name());
-error_log("[Node.php] Request URI: " . ($_SERVER['REQUEST_URI'] ?? 'N/A'));
-
 // Node management business module
 require_once __DIR__ . '/../helper.php';
-error_log("[Node.php] Loaded helper.php");
-
 require_once __DIR__ . '/database.php';
-error_log("[Node.php] Loaded database.php");
-
 require_once __DIR__ . '/service.php';
-error_log("[Node.php] Loaded service.php");
 
 use WHMCS\Database\Capsule;
-
-error_log("[Node.php] All includes loaded, continuing to function definitions");
 
 function orris_node_get_nodes($sid) {
     // 迁移 get_nodes 逻辑
@@ -124,8 +113,6 @@ function orris_get_node_by_group_id($sid, $id) {
  * Only execute if this file is directly accessed (not included by another file)
  */
 if (php_sapi_name() !== 'cli' && basename($_SERVER['SCRIPT_FILENAME']) === basename(__FILE__)) {
-    error_log("[Node.php] Direct access detected, starting API endpoint handler");
-
     // Set JSON response header
     header('Content-Type: application/json; charset=utf-8');
 
@@ -148,39 +135,18 @@ if (php_sapi_name() !== 'cli' && basename($_SERVER['SCRIPT_FILENAME']) === basen
         switch ($action) {
             case 'list':
             case 'get_list':
-                // Get node list - always use PDO connection to addon database
+                // Get node list
                 $conn = orris_get_db_connection();
-
-                // Get database name for debugging
-                $dbName = $conn->query("SELECT DATABASE()")->fetchColumn();
-
                 $sql = "SELECT id, name, type, address, port, method, status,
                         group_id, sort_order
                         FROM nodes ORDER BY sort_order";
-
-                // Log SQL
-                error_log("[Node API] Executing SQL: " . preg_replace('/\s+/', ' ', $sql));
-                error_log("[Node API] Database: " . $dbName);
-
                 $stmt = $conn->prepare($sql);
                 $stmt->execute();
                 $nodes = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-                // Log results
-                error_log("[Node API] Query returned " . count($nodes) . " rows");
-                error_log("[Node API] Raw data: " . json_encode($nodes));
-
-                // Also try a simple count query
-                $countStmt = $conn->query("SELECT COUNT(*) as total FROM nodes");
-                $totalCount = $countStmt->fetch(PDO::FETCH_ASSOC)['total'];
-                error_log("[Node API] Total rows in nodes table: " . $totalCount);
-
                 echo json_encode([
                     'success' => true,
                     'count' => count($nodes),
-                    'database' => $dbName,
-                    'total_in_table' => $totalCount,  // Debug: total rows in table
-                    'sql' => preg_replace('/\s+/', ' ', $sql),  // Debug: actual SQL
                     'data' => $nodes
                 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
                 break;
@@ -218,18 +184,13 @@ if (php_sapi_name() !== 'cli' && basename($_SERVER['SCRIPT_FILENAME']) === basen
 
             case 'stats':
                 // Get node statistics
-                if (class_exists('OrrisDB') && OrrisDB::isConfigured()) {
-                    $totalNodes = OrrisDB::table('nodes')->count();
-                    $activeNodes = OrrisDB::table('nodes')->where('status', 'active')->count();
-                } else {
-                    $conn = orris_get_db_connection();
+                $conn = orris_get_db_connection();
 
-                    $stmt = $conn->query("SELECT COUNT(*) as total FROM nodes");
-                    $totalNodes = $stmt->fetch(PDO::FETCH_ASSOC)['total'];
+                $stmt = $conn->query("SELECT COUNT(*) as total FROM nodes");
+                $totalNodes = $stmt->fetch(PDO::FETCH_ASSOC)['total'];
 
-                    $stmt = $conn->query("SELECT COUNT(*) as active FROM nodes WHERE status = 'active'");
-                    $activeNodes = $stmt->fetch(PDO::FETCH_ASSOC)['active'];
-                }
+                $stmt = $conn->query("SELECT COUNT(*) as active FROM nodes WHERE status = 'active'");
+                $activeNodes = $stmt->fetch(PDO::FETCH_ASSOC)['active'];
 
                 echo json_encode([
                     'success' => true,

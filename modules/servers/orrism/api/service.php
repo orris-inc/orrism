@@ -689,8 +689,6 @@ function orris_get_nodes($sid) {
  * Only execute if this file is directly accessed (not included by another file)
  */
 if (php_sapi_name() !== 'cli' && basename($_SERVER['SCRIPT_FILENAME']) === basename(__FILE__)) {
-    error_log("[Service.php] Direct access detected, starting API endpoint handler");
-
     // Set JSON response header
     header('Content-Type: application/json; charset=utf-8');
 
@@ -717,44 +715,21 @@ if (php_sapi_name() !== 'cli' && basename($_SERVER['SCRIPT_FILENAME']) === basen
                 $limit = (int)($_GET['limit'] ?? 100);
                 $offset = (int)($_GET['offset'] ?? 0);
 
-                // Always use PDO connection to addon database
                 $conn = orris_get_db_connection();
-
-                // Get database name for debugging
-                $dbName = $conn->query("SELECT DATABASE()")->fetchColumn();
-
                 $sql = "SELECT id, service_id, email, uuid, status, bandwidth_limit,
                         upload_bytes, download_bytes, created_at, updated_at
                         FROM services LIMIT :limit OFFSET :offset";
-
-                // Log SQL
-                error_log("[Service API] Executing SQL: " . preg_replace('/\s+/', ' ', $sql));
-                error_log("[Service API] Database: " . $dbName);
-                error_log("[Service API] Limit: " . $limit . ", Offset: " . $offset);
-
                 $stmt = $conn->prepare($sql);
                 $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
                 $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
                 $stmt->execute();
                 $services = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-                // Log results
-                error_log("[Service API] Query returned " . count($services) . " rows");
-                error_log("[Service API] Raw data: " . json_encode($services));
-
-                // Also try a simple count query
-                $countStmt = $conn->query("SELECT COUNT(*) as total FROM services");
-                $totalCount = $countStmt->fetch(PDO::FETCH_ASSOC)['total'];
-                error_log("[Service API] Total rows in services table: " . $totalCount);
-
                 echo json_encode([
                     'success' => true,
                     'count' => count($services),
                     'limit' => $limit,
                     'offset' => $offset,
-                    'database' => $dbName,
-                    'total_in_table' => $totalCount,  // Debug: total rows in table
-                    'sql' => preg_replace('/\s+/', ' ', $sql),  // Debug: actual SQL
                     'data' => $services
                 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
                 break;
@@ -767,22 +742,15 @@ if (php_sapi_name() !== 'cli' && basename($_SERVER['SCRIPT_FILENAME']) === basen
                     throw new Exception('Service ID is required');
                 }
 
-                if (class_exists('OrrisDB') && OrrisDB::isConfigured()) {
-                    $service = OrrisDB::table('services')
-                        ->where('id', $id)
-                        ->orWhere('service_id', $id)
-                        ->first();
-                } else {
-                    $conn = orris_get_db_connection();
-                    $sql = "SELECT id, service_id, email, uuid, status, bandwidth_limit,
-                            upload_bytes, download_bytes, created_at, updated_at
-                            FROM services WHERE id = :id OR service_id = :sid";
-                    $stmt = $conn->prepare($sql);
-                    $stmt->bindValue(':id', $id, PDO::PARAM_INT);
-                    $stmt->bindValue(':sid', $id, PDO::PARAM_INT);
-                    $stmt->execute();
-                    $service = $stmt->fetch(PDO::FETCH_ASSOC);
-                }
+                $conn = orris_get_db_connection();
+                $sql = "SELECT id, service_id, email, uuid, status, bandwidth_limit,
+                        upload_bytes, download_bytes, created_at, updated_at
+                        FROM services WHERE id = :id OR service_id = :sid";
+                $stmt = $conn->prepare($sql);
+                $stmt->bindValue(':id', $id, PDO::PARAM_INT);
+                $stmt->bindValue(':sid', $id, PDO::PARAM_INT);
+                $stmt->execute();
+                $service = $stmt->fetch(PDO::FETCH_ASSOC);
 
                 if (!$service) {
                     throw new Exception('Service not found');
@@ -802,48 +770,36 @@ if (php_sapi_name() !== 'cli' && basename($_SERVER['SCRIPT_FILENAME']) === basen
                     throw new Exception('Service ID is required');
                 }
 
-                if (class_exists('OrrisDB') && OrrisDB::isConfigured()) {
-                    $service = OrrisDB::table('services')
-                        ->where('id', $id)
-                        ->orWhere('service_id', $id)
-                        ->first();
-                } else {
-                    $conn = orris_get_db_connection();
-                    $sql = "SELECT id, service_id, email, uuid, status, bandwidth_limit,
-                            upload_bytes, download_bytes
-                            FROM services WHERE id = :id OR service_id = :sid";
-                    $stmt = $conn->prepare($sql);
-                    $stmt->bindValue(':id', $id, PDO::PARAM_INT);
-                    $stmt->bindValue(':sid', $id, PDO::PARAM_INT);
-                    $stmt->execute();
-                    $service = $stmt->fetch(PDO::FETCH_ASSOC);
-                }
+                $conn = orris_get_db_connection();
+                $sql = "SELECT id, service_id, email, uuid, status, bandwidth_limit,
+                        upload_bytes, download_bytes
+                        FROM services WHERE id = :id OR service_id = :sid";
+                $stmt = $conn->prepare($sql);
+                $stmt->bindValue(':id', $id, PDO::PARAM_INT);
+                $stmt->bindValue(':sid', $id, PDO::PARAM_INT);
+                $stmt->execute();
+                $service = $stmt->fetch(PDO::FETCH_ASSOC);
 
                 if (!$service) {
                     throw new Exception('Service not found');
                 }
 
-                // Handle both object and array formats
-                $uploadBytes = is_object($service) ? $service->upload_bytes : $service['upload_bytes'];
-                $downloadBytes = is_object($service) ? $service->download_bytes : $service['download_bytes'];
-                $bandwidthLimit = is_object($service) ? $service->bandwidth_limit : $service['bandwidth_limit'];
-
-                $totalUsage = $uploadBytes + $downloadBytes;
-                $usagePercent = $bandwidthLimit > 0
-                    ? round($totalUsage / $bandwidthLimit * 100, 2)
+                $totalUsage = $service['upload_bytes'] + $service['download_bytes'];
+                $usagePercent = $service['bandwidth_limit'] > 0
+                    ? round($totalUsage / $service['bandwidth_limit'] * 100, 2)
                     : 0;
 
                 echo json_encode([
                     'success' => true,
                     'data' => [
-                        'service_id' => is_object($service) ? $service->service_id : $service['service_id'],
-                        'email' => is_object($service) ? $service->email : $service['email'],
-                        'bandwidth_limit' => $bandwidthLimit,
-                        'upload_bytes' => $uploadBytes,
-                        'download_bytes' => $downloadBytes,
+                        'service_id' => $service['service_id'],
+                        'email' => $service['email'],
+                        'bandwidth_limit' => $service['bandwidth_limit'],
+                        'upload_bytes' => $service['upload_bytes'],
+                        'download_bytes' => $service['download_bytes'],
                         'total_usage' => $totalUsage,
                         'usage_percent' => $usagePercent,
-                        'status' => is_object($service) ? $service->status : $service['status']
+                        'status' => $service['status']
                     ]
                 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
                 break;
