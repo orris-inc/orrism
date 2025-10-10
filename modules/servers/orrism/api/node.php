@@ -17,6 +17,9 @@ if (!defined('WHMCS')) {
     }
 }
 
+// Prevent service.php API endpoint from executing when included
+define('ORRISM_API_INCLUDED', true);
+
 // Node management business module
 require_once __DIR__ . '/../helper.php';
 require_once __DIR__ . '/database.php';
