@@ -491,21 +491,69 @@ function renderNodeJavaScript()
     function saveNode() {
         var formData = $("#nodeForm").serialize();
         var action = currentNodeId ? "node_update" : "node_create";
-        
+
         // Add status if unchecked
         if (!$("#nodeStatus").prop("checked")) {
             formData += "&status=0";
         }
-        
-        $.post("addonmodules.php?module=orrism_admin&action=" + action, formData, function(response) {
-            if (response.success) {
-                $("#nodeModal").modal("hide");
-                alert("Node saved successfully!");
-                refreshNodeList();
-            } else {
-                alert("Failed to save node: " + (response.message || "Unknown error"));
+
+        console.log("=== Saving Node ===");
+        console.log("Action:", action);
+        console.log("Form data:", formData);
+
+        $.ajax({
+            url: "addonmodules.php?module=orrism_admin&action=" + action,
+            type: "POST",
+            data: formData,
+            dataType: "json",
+            beforeSend: function() {
+                console.log("Sending AJAX request...");
+            },
+            success: function(response, textStatus, xhr) {
+                console.log("=== AJAX Success ===");
+                console.log("Response:", response);
+                console.log("Response type:", typeof response);
+                console.log("Text status:", textStatus);
+                console.log("Response.success:", response ? response.success : "undefined");
+                console.log("Content-Type:", xhr.getResponseHeader("Content-Type"));
+
+                if (response && response.success === true) {
+                    console.log("✓ Node saved successfully!");
+                    $("#nodeModal").modal("hide");
+
+                    // Show success message
+                    alert("✓ Node saved successfully!\nNode ID: " + (response.node_id || "N/A"));
+
+                    // Refresh list
+                    refreshNodeList();
+                } else {
+                    console.error("✗ Save failed:", response ? response.message : "No response");
+                    alert("Failed to save node: " + (response && response.message ? response.message : "Unknown error"));
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error("=== AJAX Error ===");
+                console.error("Status:", status);
+                console.error("Error:", error);
+                console.error("Status code:", xhr.status);
+                console.error("Response text:", xhr.responseText);
+                console.error("Content-Type:", xhr.getResponseHeader("Content-Type"));
+
+                var errorMsg = "AJAX request failed!\n";
+                errorMsg += "Status: " + status + "\n";
+                errorMsg += "Error: " + error + "\n";
+                errorMsg += "HTTP Code: " + xhr.status;
+
+                if (xhr.responseText) {
+                    errorMsg += "\n\nResponse:\n" + xhr.responseText.substring(0, 200);
+                }
+
+                alert(errorMsg);
+            },
+            complete: function() {
+                console.log("=== AJAX Complete ===");
             }
-        }, "json");
+        });
     }
     
     // Toggle node status
