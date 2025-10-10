@@ -11,6 +11,7 @@
 
 // Traffic management business module
 require_once __DIR__ . '/../helper.php';
+require_once __DIR__ . '/../includes/whmcs_utils.php';
 require_once __DIR__ . '/database.php';
 require_once __DIR__ . '/service.php';
 require_once __DIR__ . '/product.php';
@@ -169,16 +170,31 @@ function orris_reset_traffic($sid) {
  */
 function orris_reset_traffic_month(){
     $adminUsername = orris_get_config()['admin_username'];
-    $get_orders_data = array(
+    $get_orders_data = [
         'status' => 'Active',
         'limitstart' => 0,
         'limitnum' => 10000
+    ];
+
+    // Use unified WHMCS API wrapper
+    $result_orders = OrrisWhmcsHelper::callAPI(
+        'GetOrders',
+        $get_orders_data,
+        $adminUsername,
+        'Get active orders for traffic reset'
     );
-    $result_orders = localAPI('GetOrders', $get_orders_data, $adminUsername);
-    $get_products_data = array(
+
+    $get_products_data = [
         'module' => 'orris'
+    ];
+
+    // Use unified WHMCS API wrapper
+    $result_products = OrrisWhmcsHelper::callAPI(
+        'GetProducts',
+        $get_products_data,
+        $adminUsername,
+        'Get ORRISM products for traffic reset'
     );
-    $result_products = localAPI('GetProducts', $get_products_data, $adminUsername);
 
     if ($result_products['result'] == 'success'){
         $pid_array = array_column($result_products['products']['product'], 'pid');

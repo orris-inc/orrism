@@ -12,6 +12,7 @@
 require_once __DIR__ . '/../../../../init.php';
 // Product/package management business module
 require_once __DIR__ . '/../helper.php';
+require_once __DIR__ . '/../includes/whmcs_utils.php';
 require_once __DIR__ . '/database.php';
 require_once __DIR__ . '/service.php';
 
@@ -27,35 +28,55 @@ function orris_product_change_package($params) {
 }
 
 /**
- * 获取产品信息
- * @param int $sid
- * @return array
+ * Get client product information
+ *
+ * @param int $sid Service ID
+ * @return array API response
  */
 function orris_get_client_products($sid) {
     $adminUsername = orris_get_config()['admin_username'];
-    $data = array(
+    $data = [
         'serviceid' => $sid
+    ];
+
+    // Use unified WHMCS API wrapper
+    $result = OrrisWhmcsHelper::callAPI(
+        'GetClientsProducts',
+        $data,
+        $adminUsername,
+        "Get client product info for service {$sid}"
     );
-    $result = localAPI('GetClientsProducts', $data,$adminUsername);
+
     return $result;
 }
 
 /**
- * 获取发票信息
- * @param int $sid
- * @return array
+ * Get invoice information
+ *
+ * @param int $sid Invoice ID
+ * @return array API response
  */
 function orris_get_invoice($sid) {
     try {
-        $command = 'GetInvoice';
+        $adminUsername = orris_get_config()['admin_username'];
         $postData = [
             'invoiceid' => $sid,
         ];
-        $adminUsername = orris_get_config()['admin_username'];
-        $results = localAPI($command, $postData, $adminUsername);
+
+        // Use unified WHMCS API wrapper
+        $results = OrrisWhmcsHelper::callAPI(
+            'GetInvoice',
+            $postData,
+            $adminUsername,
+            "Get invoice info for invoice {$sid}"
+        );
+
         return $results;
     } catch (Exception $e) {
-        error_log("Error fetching invoice: " . $e->getMessage());
+        OrrisHelper::log('error', 'Error fetching invoice', [
+            'invoice_id' => $sid,
+            'error' => $e->getMessage()
+        ]);
         return ['result' => 'error', 'message' => 'Internal error fetching invoice'];
     }
 }

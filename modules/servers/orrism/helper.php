@@ -217,7 +217,7 @@ class OrrisHelper
     
     /**
      * Log with context and structured format
-     * 
+     *
      * @param string $level Log level (error, warning, info, debug)
      * @param string $message Log message
      * @param array $context Additional context data
@@ -228,8 +228,91 @@ class OrrisHelper
         $timestamp = date('Y-m-d H:i:s');
         $contextStr = !empty($context) ? ' ' . json_encode($context) : '';
         $logMessage = "[{$timestamp}] ORRISM.{$level}: {$message}{$contextStr}";
-        
+
         error_log($logMessage);
+    }
+
+    /**
+     * Format error response for WHMCS module functions
+     *
+     * @param string $message Error message
+     * @param string $code Optional error code
+     * @return string Formatted error response
+     */
+    public static function formatModuleError(string $message, string $code = ''): string
+    {
+        if ($code) {
+            return "Error [{$code}]: {$message}";
+        }
+        return "Error: {$message}";
+    }
+
+    /**
+     * Format error response for API/AJAX returns
+     *
+     * @param string $message Error message
+     * @param string $code Optional error code
+     * @param array $additionalData Additional error context
+     * @return array Structured error array
+     */
+    public static function formatApiError(string $message, string $code = 'ERROR', array $additionalData = []): array
+    {
+        return array_merge([
+            'result' => 'error',
+            'status' => 'fail',
+            'success' => false,
+            'error' => $message,
+            'errorCode' => $code,
+            'message' => $message
+        ], $additionalData);
+    }
+
+    /**
+     * Format success response for API/AJAX returns
+     *
+     * @param string $message Success message
+     * @param array $data Additional response data
+     * @return array Structured success array
+     */
+    public static function formatApiSuccess(string $message = 'Operation completed successfully', array $data = []): array
+    {
+        return array_merge([
+            'result' => 'success',
+            'status' => 'success',
+            'success' => true,
+            'message' => $message
+        ], $data);
+    }
+
+    /**
+     * Validate and sanitize module parameters
+     *
+     * @param array $params WHMCS module parameters
+     * @param array $required Required parameter keys
+     * @return array ['valid' => bool, 'missing' => array, 'errors' => array]
+     */
+    public static function validateModuleParams(array $params, array $required = []): array
+    {
+        $missing = [];
+        $errors = [];
+
+        // Check required parameters
+        foreach ($required as $key) {
+            if (!isset($params[$key]) || $params[$key] === '') {
+                $missing[] = $key;
+            }
+        }
+
+        // Validate common server parameters if present
+        if (isset($params['serverhostname']) && empty($params['serverhostname']) && empty($params['serverip'])) {
+            $errors[] = 'Server hostname or IP is required';
+        }
+
+        return [
+            'valid' => empty($missing) && empty($errors),
+            'missing' => $missing,
+            'errors' => $errors
+        ];
     }
 }
 
