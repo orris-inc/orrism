@@ -134,27 +134,23 @@ if (php_sapi_name() !== 'cli' && !defined('ORRISM_API_INCLUDED')) {
         switch ($action) {
             case 'list':
             case 'get_list':
-                // Get node list
-                if (class_exists('OrrisDB') && OrrisDB::isConfigured()) {
-                    $nodes = OrrisDB::table('nodes')
-                        ->select('id', 'name', 'type', 'address', 'port', 'method', 'status',
-                                 'group_id', 'sort_order')
-                        ->orderBy('sort_order')
-                        ->get();
-                } else {
-                    $conn = orris_get_db_connection();
-                    // Try to get only fields that definitely exist
-                    $sql = "SELECT id, name, type, address, port, method, status,
-                            group_id, sort_order
-                            FROM nodes ORDER BY sort_order";
-                    $stmt = $conn->prepare($sql);
-                    $stmt->execute();
-                    $nodes = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                }
+                // Get node list - always use PDO connection to addon database
+                $conn = orris_get_db_connection();
+
+                // Get database name for debugging
+                $dbName = $conn->query("SELECT DATABASE()")->fetchColumn();
+
+                $sql = "SELECT id, name, type, address, port, method, status,
+                        group_id, sort_order
+                        FROM nodes ORDER BY sort_order";
+                $stmt = $conn->prepare($sql);
+                $stmt->execute();
+                $nodes = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
                 echo json_encode([
                     'success' => true,
                     'count' => count($nodes),
+                    'database' => $dbName,  // Debug info
                     'data' => $nodes
                 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
                 break;

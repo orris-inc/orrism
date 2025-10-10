@@ -714,32 +714,27 @@ if (php_sapi_name() !== 'cli' && !defined('ORRISM_API_INCLUDED')) {
                 $limit = (int)($_GET['limit'] ?? 100);
                 $offset = (int)($_GET['offset'] ?? 0);
 
-                // Use OrrisDB or Capsule to query services table
-                if (class_exists('OrrisDB') && OrrisDB::isConfigured()) {
-                    $services = OrrisDB::table('services')
-                        ->select('id', 'service_id', 'email', 'uuid', 'status', 'bandwidth_limit',
-                                 'upload_bytes', 'download_bytes', 'created_at', 'updated_at')
-                        ->limit($limit)
-                        ->offset($offset)
-                        ->get();
-                } else {
-                    // Fallback: try to get from addon database using PDO
-                    $conn = orris_get_db_connection();
-                    $sql = "SELECT id, service_id, email, uuid, status, bandwidth_limit,
-                            upload_bytes, download_bytes, created_at, updated_at
-                            FROM services LIMIT :limit OFFSET :offset";
-                    $stmt = $conn->prepare($sql);
-                    $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
-                    $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
-                    $stmt->execute();
-                    $services = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                }
+                // Always use PDO connection to addon database
+                $conn = orris_get_db_connection();
+
+                // Get database name for debugging
+                $dbName = $conn->query("SELECT DATABASE()")->fetchColumn();
+
+                $sql = "SELECT id, service_id, email, uuid, status, bandwidth_limit,
+                        upload_bytes, download_bytes, created_at, updated_at
+                        FROM services LIMIT :limit OFFSET :offset";
+                $stmt = $conn->prepare($sql);
+                $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+                $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+                $stmt->execute();
+                $services = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
                 echo json_encode([
                     'success' => true,
                     'count' => count($services),
                     'limit' => $limit,
                     'offset' => $offset,
+                    'database' => $dbName,  // Debug info
                     'data' => $services
                 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
                 break;
