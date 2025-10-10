@@ -415,14 +415,49 @@ class Controller
      */
     public function ajax($vars)
     {
-        // Clean output buffers for clean JSON response
-        while (ob_get_level()) {
-            ob_end_clean();
+        // Register shutdown handler to catch fatal errors
+        register_shutdown_function(function() {
+            $error = error_get_last();
+            if ($error && in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR])) {
+                error_log('Fatal error in AJAX: ' . print_r($error, true));
+
+                // Try to output clean error response
+                if (ob_get_level() > 0) {
+                    @ob_clean();
+                }
+
+                if (!headers_sent()) {
+                    http_response_code(200);
+                    header('Content-Type: application/json');
+                }
+
+                echo json_encode([
+                    'success' => false,
+                    'message' => 'Fatal error: ' . $error['message'],
+                    'file' => $error['file'],
+                    'line' => $error['line']
+                ]);
+            }
+        });
+
+        // Disable output buffering errors
+        @ini_set('implicit_flush', 1);
+
+        // Clean output buffers safely
+        while (ob_get_level() > 0) {
+            @ob_end_clean();
         }
+
+        // Start fresh buffer
         ob_start();
 
         try {
-            header('Content-Type: application/json; charset=utf-8');
+            // Set response code and headers early
+            if (!headers_sent()) {
+                http_response_code(200);
+                header('Content-Type: application/json; charset=utf-8');
+                header('X-Content-Type-Options: nosniff');
+            }
 
             $action = $_REQUEST['ajax_action'] ?? $_REQUEST['action'] ?? '';
 
@@ -485,11 +520,20 @@ class Controller
                     ];
             }
             
-            ob_clean();
+            // Clean and output JSON response
+            if (ob_get_level() > 0) {
+                ob_clean();
+            }
+
+            http_response_code(200);
             echo json_encode($result);
-            ob_end_flush();
-            exit;
-            
+
+            if (ob_get_level() > 0) {
+                ob_end_flush();
+            }
+
+            exit(0);
+
         } catch (Exception $e) {
             $errorResponse = [
                 'success' => false,
@@ -499,11 +543,20 @@ class Controller
                     'line' => $e->getLine()
                 ]
             ];
-            
-            ob_clean();
+
+            // Clean and output error response
+            if (ob_get_level() > 0) {
+                ob_clean();
+            }
+
+            http_response_code(200);
             echo json_encode($errorResponse);
-            ob_end_flush();
-            exit;
+
+            if (ob_get_level() > 0) {
+                ob_end_flush();
+            }
+
+            exit(0);
         }
     }
     

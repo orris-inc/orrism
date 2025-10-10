@@ -90,16 +90,29 @@ class NodeManager
     private function initDirectPDO()
     {
         try {
-            // Get WHMCS database config
-            global $whmcs;
+            // Get WHMCS database config from configuration.php
+            $configFile = dirname(__DIR__, 4) . '/configuration.php';
 
-            $host = $whmcs->get_config('db_host') ?? 'localhost';
-            $name = $whmcs->get_config('db_name') ?? '';
-            $user = $whmcs->get_config('db_username') ?? '';
-            $pass = $whmcs->get_config('db_password') ?? '';
+            if (!file_exists($configFile)) {
+                throw new Exception('WHMCS configuration.php not found');
+            }
+
+            // Extract database config
+            $config = file_get_contents($configFile);
+
+            // Parse config values
+            preg_match('/\$db_host\s*=\s*["\']([^"\']+)["\']/', $config, $hostMatch);
+            preg_match('/\$db_name\s*=\s*["\']([^"\']+)["\']/', $config, $nameMatch);
+            preg_match('/\$db_username\s*=\s*["\']([^"\']+)["\']/', $config, $userMatch);
+            preg_match('/\$db_password\s*=\s*["\']([^"\']+)["\']/', $config, $passMatch);
+
+            $host = $hostMatch[1] ?? 'localhost';
+            $name = $nameMatch[1] ?? '';
+            $user = $userMatch[1] ?? '';
+            $pass = $passMatch[1] ?? '';
 
             if (empty($name)) {
-                throw new Exception('Database configuration not found');
+                throw new Exception('Database name not found in configuration');
             }
 
             $dsn = "mysql:host={$host};dbname={$name};charset=utf8mb4";
