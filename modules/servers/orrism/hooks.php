@@ -22,21 +22,33 @@ require_once __DIR__ . '/helper.php';
 
 /**
  * Hook to handle service creation
+ * Auto-reset traffic on new purchase
  */
 add_hook('AfterModuleCreate', 1, function($vars) {
     if ($vars['producttype'] !== 'server' || $vars['servertype'] !== 'orrism') {
         return;
     }
-    
+
     try {
+        $sid = $vars['serviceid'] ?? 0;
+
         OrrisHelper::log('info', 'Service created', [
-            'service_id' => $vars['serviceid'],
+            'service_id' => $sid,
             'domain' => $vars['domain'],
             'username' => $vars['username']
         ]);
-        
-        // Additional service creation logic can be added here
-        
+
+        // Auto reset traffic on new purchase
+        if ($sid > 0) {
+            require_once __DIR__ . '/api/service.php';
+            orris_reset_user_traffic($sid);
+
+            OrrisHelper::log('info', 'Traffic auto-reset on create', [
+                'service_id' => $sid,
+                'reason' => 'new_purchase'
+            ]);
+        }
+
     } catch (Exception $e) {
         OrrisHelper::log('error', 'Service creation hook failed', [
             'service_id' => $vars['serviceid'],

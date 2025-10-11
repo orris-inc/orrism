@@ -1,0 +1,54 @@
+# ORRISM Server API v1 - URL Rewriting Configuration
+# Enables clean URLs without .php extension
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Set base directory
+    RewriteBase /modules/servers/orrism/server/v1/
+
+    # Remove trailing slashes from URLs
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^(.*)/$ /$1 [L,R=301]
+
+    # Route all non-file/non-directory requests to index.php
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^(.*)$ index.php [QSA,L]
+</IfModule>
+
+# Security: Block direct access to PHP files except index.php
+<FilesMatch "\.php$">
+    Order Deny,Allow
+    Deny from all
+</FilesMatch>
+
+<Files "index.php">
+    Allow from all
+</Files>
+
+# Security headers
+<IfModule mod_headers.c>
+    # Prevent MIME type sniffing
+    Header set X-Content-Type-Options "nosniff"
+
+    # Prevent clickjacking
+    Header set X-Frame-Options "DENY"
+
+    # Enable XSS protection
+    Header set X-XSS-Protection "1; mode=block"
+
+    # CORS headers for API
+    Header always set Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+    Header always set Access-Control-Allow-Headers "Content-Type, Authorization, X-API-Key"
+
+    # API version header
+    Header set X-ORRISM-API-Version "1.0"
+</IfModule>
+
+# Disable directory browsing
+Options -Indexes
+
+# Custom error pages (optional)
+ErrorDocument 404 /modules/servers/orrism/server/v1/index.php
+ErrorDocument 403 /modules/servers/orrism/server/v1/index.php
