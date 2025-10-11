@@ -157,6 +157,15 @@ function orrism_admin_config()
                 'Size' => '5',
                 'Default' => '1',
                 'Description' => 'Day of month to reset traffic (1-28)'
+            ],
+
+            // Subscription Settings
+            'subscription_host' => [
+                'FriendlyName' => 'Subscription Server URL',
+                'Type' => 'text',
+                'Size' => '50',
+                'Default' => '',
+                'Description' => 'Full URL for subscription server (e.g., https://sub.example.com). Leave empty to use WHMCS server hostname.'
             ]
         ]
     ];

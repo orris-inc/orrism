@@ -1220,14 +1220,43 @@ function save_custom_field($serviceid, $fieldname, $value)
  */
 function generate_subscription_url(array $params, $serviceId)
 {
-    // Get subscription URL base from config, or use default
+    // Priority order for subscription URL base:
+    // 1. Custom config from config table (subscription_url_base)
+    // 2. Addon configuration (subscription_host)
+    // 3. Server hostname from product configuration
+    // 4. Server IP from product configuration
+
     $db = db();
     $subscriptionBase = $db->getConfig('subscription_url_base');
 
     if (!$subscriptionBase) {
-        // Default: use server hostname/IP
+        // Try to get from addon configuration
+        try {
+            $addonConfig = Capsule::table('tbladdonmodules')
+                ->where('module', 'orrism_admin')
+                ->where('setting', 'subscription_host')
+                ->value('value');
+
+            if (!empty($addonConfig)) {
+                // Addon config contains full URL (e.g., https://sub.example.com)
+                $subscriptionBase = rtrim($addonConfig, '/') . '/subscribe';
+            }
+        } catch (Exception $e) {
+            logModuleCall('orrism', 'generate_subscription_url', [], 'Failed to read addon config: ' . $e->getMessage());
+        }
+    }
+
+    if (!$subscriptionBase) {
+        // Fallback: use server hostname/IP from product configuration
         $serverHost = $params['serverhostname'] ?: $params['serverip'];
         $protocol = $params['serversecure'] ? 'https' : 'http';
+
+        if (empty($serverHost) || $serverHost === 'localhost' || $serverHost === '127.0.0.1') {
+            // Last resort: try to detect from HTTP_HOST
+            $serverHost = $_SERVER['HTTP_HOST'] ?? 'localhost';
+            logModuleCall('orrism', 'generate_subscription_url', [], 'Warning: Using HTTP_HOST as fallback: ' . $serverHost);
+        }
+
         $subscriptionBase = "{$protocol}://{$serverHost}/subscribe";
     }
 
