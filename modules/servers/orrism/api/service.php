@@ -659,6 +659,10 @@ function orris_get_nodes($sid) {
         // Get service info to get node_group_id
         $user = orris_get_user($sid);
         if (empty($user)) {
+            OrrisHelper::log('warning', 'No user found for service', [
+                'function' => 'orris_get_nodes',
+                'service_id' => $sid
+            ]);
             return [];
         }
 
@@ -672,14 +676,34 @@ function orris_get_nodes($sid) {
             $sql = 'SELECT * FROM nodes WHERE group_id = :node_group_id AND enable = 1';
             $stmt = $conn->prepare($sql);
             $stmt->bindValue(':node_group_id', $node_group_id, PDO::PARAM_STR);
+            OrrisHelper::log('debug', 'Querying nodes by group_id', [
+                'function' => 'orris_get_nodes',
+                'service_id' => $sid,
+                'node_group_id' => $node_group_id,
+                'sql' => $sql
+            ]);
         } else {
             // Otherwise get all active nodes
             $sql = 'SELECT * FROM nodes WHERE enable = 1';
             $stmt = $conn->prepare($sql);
+            OrrisHelper::log('debug', 'Querying all active nodes', [
+                'function' => 'orris_get_nodes',
+                'service_id' => $sid,
+                'sql' => $sql
+            ]);
         }
 
         $stmt->execute();
         $nodes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        if (empty($nodes)) {
+            OrrisHelper::log('warning', 'No nodes found in database', [
+                'function' => 'orris_get_nodes',
+                'service_id' => $sid,
+                'node_group_id' => $node_group_id,
+                'query_type' => $node_group_id > 0 ? 'by_group' : 'all_active'
+            ]);
+        }
 
         // Add additional info to results
         foreach ($nodes as &$node) {
@@ -692,9 +716,20 @@ function orris_get_nodes($sid) {
             $node['status_label'] = $node['enable'] == 1 ? 'Active' : 'Maintenance';
         }
 
+        OrrisHelper::log('info', 'Retrieved nodes successfully', [
+            'function' => 'orris_get_nodes',
+            'service_id' => $sid,
+            'node_count' => count($nodes)
+        ]);
+
         return $nodes;
     } catch (Exception $e) {
-        //error_log("Failed to get node list: " . $e->getMessage());
+        OrrisHelper::log('error', 'Failed to get node list', [
+            'function' => 'orris_get_nodes',
+            'service_id' => $sid,
+            'error' => $e->getMessage(),
+            'trace' => $e->getTraceAsString()
+        ]);
         return [];
     }
 }
