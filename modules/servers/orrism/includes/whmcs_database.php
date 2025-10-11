@@ -57,8 +57,8 @@ class OrrisDatabase
             $serviceid = $params['serviceid'];
             $clientid = $params['userid'];
             $email = $params['clientsdetails']['email'];
-            $bandwidth = ($params['configoption4'] ?: 100) * 1024 * 1024 * 1024; // Convert GB to bytes
-            $nodeGroup = $params['configoption7'] ?: 1;
+            $bandwidth = ($params['configoption2'] ?: 100) * 1024 * 1024 * 1024; // Convert GB to bytes - configoption2 = Monthly Bandwidth (GB)
+            $nodeGroup = $params['configoption1'] ?: 1; // configoption1 = Node Group ID
             
             // Generate UUID
             $uuid = $this->generateUUID();
@@ -129,15 +129,15 @@ class OrrisDatabase
     }
     
     /**
-     * Get user by service ID
-     * 
+     * Get service by service ID
+     *
      * @param int $serviceid WHMCS service ID
-     * @return object|null User data
+     * @return object|null Service data
      */
     public function getUser($serviceid)
     {
         try {
-            return Capsule::table('users')
+            return Capsule::table('services')
                 ->where('service_id', $serviceid)
                 ->first();
         } catch (Exception $e) {
@@ -145,26 +145,37 @@ class OrrisDatabase
             return null;
         }
     }
+
+    /**
+     * Alias for getUser - Get service by service ID
+     *
+     * @param int $serviceid WHMCS service ID
+     * @return object|null Service data
+     */
+    public function getService($serviceid)
+    {
+        return $this->getUser($serviceid);
+    }
     
     /**
-     * Update user status
-     * 
+     * Update service status
+     *
      * @param int $serviceid Service ID
-     * @param string $status New status (active, suspended, terminated)
+     * @param string $status New status (active, suspended, expired, banned, pending)
      * @return bool Success status
      */
-    public function updateUserStatus($serviceid, $status)
+    public function updateServiceStatus($serviceid, $status)
     {
         try {
-            $updated = Capsule::table('users')
+            $updated = Capsule::table('services')
                 ->where('service_id', $serviceid)
                 ->update([
                     'status' => $status,
                     'updated_at' => date('Y-m-d H:i:s')
                 ]);
-                
+
             return $updated > 0;
-            
+
         } catch (Exception $e) {
             logModuleCall('orrism', __METHOD__, ['serviceid' => $serviceid, 'status' => $status], 'Error: ' . $e->getMessage());
             return false;
@@ -192,14 +203,14 @@ class OrrisDatabase
     
     /**
      * Reset service traffic
-     * 
+     *
      * @param int $serviceid Service ID
      * @return bool Success status
      */
-    public function resetUserTraffic($serviceid)
+    public function resetServiceTraffic($serviceid)
     {
         try {
-            $updated = Capsule::table('users')
+            $updated = Capsule::table('services')
                 ->where('service_id', $serviceid)
                 ->update([
                     'upload_bytes' => 0,
@@ -271,8 +282,8 @@ class OrrisDatabase
     public function updateUserPackage($serviceid, array $params)
     {
         try {
-            $bandwidth = ($params['configoption4'] ?: 100) * 1024 * 1024 * 1024; // Convert GB to bytes
-            $nodeGroup = $params['configoption7'] ?: 1;
+            $bandwidth = ($params['configoption2'] ?: 100) * 1024 * 1024 * 1024; // Convert GB to bytes - configoption2 = Monthly Bandwidth (GB)
+            $nodeGroup = $params['configoption1'] ?: 1; // configoption1 = Node Group ID
             
             $updated = Capsule::table('services')
                 ->where('service_id', $serviceid)
@@ -350,8 +361,8 @@ class OrrisDatabase
     }
     
     /**
-     * Record user traffic usage
-     * 
+     * Record service traffic usage
+     *
      * @param int $serviceid Service ID
      * @param int $nodeId Node ID
      * @param int $uploadBytes Upload bytes
@@ -362,34 +373,34 @@ class OrrisDatabase
     public function recordUsage($serviceid, $nodeId, $uploadBytes, $downloadBytes, $clientIp = null)
     {
         try {
-            $user = $this->getUser($serviceid);
-            if (!$user) {
+            $service = $this->getUser($serviceid); // getUser actually gets service data
+            if (!$service) {
                 return false;
             }
-            
+
             // Insert usage record
-            Capsule::table('user_usage')->insert([
-                'user_id' => $user->id,
-                'service_id' => $serviceid,
+            Capsule::table('service_usage')->insert([
+                'service_id' => $service->id,
                 'node_id' => $nodeId,
                 'upload_bytes' => $uploadBytes,
                 'download_bytes' => $downloadBytes,
                 'session_start' => date('Y-m-d H:i:s'),
+                'session_end' => date('Y-m-d H:i:s'),
                 'client_ip' => $clientIp,
-                'recorded_at' => date('Y-m-d H:i:s')
+                'created_at' => date('Y-m-d H:i:s')
             ]);
-            
-            // Update user totals
-            Capsule::table('users')
-                ->where('id', $user->id)
+
+            // Update service totals
+            Capsule::table('services')
+                ->where('id', $service->id)
                 ->increment('upload_bytes', $uploadBytes);
-                
-            Capsule::table('users')
-                ->where('id', $user->id)
+
+            Capsule::table('services')
+                ->where('id', $service->id)
                 ->increment('download_bytes', $downloadBytes);
-            
+
             return true;
-            
+
         } catch (Exception $e) {
             logModuleCall('orrism', __METHOD__, ['serviceid' => $serviceid], 'Error: ' . $e->getMessage());
             return false;
