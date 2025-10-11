@@ -34,7 +34,19 @@ function orris_product_change_package($params) {
  * @return array API response
  */
 function orris_get_client_products($sid) {
-    $adminUsername = orris_get_config()['admin_username'];
+    $adminUsername = db()->getAdminUsername();
+
+    if (!$adminUsername) {
+        OrrisHelper::log('error', 'Failed to get admin username for API call', [
+            'function' => 'orris_get_client_products',
+            'service_id' => $sid
+        ]);
+        return [
+            'result' => 'error',
+            'message' => 'Unable to retrieve admin user for API call'
+        ];
+    }
+
     $data = [
         'serviceid' => $sid
     ];
@@ -58,7 +70,19 @@ function orris_get_client_products($sid) {
  */
 function orris_get_invoice($sid) {
     try {
-        $adminUsername = orris_get_config()['admin_username'];
+        $adminUsername = db()->getAdminUsername();
+
+        if (!$adminUsername) {
+            OrrisHelper::log('error', 'Failed to get admin username for API call', [
+                'function' => 'orris_get_invoice',
+                'invoice_id' => $sid
+            ]);
+            return [
+                'result' => 'error',
+                'message' => 'Unable to retrieve admin user for API call'
+            ];
+        }
+
         $postData = [
             'invoiceid' => $sid,
         ];

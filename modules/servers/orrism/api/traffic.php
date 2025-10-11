@@ -171,7 +171,15 @@ function orris_reset_traffic($sid) {
  * @return void
  */
 function orris_reset_traffic_month(){
-    $adminUsername = orris_get_config()['admin_username'];
+    $adminUsername = db()->getAdminUsername();
+
+    if (!$adminUsername) {
+        OrrisHelper::log('error', 'Failed to get admin username for traffic reset', [
+            'function' => 'orris_reset_traffic_month'
+        ]);
+        return;
+    }
+
     $get_orders_data = [
         'status' => 'Active',
         'limitstart' => 0,

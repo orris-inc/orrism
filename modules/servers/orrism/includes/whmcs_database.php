@@ -678,11 +678,34 @@ class OrrisDatabase
             return 0;
         }
     }
+
+    /**
+     * Get first admin username from WHMCS
+     * Returns the first active admin user for API calls
+     *
+     * @return string|null Admin username or null if not found
+     */
+    public function getAdminUsername()
+    {
+        try {
+            $admin = Capsule::table('tbladmins')
+                ->where('disabled', 0)
+                ->orderBy('id', 'asc')
+                ->first();
+
+            return $admin ? $admin->username : null;
+        } catch (Exception $e) {
+            OrrisHelper::log('error', 'Failed to get admin username', [
+                'error' => $e->getMessage()
+            ]);
+            return null;
+        }
+    }
 }
 
 /**
  * Helper function to get database instance
- * 
+ *
  * @return OrrisDatabase
  */
 function db()
