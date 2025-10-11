@@ -370,20 +370,37 @@
 
             <h4><i class="fas fa-mobile-alt"></i> Client-Specific Links</h4>
             <div class="orrism-client-tabs">
-                <a href="{$subscriptionUrl}&app=clash" class="orrism-client-tab" target="_blank">
-                    <i class="fas fa-download"></i> Clash
+                <a href="clash://install-config?url={$subscriptionUrl|urlencode}&app=clash" class="orrism-client-tab">
+                    <i class="fas fa-rocket"></i> Clash (One-Click)
                 </a>
-                <a href="{$subscriptionUrl}&app=surge" class="orrism-client-tab" target="_blank">
-                    <i class="fas fa-download"></i> Surge
+                <a href="{$subscriptionUrl}&app=clash" class="orrism-client-tab" target="_blank" style="opacity: 0.7;">
+                    <i class="fas fa-download"></i> Clash (Download)
                 </a>
-                <a href="{$subscriptionUrl}&app=shadowrocket" class="orrism-client-tab" target="_blank">
-                    <i class="fas fa-download"></i> Shadowrocket
+                <a href="surge:///install-config?url={$subscriptionUrl|urlencode}&app=surge" class="orrism-client-tab">
+                    <i class="fas fa-rocket"></i> Surge (One-Click)
                 </a>
-                <a href="{$subscriptionUrl}&app=qx" class="orrism-client-tab" target="_blank">
-                    <i class="fas fa-download"></i> Quantumult X
+                <a href="{$subscriptionUrl}&app=surge" class="orrism-client-tab" target="_blank" style="opacity: 0.7;">
+                    <i class="fas fa-download"></i> Surge (Download)
                 </a>
-                <a href="{$subscriptionUrl}&app=stash" class="orrism-client-tab" target="_blank">
-                    <i class="fas fa-download"></i> Stash
+                <a href="shadowrocket://add/sub://{$subscriptionUrl|base64_encode}&app=shadowrocket" class="orrism-client-tab">
+                    <i class="fas fa-rocket"></i> Shadowrocket (One-Click)
+                </a>
+                <a href="{$subscriptionUrl}&app=shadowrocket" class="orrism-client-tab" target="_blank" style="opacity: 0.7;">
+                    <i class="fas fa-download"></i> Shadowrocket (Download)
+                </a>
+                <a href="quantumult-x:///add-resource?remote-resource={literal}{
+    \"server_remote\": [\"{/literal}{$subscriptionUrl|urlencode}&app=qx{literal}\"]
+}{/literal}" class="orrism-client-tab">
+                    <i class="fas fa-rocket"></i> Quantumult X (One-Click)
+                </a>
+                <a href="{$subscriptionUrl}&app=qx" class="orrism-client-tab" target="_blank" style="opacity: 0.7;">
+                    <i class="fas fa-download"></i> Quantumult X (Download)
+                </a>
+                <a href="stash://install-config?url={$subscriptionUrl|urlencode}&app=stash" class="orrism-client-tab">
+                    <i class="fas fa-rocket"></i> Stash (One-Click)
+                </a>
+                <a href="{$subscriptionUrl}&app=stash" class="orrism-client-tab" target="_blank" style="opacity: 0.7;">
+                    <i class="fas fa-download"></i> Stash (Download)
                 </a>
                 <a href="{$subscriptionUrl}&app=sip008" class="orrism-client-tab" target="_blank">
                     <i class="fas fa-download"></i> SIP008
@@ -391,7 +408,12 @@
             </div>
 
             <div class="orrism-alert orrism-alert-info">
-                <i class="fas fa-info-circle"></i> <strong>How to use:</strong> Copy the subscription URL and paste it into your client application's subscription settings.
+                <i class="fas fa-info-circle"></i> <strong>How to use:</strong>
+                <ul style="margin: 8px 0 0 20px; padding: 0;">
+                    <li><strong>One-Click Import:</strong> Click the <i class="fas fa-rocket"></i> button to directly import into your app (requires the app to be installed)</li>
+                    <li><strong>Download Config:</strong> Click the <i class="fas fa-download"></i> button to download the configuration file manually</li>
+                    <li><strong>Universal URL:</strong> Copy the subscription URL above and add it manually in your client app</li>
+                </ul>
             </div>
 
             <!-- QR Code -->
