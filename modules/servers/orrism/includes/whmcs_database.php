@@ -21,10 +21,10 @@ use WHMCS\Database\Capsule;
 class OrrisDatabase
 {
     private static $instance = null;
-    
+
     /**
      * Get singleton instance
-     * 
+     *
      * @return OrrisDatabase
      */
     public static function getInstance()
@@ -33,6 +33,28 @@ class OrrisDatabase
             self::$instance = new self();
         }
         return self::$instance;
+    }
+
+    /**
+     * Check if ORRISM tables are installed
+     *
+     * @return bool
+     */
+    private function tablesExist()
+    {
+        return Capsule::schema()->hasTable('services') &&
+               Capsule::schema()->hasTable('nodes') &&
+               Capsule::schema()->hasTable('node_groups');
+    }
+
+    /**
+     * Get friendly error message when tables don't exist
+     *
+     * @return string
+     */
+    private function getTablesNotInstalledMessage()
+    {
+        return 'ORRISM database tables not installed. Please install database from: Addons > ORRISM Admin > Settings > Install Database';
     }
     
     /**
@@ -54,20 +76,28 @@ class OrrisDatabase
     public function createService(array $params)
     {
         try {
+            // Check if ORRISM tables are installed
+            if (!$this->tablesExist()) {
+                return [
+                    'success' => false,
+                    'message' => $this->getTablesNotInstalledMessage()
+                ];
+            }
+
             $serviceid = $params['serviceid'];
             $clientid = $params['userid'];
             $email = $params['clientsdetails']['email'];
             $bandwidth = ($params['configoption2'] ?: 100) * 1024 * 1024 * 1024; // Convert GB to bytes - configoption2 = Monthly Bandwidth (GB)
             $nodeGroup = $params['configoption1'] ?: 1; // configoption1 = Node Group ID
-            
+
             // Generate UUID
             $uuid = $this->generateUUID();
-            
+
             // Check if service already exists
             $existingService = Capsule::table('services')
                 ->where('service_id', $serviceid)
                 ->first();
-                
+
             if ($existingService) {
                 return [
                     'success' => false,
@@ -137,6 +167,12 @@ class OrrisDatabase
     public function getUser($serviceid)
     {
         try {
+            // Check if table exists
+            if (!$this->tablesExist()) {
+                logModuleCall('orrism', __METHOD__, ['serviceid' => $serviceid], 'Error: ' . $this->getTablesNotInstalledMessage());
+                return null;
+            }
+
             return Capsule::table('services')
                 ->where('service_id', $serviceid)
                 ->first();
@@ -167,6 +203,12 @@ class OrrisDatabase
     public function updateServiceStatus($serviceid, $status)
     {
         try {
+            // Check if table exists
+            if (!$this->tablesExist()) {
+                logModuleCall('orrism', __METHOD__, ['serviceid' => $serviceid, 'status' => $status], 'Error: ' . $this->getTablesNotInstalledMessage());
+                return false;
+            }
+
             $updated = Capsule::table('services')
                 ->where('service_id', $serviceid)
                 ->update([
