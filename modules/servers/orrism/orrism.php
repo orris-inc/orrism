@@ -48,7 +48,7 @@ foreach ($dependencies as $name => $path) {
  *   - ServiceSingleSignOnLabel: string Client SSO button label
  *   - AdminSingleSignOnLabel: string Admin SSO button label
  */
-function MetaData()
+function orrism_MetaData()
 {
     return [
         'DisplayName' => 'ORRISM Manager',
@@ -189,7 +189,7 @@ function orrism_ConfigOptions()
  * @param array $params Module parameters
  * @return array
  */
-function TestConnection(array $params)
+function orrism_TestConnection(array $params)
 {
     try {
         $dbManager = db_manager();
@@ -244,7 +244,7 @@ function TestConnection(array $params)
  *   - configoption[N]: mixed Product configuration options
  * @return string "success" or error message
  */
-function CreateAccount(array $params)
+function orrism_CreateAccount(array $params)
 {
     try {
         $db = db();
@@ -305,7 +305,7 @@ function CreateAccount(array $params)
  * @param array $params Module parameters
  * @return string "success" or error message
  */
-function SuspendAccount(array $params)
+function orrism_SuspendAccount(array $params)
 {
     try {
         $db = db();
@@ -345,7 +345,7 @@ function SuspendAccount(array $params)
  * @param array $params Module parameters
  * @return string "success" or error message
  */
-function UnsuspendAccount(array $params)
+function orrism_UnsuspendAccount(array $params)
 {
     try {
         $db = db();
@@ -385,7 +385,7 @@ function UnsuspendAccount(array $params)
  * @param array $params Module parameters
  * @return string "success" or error message
  */
-function TerminateAccount(array $params)
+function orrism_TerminateAccount(array $params)
 {
     try {
         $db = db();
@@ -433,7 +433,7 @@ function TerminateAccount(array $params)
  * @param array $params Module parameters
  * @return string "success" or error message
  */
-function ChangePassword(array $params)
+function orrism_ChangePassword(array $params)
 {
     try {
         $serviceid = $params['serviceid'];
@@ -481,7 +481,7 @@ function ChangePassword(array $params)
  * @param array $params Module parameters
  * @return string "success" or error message
  */
-function ChangePackage(array $params)
+function orrism_ChangePackage(array $params)
 {
     try {
         $db = db();
@@ -521,7 +521,7 @@ function ChangePackage(array $params)
  * @param array $params Module parameters
  * @return string "success" or error message
  */
-function Renew(array $params)
+function orrism_Renew(array $params)
 {
     try {
         $serviceid = $params['serviceid'];
@@ -574,10 +574,10 @@ function Renew(array $params)
  *
  * @return array
  */
-function AdminCustomButtonArray()
+function orrism_AdminCustomButtonArray()
 {
     return [
-        'Reset Traffic' => 'ResetTraffic',
+        'Reset Traffic' => 'ResetTraffic',  // WHMCS automatically adds orrism_ prefix
         'Reset UUID' => 'ResetUUID',
         'View Usage' => 'ViewUsage'
     ];
@@ -589,7 +589,7 @@ function AdminCustomButtonArray()
  * @param array $params Module parameters
  * @return string "success" or error message
  */
-function ResetTraffic(array $params)
+function orrism_ResetTraffic(array $params)
 {
     try {
         $db = db();
@@ -629,7 +629,7 @@ function ResetTraffic(array $params)
  * @param array $params Module parameters
  * @return string "success" or error message
  */
-function ResetUUID(array $params)
+function orrism_ResetUUID(array $params)
 {
     try {
         $db = db();
@@ -669,7 +669,7 @@ function ResetUUID(array $params)
  * @param array $params Module parameters
  * @return array
  */
-function ViewUsage(array $params)
+function orrism_ViewUsage(array $params)
 {
     try {
         $db = db();
@@ -727,7 +727,7 @@ function ViewUsage(array $params)
  * @param array $params Module parameters
  * @return array
  */
-function ClientArea(array $params)
+function orrism_ClientArea(array $params)
 {
     try {
         $serviceid = $params['serviceid'];
@@ -763,8 +763,8 @@ function ClientArea(array $params)
             'templatefile' => 'clientarea',
             'vars' => [
                 'serviceid' => $serviceid,
-                'uuid' => $user->uuid,
-                'email' => $user->email,
+                'uuid' => $service->uuid,
+                'email' => $service->email,
                 'nodes' => $nodes,
                 'totalBandwidth' => $usage['total_bandwidth'],
                 'usedBandwidth' => $usage['used_bandwidth'],
@@ -776,8 +776,8 @@ function ClientArea(array $params)
                 'allowReset' => $params['configoption7'] == 'on', // Allow Manual Reset
                 'resetCost' => $params['configoption8'] ?: 0, // Manual Reset Cost (%)
                 'maxDevices' => $params['configoption6'] ?: 3, // Max Concurrent Devices
-                'status' => $user->status,
-                'lastReset' => $user->last_reset_at
+                'status' => $service->status,
+                'lastReset' => $service->last_reset_at
             ]
         ];
 
@@ -802,10 +802,10 @@ function ClientArea(array $params)
  *
  * @return array
  */
-function ClientAreaCustomButtonArray()
+function orrism_ClientAreaCustomButtonArray()
 {
     return [
-        'Reset Traffic' => 'ClientResetTraffic'
+        'Reset Traffic' => 'ClientResetTraffic'  // WHMCS automatically adds orrism_ prefix
     ];
 }
 
@@ -815,7 +815,7 @@ function ClientAreaCustomButtonArray()
  * @param array $params Module parameters
  * @return string
  */
-function ClientResetTraffic(array $params)
+function orrism_ClientResetTraffic(array $params)
 {
     try {
         // Check if manual reset is allowed
@@ -876,7 +876,7 @@ function ClientResetTraffic(array $params)
  * @param array $params Module parameters
  * @return array
  */
-function AdminServicesTabFields(array $params)
+function orrism_AdminServicesTabFields(array $params)
 {
     try {
         $db = db();
@@ -931,7 +931,7 @@ function AdminServicesTabFields(array $params)
  * @param array $params Module parameters
  * @return string
  */
-function LoginLink(array $params)
+function orrism_LoginLink(array $params)
 {
     $serverHost = $params['serverhostname'] ?: $params['serverip'];
     $serverPort = $params['serverport'] ?: ($params['serversecure'] ? 443 : 80);
@@ -956,7 +956,7 @@ function LoginLink(array $params)
  *   - redirectTo: string URL to redirect user to (if success=true)
  *   - errorMsg: string Error message (if success=false)
  */
-function ServiceSingleSignOn(array $params)
+function orrism_ServiceSingleSignOn(array $params)
 {
     try {
         $serviceid = $params['serviceid'];
@@ -1029,7 +1029,7 @@ function ServiceSingleSignOn(array $params)
  *   - redirectTo: string URL to redirect admin to (if success=true)
  *   - errorMsg: string Error message (if success=false)
  */
-function AdminSingleSignOn(array $params)
+function orrism_AdminSingleSignOn(array $params)
 {
     try {
         // Generate admin SSO token
@@ -1071,7 +1071,7 @@ function AdminSingleSignOn(array $params)
  * @param array $params Module parameters
  * @return array
  */
-function UsageUpdate(array $params)
+function orrism_UsageUpdate(array $params)
 {
     try {
         $db = db();
