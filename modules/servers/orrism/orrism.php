@@ -750,10 +750,18 @@ function orrism_ClientArea(array $params)
 {
     try {
         $serviceid = $params['serviceid'];
+
+        // Debug: Log entry
+        logModuleCall('orrism', __FUNCTION__ . '_START', ['serviceid' => $serviceid], 'Starting client area');
+
         $db = db();
 
         // Get user data
         $service = $db->getService($serviceid);
+
+        // Debug: Log service data
+        logModuleCall('orrism', __FUNCTION__ . '_SERVICE', ['serviceid' => $serviceid], 'Service data: ' . json_encode($service));
+
         if (!$service) {
             logModuleCall(
                 'orrism',
@@ -765,7 +773,7 @@ function orrism_ClientArea(array $params)
             );
             return [
                 'templatefile' => 'error',
-                'vars' => ['errormessage' => 'Account not found']
+                'vars' => ['errormessage' => 'Account not found. Please contact support.']
             ];
         }
 
@@ -803,15 +811,15 @@ function orrism_ClientArea(array $params)
     } catch (Exception $e) {
         logModuleCall(
             'orrism',
-            __FUNCTION__,
+            __FUNCTION__ . '_ERROR',
             $params,
-            $e->getMessage(),
+            'Exception: ' . $e->getMessage(),
             $e->getTraceAsString(),
             ['password', 'serverpassword', 'apikey']
         );
         return [
             'templatefile' => 'error',
-            'vars' => ['errormessage' => $e->getMessage()]
+            'vars' => ['errormessage' => 'Error loading service: ' . $e->getMessage()]
         ];
     }
 }
