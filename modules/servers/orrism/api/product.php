@@ -91,7 +91,7 @@ function orris_change_package($data){
     try {
         if (count(orris_get_user($data['sid'])) > 0) {
             $conn = orris_get_db_connection();
-            $db = $conn->prepare('UPDATE `user` SET `bandwidth` = :bandwidth,`package_id` = :package_id, `u` = 0, `d` = 0, `node_group_id` = :node_group_id WHERE `sid` = :sid');
+            $db = $conn->prepare('UPDATE `services` SET `bandwidth_limit` = :bandwidth, `package_id` = :package_id, `upload_bytes` = 0, `download_bytes` = 0, `node_group_id` = :node_group_id WHERE `service_id` = :sid');
             $db->bindValue(':bandwidth', $data['bandwidth']);
             $db->bindValue(':sid', $data['sid']);
             $db->bindValue(':package_id', $data['pid']);

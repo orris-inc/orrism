@@ -148,11 +148,13 @@ function orris_reset_traffic($sid) {
             return; // 如果用户不存在，则直接返回
         }
 
-        $total_used = $user[0]['u'] + $user[0]['d'];
+        $total_used = $user[0]['upload_bytes'] + $user[0]['download_bytes'];
 
-        if ($total_used > $user[0]['bandwidth'] && $user[0]['enable'] == 1) {
+        // Check if user exceeds bandwidth and is active -> suspend (action=0)
+        if ($total_used > $user[0]['bandwidth_limit'] && $user[0]['status'] == 'active') {
             $data['action'] = 0;
-        } elseif ($user[0]['enable'] == 0 && $total_used < $user[0]['bandwidth']) {
+        // Check if user is below bandwidth and suspended -> activate (action=1)
+        } elseif ($user[0]['status'] == 'suspended' && $total_used < $user[0]['bandwidth_limit']) {
             $data['action'] = 1;
         }
 
@@ -226,9 +228,9 @@ function orris_reset_traffic_month(){
                     error_log("用户 {$sid} 不需要重置流量");
                     continue;
                 }
-                
-                if ($user_data[0]['enable'] == 0) {
-                    error_log("用户 {$sid} 已禁用");
+
+                if ($user_data[0]['status'] !== 'active') {
+                    error_log("用户 {$sid} 已禁用 (status={$user_data[0]['status']})");
                     continue;
                 }
 

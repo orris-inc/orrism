@@ -68,9 +68,9 @@ class SSGenerator extends ConfigGenerator {
 class ShadowrocketGenerator extends ConfigGenerator {
     public function generate() {
         $url = '';
-        $tot = Utils::convertByte($this->user['bandwidth']);
-        $upload = Utils::convertByte($this->user['u']);
-        $download = Utils::convertByte($this->user['d']);
+        $tot = Utils::convertByte($this->user['bandwidth_limit']);
+        $upload = Utils::convertByte($this->user['upload_bytes']);
+        $download = Utils::convertByte($this->user['download_bytes']);
         $time = $this->timestamp_due_date ? date('Y-m-d', $this->timestamp_due_date) : 'N/A';
         $url .= "STATUS=🚀↑:{$upload},↓:{$download},TOT:{$tot}💡Expires:{$time}\r\n";
 
@@ -152,7 +152,7 @@ class SurgeNodelistGenerator extends ConfigGenerator {
  */
 class ClashGenerator extends ConfigGenerator {
     public function generate() {
-        header("subscription-userinfo: upload={$this->user['u']}; download={$this->user['d']}; total={$this->user['bandwidth']}; expire={$this->timestamp_due_date}");
+        header("subscription-userinfo: upload={$this->user['upload_bytes']}; download={$this->user['download_bytes']}; total={$this->user['bandwidth_limit']}; expire={$this->timestamp_due_date}");
         header('profile-update-interval: 24');
         header('Content-Disposition: attachment; filename*=UTF-8\'\'Milus');
         $defaultConfig = __DIR__ . '/rules/default.clash.yaml';
@@ -224,7 +224,7 @@ class ClashGenerator extends ConfigGenerator {
  */
 class QuantumultXGenerator extends ConfigGenerator {
     public function generate() {
-        header("subscription-userinfo: upload={$this->user['u']}; download={$this->user['d']}; total={$this->user['bandwidth']}; expire={$this->timestamp_due_date}");
+        header("subscription-userinfo: upload={$this->user['upload_bytes']}; download={$this->user['download_bytes']}; total={$this->user['bandwidth_limit']}; expire={$this->timestamp_due_date}");
         $uri = '';
         foreach ($this->data as $node) {
             $config = [
@@ -260,8 +260,8 @@ class SIP008Generator extends ConfigGenerator {
         return [
             'version' => 1,
             'servers' => $node_info,
-            'bytes_used' => $this->user['u'] + $this->user['d'],
-            'bytes_remaining' => $this->user['bandwidth'] - ($this->user['u'] + $this->user['d'])
+            'bytes_used' => $this->user['upload_bytes'] + $this->user['download_bytes'],
+            'bytes_remaining' => $this->user['bandwidth_limit'] - ($this->user['upload_bytes'] + $this->user['download_bytes'])
         ];
     }
 }

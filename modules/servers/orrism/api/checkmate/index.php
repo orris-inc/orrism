@@ -164,11 +164,11 @@ class SubscriptionService {
 
         $user = $userDataArray[0];
 
-        // Check user status
-        if (isset($user['enable']) && $user['enable'] == 0) {
+        // Check user status (status field: 'active', 'suspended', 'terminated')
+        if (isset($user['status']) && $user['status'] !== 'active') {
             RequestHandler::handleError(
                 '403 Forbidden',
-                "(SID: {$this->sid}): User account is disabled (enable=0).",
+                "(SID: {$this->sid}): User account is disabled (status={$user['status']}).",
                 $this->clientIp,
                 'Error: Account disabled. Please contact support.'
             );

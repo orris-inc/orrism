@@ -160,11 +160,11 @@ function orris_user_admin_services_tab_fields($params) {
         $user = orris_get_user($params['serviceid'] ?? 0)[0];
         $result = [
             'uuid'                => $user['uuid'],
-            ORRIS_L::admin_bandwidth    => orris_convert_byte($user['bandwidth']),
-            ORRIS_L::common_upload      => orris_convert_byte($user['u']),
-            ORRIS_L::common_download    => orris_convert_byte($user['d']),
-            ORRIS_L::common_left        => orris_convert_byte($user['bandwidth'] - ($user['u'] + $user['d'])),
-            ORRIS_L::common_used        => orris_convert_byte($user['u'] + $user['d']),
+            ORRIS_L::admin_bandwidth    => orris_convert_byte($user['bandwidth_limit']),
+            ORRIS_L::common_upload      => orris_convert_byte($user['upload_bytes']),
+            ORRIS_L::common_download    => orris_convert_byte($user['download_bytes']),
+            ORRIS_L::common_left        => orris_convert_byte($user['bandwidth_limit'] - ($user['upload_bytes'] + $user['download_bytes'])),
+            ORRIS_L::common_used        => orris_convert_byte($user['upload_bytes'] + $user['download_bytes']),
             ORRIS_L::common_created_at  => $user['created_at'],
         ];
         return $result;
@@ -277,16 +277,16 @@ function orris_user_client_area($params) {
         // 获取用户信息
         $user = orris_get_user($service_id);
         if ($user) {
-            $user_traffic_total = $user[0]['u'] + $user[0]['d'];
-            $user_traffic_upload = $user[0]['u'];
-            $user_traffic_download = $user[0]['d'];
-            $bandwidth = $user[0]['bandwidth'];
+            $user_traffic_total = $user[0]['upload_bytes'] + $user[0]['download_bytes'];
+            $user_traffic_upload = $user[0]['upload_bytes'];
+            $user_traffic_download = $user[0]['download_bytes'];
+            $bandwidth = $user[0]['bandwidth_limit'];
             $left = $bandwidth - $user_traffic_total;
             $uuid = $user[0]['uuid'];
             $telegram_id = $user[0]['telegram_id'];
-            $sid = $user[0]['sid'];
+            $sid = $user[0]['service_id'];
             $created_at = $user[0]['created_at'];
-            $token = $user[0]['token'];
+            $password = $user[0]['password'];
             $info = [
                 'uuid'        => $uuid,
                 'upload'      => orris_convert_byte($user_traffic_upload),
@@ -297,7 +297,7 @@ function orris_user_client_area($params) {
                 'telegram_id' => $telegram_id,
                 'bandwidth'   => orris_convert_byte($bandwidth),
                 'sid'         => $sid,
-                'token'       => $token
+                'token'       => $password
             ];
             
             // 获取节点信息，添加错误处理
@@ -400,13 +400,15 @@ function orris_user_client_area($params) {
 
 /**
  * Get service information
- * @param int $sid Service ID
+ * @param int $sid Service ID (service_id in database)
  * @return array
  */
 function orris_get_user($sid) {
     $redis_key = 'uuid'.$sid;
     $conn = orris_get_db_connection();
-    $sql = 'SELECT * FROM user WHERE `sid` = :sid';
+    // Changed from 'user' to 'services' table
+    // Changed from 'sid' to 'service_id' field
+    $sql = 'SELECT * FROM services WHERE `service_id` = :sid';
     $db = $conn->prepare($sql);
     $db->bindValue(':sid', $sid);
     $db->execute();
@@ -422,19 +424,31 @@ function orris_new_account($data){
     try {
         if (empty(orris_get_user($data['sid']))){
             $conn = orris_get_db_connection();
-            $insert = 'INSERT INTO `user`(`email`,`uuid`,`u`,`d`,`bandwidth`,`created_at`,`updated_at`,`need_reset`,`sid`,`package_id`,`enable`,`telegram_id`,`token`,`node_group_id`) VALUES (:email,:uuid,0,0,:bandwidth,UNIX_TIMESTAMP(),0,:need_reset,:sid,:package_id,:enable,:telegram_id,:token,:node_group_id)';
+            // Updated for services table schema
+            // Note: services table uses different field names
+            $insert = 'INSERT INTO `services`(
+                `service_id`, `email`, `uuid`, `password`, `password_algo`,
+                `upload_bytes`, `download_bytes`, `bandwidth_limit`,
+                `node_group_id`, `status`, `created_at`, `updated_at`
+            ) VALUES (
+                :sid, :email, :uuid, :password, :password_algo,
+                0, 0, :bandwidth,
+                :node_group_id, :status, NOW(), NOW()
+            )';
             $action = $conn->prepare($insert);
+
+            // Map enable field: 1 -> 'active', 0 -> 'suspended'
+            $status = ($data['enable'] == 1) ? 'active' : 'suspended';
+
             $params = [
+                ':sid' => $data['sid'],
                 ':email' => $data['email'],
                 ':uuid' => $data['uuid'],
-                ':need_reset' => $data['need_reset'],
-                ':sid' => $data['sid'],
-                ':package_id' => $data['package_id'],
-                ':enable' => $data['enable'],
-                ':telegram_id' => $data['telegram_id'],
-                ':token' => $data['token'],
+                ':password' => password_hash($data['token'], PASSWORD_BCRYPT),
+                ':password_algo' => 'bcrypt',
                 ':bandwidth' => $data['bandwidth'],
-                ':node_group_id' => $data['node_group_id']
+                ':node_group_id' => $data['node_group_id'],
+                ':status' => $status
             ];
             foreach ($params as $key => $value) {
                 $action->bindValue($key, $value);
@@ -464,8 +478,10 @@ function orris_set_status($data){
 
         if ($user_exists){
             $conn = orris_get_db_connection();
-            $db = $conn->prepare('UPDATE `user` SET `enable` = :enable WHERE `sid` = :sid');
-            $db->bindValue(':enable',$data['action']);
+            // Map enable field: 1 -> 'active', 0 -> 'suspended'
+            $status = ($data['action'] == 1) ? 'active' : 'suspended';
+            $db = $conn->prepare('UPDATE `services` SET `status` = :status WHERE `service_id` = :sid');
+            $db->bindValue(':status', $status);
             $db->bindValue(':sid',$data['sid']);
             $execute_result = $db->execute();
             //error_log("ORRIS_DEBUG: Database execute result for sid " . ($data['sid'] ?? 'N/A') . ": " . ($execute_result ? 'Success' : 'Failure')); // Log execution result
@@ -489,7 +505,7 @@ function orris_delete_account($data){
     try {
         if (count(orris_get_user($data['sid'])) > 0){
             $conn = orris_get_db_connection();
-            $db = $conn->prepare('DELETE FROM `user` WHERE `sid` = :sid');
+            $db = $conn->prepare('DELETE FROM `services` WHERE `service_id` = :sid');
             $db->bindValue(':sid',$data['sid']);
             //orris_set_redis($data['sid'],null,'del');
             return $db->execute();
@@ -513,11 +529,14 @@ function orris_reset_uuid_internal($data){
         if (count($user_info) > 0) {
             $conn = orris_get_db_connection();
             $new_token = orris_generate_md5_token(); // Generate a new token
+            // Hash the token before storing
+            $hashed_password = password_hash($new_token, PASSWORD_DEFAULT);
             // $data['uuid'] is the new UUID passed from orris_user_reset_uuid
-            $db = $conn->prepare('UPDATE `user` SET `uuid` = :uuid, `token` = :token WHERE `sid` = :sid');
+            $db = $conn->prepare('UPDATE `services` SET `uuid` = :uuid, `password` = :password, `password_algo` = :algo WHERE `service_id` = :sid');
             $db->bindValue(':sid', $data['sid']);
             $db->bindValue(':uuid', $data['uuid']);
-            $db->bindValue(':token', $new_token);
+            $db->bindValue(':password', $hashed_password);
+            $db->bindValue(':algo', 'bcrypt');
             
             if ($db->execute()) {
                 // Clear and set Redis cache for UUID
@@ -550,7 +569,7 @@ function orris_set_bandwidth($data){
     try {
         if (count(orris_get_user($data['sid'])) > 0) {
             $conn = orris_get_db_connection();
-            $db = $conn->prepare('UPDATE `user` SET `u` = :u , `d` = :d  WHERE `sid` = :sid');
+            $db = $conn->prepare('UPDATE `services` SET `upload_bytes` = :u, `download_bytes` = :d WHERE `service_id` = :sid');
             $db->bindValue(':u', $data['u']);
             $db->bindValue(':d',$data['d']);
             $db->bindValue(':sid', $data['sid']);
@@ -591,21 +610,21 @@ function orris_get_uuid($sid){
         return $redis;
     }
     $conn = orris_get_db_connection();
-    $sql = 'SELECT uuid FROM user WHERE `sid` = :sid';
+    $sql = 'SELECT uuid FROM services WHERE `service_id` = :sid';
     $db = $conn->prepare($sql);
     $db->bindValue(':sid', $sid, PDO::PARAM_INT);
     $db->execute();
-    
+
     $row = $db->fetch(PDO::FETCH_ASSOC);
     if (!$row) {
         return null; // User not found
     }
-    
+
     $result = $row['uuid'];
     // Store in Redis with longer expiration (24 hours)
     $redis = orris_get_redis_connection(0);
     $redis->set($redis_key, $result, 86400);
-    
+
     return $result;
 }
 
@@ -616,17 +635,17 @@ function orris_get_uuid($sid){
  */
 function orris_get_token($sid){
     $conn = orris_get_db_connection();
-    $sql = 'SELECT token FROM user WHERE `sid` = :sid';
+    $sql = 'SELECT password FROM services WHERE `service_id` = :sid';
     $db = $conn->prepare($sql);
     $db->bindValue(':sid', $sid, PDO::PARAM_INT);
     $db->execute();
-    
+
     $row = $db->fetch(PDO::FETCH_ASSOC);
     if (!$row) {
         return null; // User not found
     }
-    
-    $result = $row['token'];
+
+    $result = $row['password'];
     return $result;
 }
 
