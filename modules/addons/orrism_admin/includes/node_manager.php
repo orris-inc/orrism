@@ -688,7 +688,8 @@ class NodeManager
             'shadowsocks' => 'Shadowsocks',
             'vless' => 'VLESS',
             'vmess' => 'VMESS',
-            'trojan' => 'Trojan'
+            'trojan' => 'Trojan',
+            'snell' => 'Snell'
         ];
     }
     
@@ -715,9 +716,13 @@ class NodeManager
             ],
             'trojan' => [
                 'none' => 'None'
+            ],
+            'snell' => [
+                '4' => 'Snell v4',
+                '5' => 'Snell v5'
             ]
         ];
-        
+
         return $methods[$nodeType] ?? [];
     }
     

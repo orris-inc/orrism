@@ -371,7 +371,7 @@ class OrrisDatabaseManager
             $schema->create('nodes', function ($table) {
                 $table->bigIncrements('id');
                 $table->string('name', 100);
-                $table->enum('type', ['shadowsocks', 'v2ray', 'trojan', 'vless', 'vmess', 'hysteria'])->default('shadowsocks');
+                $table->enum('type', ['shadowsocks', 'v2ray', 'trojan', 'vless', 'vmess', 'hysteria', 'snell'])->default('shadowsocks');
                 $table->string('address', 255);
                 $table->unsignedInteger('port');
                 $table->string('method', 50)->nullable();
