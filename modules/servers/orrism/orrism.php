@@ -780,13 +780,23 @@ function orrism_ClientArea(array $params)
         // Get usage statistics
         $usage = $db->getServiceUsage($serviceid);
 
+        // Debug: Log usage data
+        logModuleCall('orrism', __FUNCTION__ . '_USAGE', ['serviceid' => $serviceid], 'Usage: ' . json_encode($usage));
+
         // Get nodes for service's group
         $nodes = $db->getNodesForGroup($service->node_group_id);
+
+        // Debug: Log nodes
+        logModuleCall('orrism', __FUNCTION__ . '_NODES', ['serviceid' => $serviceid], 'Nodes: ' . count($nodes));
 
         // Generate subscription URL
         $subscriptionUrl = generate_subscription_url($params, $service->uuid);
 
+        // Debug: Log final return
+        logModuleCall('orrism', __FUNCTION__ . '_RETURN', ['serviceid' => $serviceid], 'Returning clientarea template with ' . count($nodes) . ' nodes');
+
         return [
+            'tabOverviewReplacementTemplate' => 'clientarea',
             'templatefile' => 'clientarea',
             'vars' => [
                 'serviceid' => $serviceid,
