@@ -188,28 +188,29 @@ class NodeManager
             $offset = ($page - 1) * $perPage;
             
             // Build optimized query with all necessary data in single query
+            // Note: Database uses 'server' not 'address', 'node_group' not 'group_id', 'sort' not 'sort_order'
             $query = "
                 SELECT
                     n.id,
                     n.type as node_type,
                     n.name as node_name,
-                    n.address,
+                    n.server as address,
                     n.port,
                     n.status,
-                    n.sort_order,
+                    n.sort as sort_order,
                     n.updated_at as last_check,
-                    n.group_id,
+                    n.node_group as group_id,
                     ng.name as group_name,
                     COALESCE(service_stats.service_count, 0) as current_services,
                     COALESCE(traffic_stats.total_traffic, 0) as total_traffic
                 FROM nodes n
-                LEFT JOIN node_groups ng ON n.group_id = ng.id
+                LEFT JOIN node_groups ng ON n.node_group = ng.id
                 LEFT JOIN (
                     SELECT node_group_id, COUNT(*) as service_count
                     FROM services
                     WHERE status = 'active'
                     GROUP BY node_group_id
-                ) service_stats ON service_stats.node_group_id = n.group_id
+                ) service_stats ON service_stats.node_group_id = n.node_group
                 LEFT JOIN (
                     SELECT node_id,
                            SUM(upload_bytes + download_bytes) as total_traffic
@@ -234,22 +235,22 @@ class NodeManager
             }
 
             if (!empty($filters['group_id'])) {
-                $where[] = "n.group_id = ?";
+                $where[] = "n.node_group = ?";
                 $bindings[] = $filters['group_id'];
             }
 
             if (!empty($filters['search'])) {
-                $where[] = "(n.name LIKE ? OR n.address LIKE ?)";
+                $where[] = "(n.name LIKE ? OR n.server LIKE ?)";
                 $bindings[] = '%' . $filters['search'] . '%';
                 $bindings[] = '%' . $filters['search'] . '%';
             }
-            
+
             if (!empty($where)) {
                 $query .= " WHERE " . implode(' AND ', $where);
             }
-            
+
             // Add ordering
-            $query .= " ORDER BY n.sort_order ASC, n.id ASC";
+            $query .= " ORDER BY n.sort ASC, n.id ASC";
             
             // Get total count for pagination
             $countQuery = "SELECT COUNT(DISTINCT n.id) as total " . 
@@ -330,14 +331,12 @@ class NodeManager
                         id,
                         type as node_type,
                         name as node_name,
-                        address,
+                        server as address,
                         port,
                         method as node_method,
-                        group_id,
+                        node_group as group_id,
                         status,
-                        sort_order,
-                        config,
-                        metadata,
+                        sort as sort_order,
                         updated_at
                      FROM nodes
                      WHERE id = ?";
@@ -393,19 +392,20 @@ class NodeManager
             }
 
             // Map frontend field names to database column names
-            // Database uses: type, name, address, port, method, group_id, status, sort_order
-            $sql = "INSERT INTO nodes (type, name, address, port, method, group_id, status, sort_order, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())";
+            // Database uses: type, name, server (not address), port, method, node_group (not group_id), status, sort (not sort_order)
+            $sql = "INSERT INTO nodes (type, name, server, port, method, node_group, status, sort, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
             $bindings = [
                 $data['node_type'],                      // type
                 $data['node_name'],                      // name
-                $data['address'],                        // address
+                $data['address'],                        // server (database field name)
                 (int)$data['port'],                      // port
                 $data['node_method'] ?? 'aes-256-gcm',   // method
-                $data['group_id'] ?? null,               // group_id (can be NULL)
-                $data['status'] ?? 'active',             // status (ENUM: active/inactive/maintenance)
-                $data['sort_order'] ?? 0                 // sort_order
+                $data['group_id'] ?? 0,                  // node_group (database field name, default 0)
+                $data['status'] ?? 1,                    // status (1=active, 0=inactive)
+                $data['sort_order'] ?? 0,                // sort (database field name)
+                time()                                   // updated_at (unix timestamp)
             ];
 
             // Insert node
@@ -453,15 +453,16 @@ class NodeManager
             $bindings = [];
 
             // Map frontend field names to database column names
+            // Database uses: server (not address), node_group (not group_id), sort (not sort_order)
             $fieldMapping = [
                 'node_type' => 'type',
                 'node_name' => 'name',
-                'address' => 'address',
+                'address' => 'server',           // Maps to 'server' in database
                 'port' => 'port',
-                'group_id' => 'group_id',
+                'group_id' => 'node_group',      // Maps to 'node_group' in database
                 'node_method' => 'method',
                 'status' => 'status',
-                'sort_order' => 'sort_order'
+                'sort_order' => 'sort'           // Maps to 'sort' in database
             ];
 
             foreach ($fieldMapping as $frontendField => $dbColumn) {
@@ -478,8 +479,9 @@ class NodeManager
                 ];
             }
 
-            // Add updated_at
-            $updates[] = "updated_at = NOW()";
+            // Add updated_at (unix timestamp)
+            $updates[] = "updated_at = ?";
+            $bindings[] = time();
 
             // Add nodeId for WHERE clause
             $bindings[] = $nodeId;
@@ -564,11 +566,11 @@ class NodeManager
                 throw new Exception('Node not found');
             }
             
-            // Toggle status (ENUM: active/inactive/maintenance)
-            $newStatus = ($node->status === 'active') ? 'inactive' : 'active';
+            // Toggle status (tinyint: 0=inactive, 1=active)
+            $newStatus = ($node->status == 1) ? 0 : 1;
 
-            $sql = "UPDATE nodes SET status = ?, updated_at = NOW() WHERE id = ?";
-            $this->execute($sql, [$newStatus, $nodeId]);
+            $sql = "UPDATE nodes SET status = ?, updated_at = ? WHERE id = ?";
+            $this->execute($sql, [$newStatus, time(), $nodeId]);
             
             return [
                 'success' => true,
@@ -606,14 +608,16 @@ class NodeManager
             try {
                 switch ($action) {
                     case 'enable':
-                        $sql = "UPDATE nodes SET status = 'active', updated_at = NOW() WHERE id IN ($placeholders)";
-                        $this->execute($sql, $nodeIds);
+                        $bindings = array_merge([1, time()], $nodeIds);
+                        $sql = "UPDATE nodes SET status = ?, updated_at = ? WHERE id IN ($placeholders)";
+                        $this->execute($sql, $bindings);
                         $message = 'Nodes enabled successfully';
                         break;
 
                     case 'disable':
-                        $sql = "UPDATE nodes SET status = 'inactive', updated_at = NOW() WHERE id IN ($placeholders)";
-                        $this->execute($sql, $nodeIds);
+                        $bindings = array_merge([0, time()], $nodeIds);
+                        $sql = "UPDATE nodes SET status = ?, updated_at = ? WHERE id IN ($placeholders)";
+                        $this->execute($sql, $bindings);
                         $message = 'Nodes disabled successfully';
                         break;
 
@@ -631,8 +635,9 @@ class NodeManager
                         if (empty($data['group_id'])) {
                             throw new Exception('Group ID is required');
                         }
-                        $sql = "UPDATE nodes SET group_id = ?, updated_at = NOW() WHERE id IN ($placeholders)";
-                        $bindings = array_merge([$data['group_id']], $nodeIds);
+                        // Database uses 'node_group' not 'group_id'
+                        $bindings = array_merge([$data['group_id'], time()], $nodeIds);
+                        $sql = "UPDATE nodes SET node_group = ?, updated_at = ? WHERE id IN ($placeholders)";
                         $this->execute($sql, $bindings);
                         $message = 'Node group changed successfully';
                         break;

@@ -1048,30 +1048,47 @@ class Controller
             'orrism_users' => 0,
             'last_sync' => null
         ];
-        
+
         try {
             // Get active services count
             if (class_exists('OrrisDatabase')) {
                 $orrisDb = new \OrrisDatabase();
                 $stats['active_services'] = $orrisDb->getActiveServiceCount('orrism');
             }
-            
+
+            // Get total nodes count
+            try {
+                $nodeManagerPath = dirname(__DIR__, 2) . '/includes/node_manager.php';
+                if (file_exists($nodeManagerPath)) {
+                    require_once $nodeManagerPath;
+                    if (class_exists('NodeManager')) {
+                        $nodeManager = new \NodeManager();
+                        $nodesResult = $nodeManager->getNodesWithStats(1, 1);
+                        if ($nodesResult['success'] && isset($nodesResult['total'])) {
+                            $stats['total_nodes'] = (int)$nodesResult['total'];
+                        }
+                    }
+                }
+            } catch (Exception $e) {
+                error_log('ORRISM Controller: Error getting node count: ' . $e->getMessage());
+            }
+
             // Get ORRISM users count
             if (class_exists('OrrisDatabaseManager')) {
                 $dbManager = new \OrrisDatabaseManager();
                 if ($dbManager->testConnection()) {
-                    $stats['orrism_services'] = $dbManager->getServiceCount();
+                    $stats['orrism_users'] = $dbManager->getServiceCount();
                 }
             }
-            
+
             // Get last sync time
             $settings = $this->getOrrisSettings();
             $stats['last_sync'] = $settings['last_sync'] ?? null;
-            
+
         } catch (Exception $e) {
             error_log('ORRISM Controller: Error getting statistics: ' . $e->getMessage());
         }
-        
+
         return $stats;
     }
     

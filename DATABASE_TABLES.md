@@ -34,23 +34,36 @@ CREATE TABLE mod_orrism_node_groups (
 )
 ```
 
-#### 2. `mod_orrism_nodes` - 节点信息
+#### 2. `nodes` - 节点信息（实际表结构）
 ```sql
-CREATE TABLE mod_orrism_nodes (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(100),
-    type ENUM('shadowsocks', 'v2ray', 'trojan'),
-    address VARCHAR(255),
-    port INT,
-    method VARCHAR(50),
-    group_id INT,
-    sort_order INT DEFAULT 0,
-    status ENUM('active', 'inactive') DEFAULT 'active',
-    created_at TIMESTAMP,
-    updated_at TIMESTAMP,
-    FOREIGN KEY (group_id) REFERENCES mod_orrism_node_groups(id)
-)
+CREATE TABLE `nodes` (
+    `id` int(11) NOT NULL AUTO_INCREMENT,
+    `name` varchar(128) NOT NULL COMMENT '节点名称',
+    `server` varchar(128) NOT NULL COMMENT '服务器地址',
+    `port` int(11) NOT NULL COMMENT '服务端口',
+    `type` varchar(32) NOT NULL DEFAULT 'ss' COMMENT '节点类型',
+    `method` varchar(32) NOT NULL DEFAULT 'aes-256-gcm' COMMENT '加密方式',
+    `info` varchar(128) NOT NULL DEFAULT '' COMMENT '节点信息',
+    `status` tinyint(4) NOT NULL DEFAULT '1' COMMENT '状态 0-维护中 1-正常',
+    `sort` int(11) NOT NULL DEFAULT '0' COMMENT '排序',
+    `traffic_rate` float NOT NULL DEFAULT '1' COMMENT '流量倍率',
+    `node_group` int(11) NOT NULL DEFAULT '0' COMMENT '节点分组',
+    `online_user` int(11) NOT NULL DEFAULT '0' COMMENT '在线用户数',
+    `max_user` int(11) NOT NULL DEFAULT '0' COMMENT '最大用户数',
+    `updated_at` int(11) NOT NULL DEFAULT '0' COMMENT '更新时间(Unix时间戳)',
+    PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='节点信息表';
 ```
+
+**字段说明：**
+- `name`: 节点名称（不是 node_name）
+- `server`: 服务器地址（不是 address）
+- `type`: 节点类型（不是 node_type）
+- `method`: 加密方式（不是 node_method）
+- `node_group`: 节点分组ID（不是 group_id，默认0表示无分组）
+- `sort`: 排序（不是 sort_order）
+- `status`: 状态，0=维护中，1=正常（不是ENUM类型）
+- `updated_at`: 更新时间，存储Unix时间戳（不是datetime）
 
 #### 3. `mod_orrism_users` - 用户账户
 ```sql
@@ -145,3 +158,28 @@ CREATE TABLE mod_orrism_migrations (
 - ✅ **事务保护**: 使用数据库事务，失败时回滚
 - ✅ **错误日志**: 所有操作都记录到 WHMCS 日志
 - ✅ **外键约束**: 确保数据完整性
+
+---
+
+## 📋 节点表字段映射说明
+
+由于前端使用友好的字段名，而数据库使用简短的字段名，NodeManager 会自动处理映射：
+
+| 前端/API字段名 | 数据库实际字段名 | 数据类型 | 说明 |
+|--------------|----------------|---------|------|
+| `node_type` | `type` | varchar(32) | 节点类型 |
+| `node_name` | `name` | varchar(128) | 节点名称 |
+| `address` | `server` | varchar(128) | 服务器地址 |
+| `port` | `port` | int(11) | ✓ 字段名一致 |
+| `node_method` | `method` | varchar(32) | 加密方法 |
+| `tag` / `info` | `info` | varchar(128) | 节点信息/标签 |
+| `group_id` | `node_group` | int(11) | 节点组ID |
+| `rate` | `traffic_rate` | float | 流量倍率 |
+| `sort_order` | `sort` | int(11) | 排序 |
+| `status` | `status` | tinyint(4) | ✓ 字段名一致，但类型不同 |
+| `updated_at` | `updated_at` | int(11) | ✓ 字段名一致，存储Unix时间戳 |
+
+**重要提示：**
+- `status` 字段：数据库中是 tinyint(4)，值为 0（维护中）或 1（正常），不是ENUM类型
+- `updated_at` 字段：数据库中存储Unix时间戳（int），不是datetime或timestamp
+- 前端代码无需关心映射，NodeManager会自动处理所有字段名转换
