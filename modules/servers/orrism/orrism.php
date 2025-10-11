@@ -67,59 +67,118 @@ function MetaData()
  * Defines product configuration options available when setting up ORRISM products.
  * Called by WHMCS to display configuration fields in product setup.
  *
+ * Configuration options are accessed in code as:
+ *   - $params['configoption1'] = Node Group ID
+ *   - $params['configoption2'] = Monthly Bandwidth (GB)
+ *   - $params['configoption3'] = Traffic Reset Strategy
+ *   - $params['configoption4'] = Reset Day of Month
+ *   - $params['configoption5'] = Enable Traffic Reset
+ *   - $params['configoption6'] = Max Concurrent Devices
+ *   - $params['configoption7'] = Allow Manual Reset
+ *   - $params['configoption8'] = Manual Reset Cost (%)
+ *   - $params['configoption9'] = Service Speed Limit (Mbps)
+ *   - $params['configoption10'] = Enable Usage Logging
+ *
  * @return array Array of configuration options, each with:
  *   - Type: string Field type (text, dropdown, textarea, yesno, etc.)
  *   - Options: array Available options (for dropdown type)
  *   - Default: mixed Default value
  *   - Description: string Help text displayed to admin
  */
-function ConfigOptions()
+function orrism_ConfigOptions()
 {
     return [
-        'database' => [
+        // Config Option 1: Node Group
+        'Node Group ID' => [
             'Type' => 'text',
-            'Size' => '25',
-            'Default' => 'shadowsocks',
-            'Description' => 'Database name for ORRISM service data'
+            'Size' => '10',
+            'Default' => '1',
+            'Description' => 'Node group ID (from node_groups table)',
+            'SimpleMode' => true
         ],
-        'reset_strategy' => [
+
+        // Config Option 2: Bandwidth Limit
+        'Monthly Bandwidth (GB)' => [
+            'Type' => 'text',
+            'Size' => '10',
+            'Default' => '100',
+            'Description' => 'Monthly bandwidth limit in GB (0 = unlimited)',
+            'SimpleMode' => true
+        ],
+
+        // Config Option 3: Traffic Reset Strategy
+        'Traffic Reset Strategy' => [
             'Type' => 'dropdown',
             'Options' => [
-                '0' => 'No Reset',
-                '1' => 'Reset on Order Date',
-                '2' => 'Reset on Month Start',
-                '3' => 'Reset on Month End'
+                '0' => 'No Automatic Reset',
+                '1' => 'Reset on Order Date (Anniversary)',
+                '2' => 'Reset on First Day of Month',
+                '3' => 'Reset on Last Day of Month',
+                '4' => 'Reset on Custom Day of Month'
             ],
             'Default' => '1',
-            'Description' => 'Traffic reset strategy'
+            'Description' => 'How traffic usage should be reset',
+            'SimpleMode' => true
         ],
-        'node_list' => [
-            'Type' => 'textarea',
-            'Rows' => '3',
-            'Cols' => '50',
-            'Description' => 'Available nodes (comma separated node IDs)'
-        ],
-        'bandwidth' => [
+
+        // Config Option 4: Reset Day (for Custom strategy)
+        'Reset Day of Month' => [
             'Type' => 'text',
-            'Size' => '25',
-            'Default' => '100',
-            'Description' => 'Monthly bandwidth limit (GB)'
-        ],
-        'manual_reset' => [
-            'Type' => 'yesno',
-            'Description' => 'Allow manual bandwidth reset by user'
-        ],
-        'reset_cost' => [
-            'Type' => 'text',
-            'Size' => '25',
-            'Default' => '0',
-            'Description' => 'Cost percentage for manual reset (0-100)'
-        ],
-        'node_group' => [
-            'Type' => 'text',
-            'Size' => '25',
+            'Size' => '5',
             'Default' => '1',
-            'Description' => 'Node group ID'
+            'Description' => 'Day of month for reset (1-28) - Only used if strategy is "Custom Day"',
+            'SimpleMode' => false
+        ],
+
+        // Config Option 5: Enable Traffic Reset
+        'Enable Traffic Reset' => [
+            'Type' => 'yesno',
+            'Default' => 'yes',
+            'Description' => 'Enable automatic traffic reset (disable for pay-as-you-go plans)',
+            'SimpleMode' => true
+        ],
+
+        // Config Option 6: Max Devices
+        'Max Concurrent Devices' => [
+            'Type' => 'text',
+            'Size' => '5',
+            'Default' => '3',
+            'Description' => 'Maximum number of devices that can connect simultaneously',
+            'SimpleMode' => true
+        ],
+
+        // Config Option 7: Allow Manual Reset
+        'Allow Manual Reset' => [
+            'Type' => 'yesno',
+            'Default' => '',
+            'Description' => 'Allow users to manually reset traffic (with optional fee)',
+            'SimpleMode' => false
+        ],
+
+        // Config Option 8: Manual Reset Cost
+        'Manual Reset Cost (%)' => [
+            'Type' => 'text',
+            'Size' => '5',
+            'Default' => '0',
+            'Description' => 'Cost as percentage of service price (0-100, 0 = free)',
+            'SimpleMode' => false
+        ],
+
+        // Config Option 9: Speed Limit
+        'Speed Limit (Mbps)' => [
+            'Type' => 'text',
+            'Size' => '10',
+            'Default' => '0',
+            'Description' => 'Maximum speed per connection in Mbps (0 = unlimited)',
+            'SimpleMode' => false
+        ],
+
+        // Config Option 10: Usage Logging
+        'Enable Usage Logging' => [
+            'Type' => 'yesno',
+            'Default' => 'yes',
+            'Description' => 'Log detailed usage statistics (disable to improve performance)',
+            'SimpleMode' => false
         ]
     ];
 }
@@ -466,10 +525,11 @@ function Renew(array $params)
 {
     try {
         $serviceid = $params['serviceid'];
-        $resetStrategy = $params['configoption2'] ?: 0;
+        $resetStrategy = $params['configoption3'] ?: 0; // Traffic Reset Strategy
+        $enableReset = $params['configoption5'] == 'on'; // Enable Traffic Reset
 
         // Handle traffic reset based on strategy
-        if ($resetStrategy > 0) {
+        if ($enableReset && $resetStrategy > 0) {
             $db = db();
             $success = $db->resetServiceTraffic($serviceid);
 
@@ -713,8 +773,9 @@ function ClientArea(array $params)
                 'uploadGB' => $usage['upload_gb'],
                 'downloadGB' => $usage['download_gb'],
                 'subscriptionUrl' => $subscriptionUrl,
-                'allowReset' => $params['configoption5'] == 'on',
-                'resetCost' => $params['configoption6'] ?: 0,
+                'allowReset' => $params['configoption7'] == 'on', // Allow Manual Reset
+                'resetCost' => $params['configoption8'] ?: 0, // Manual Reset Cost (%)
+                'maxDevices' => $params['configoption6'] ?: 3, // Max Concurrent Devices
                 'status' => $user->status,
                 'lastReset' => $user->last_reset_at
             ]
@@ -758,7 +819,7 @@ function ClientResetTraffic(array $params)
 {
     try {
         // Check if manual reset is allowed
-        if ($params['configoption5'] != 'on') {
+        if ($params['configoption7'] != 'on') { // Allow Manual Reset
             logModuleCall(
                 'orrism',
                 __FUNCTION__,
@@ -778,7 +839,7 @@ function ClientResetTraffic(array $params)
         }
 
         // Check if there's a reset cost
-        $resetCost = $params['configoption6'] ?: 0;
+        $resetCost = $params['configoption8'] ?: 0; // Manual Reset Cost (%)
         if ($resetCost > 0) {
             // Create invoice for reset cost
             $amount = $params['amount'] * ($resetCost / 100);
@@ -873,9 +934,9 @@ function AdminServicesTabFields(array $params)
 function LoginLink(array $params)
 {
     $serverHost = $params['serverhostname'] ?: $params['serverip'];
-    $serverPort = $params['serversecure'] ? $params['configoption3'] : $params['configoption2'];
+    $serverPort = $params['serverport'] ?: ($params['serversecure'] ? 443 : 80);
     $protocol = $params['serversecure'] ? 'https' : 'http';
-    
+
     return "{$protocol}://{$serverHost}:{$serverPort}/admin";
 }
 
