@@ -167,40 +167,35 @@ class OrrisDatabase
                 ->first();
 
             // Generate service credentials
-            $serviceUsername = 'orrism_' . $serviceid;
             $servicePassword = $this->generatePassword();
 
-            // Create new service
+            // Create new service (matching actual table structure)
             $serviceId = $this->table('services')->insertGetId([
                 'service_id' => $serviceid,
-                'client_id' => $clientid,
-                'domain' => $params['domain'] ?? null,
-                'product_id' => $params['pid'] ?? null,
-                'whmcs_username' => $client->email ?? $email,
-                'whmcs_email' => $email,
-                'service_username' => $serviceUsername,
-                'service_password' => password_hash($servicePassword, PASSWORD_DEFAULT),
+                'email' => $email,
                 'uuid' => $uuid,
+                'password' => password_hash($servicePassword, PASSWORD_DEFAULT),
+                'password_algo' => 'bcrypt',
                 'upload_bytes' => 0,
                 'download_bytes' => 0,
                 'bandwidth_limit' => $bandwidth,
                 'node_group_id' => $nodeGroup,
                 'status' => 'active',
-                'need_reset' => true,
                 'created_at' => date('Y-m-d H:i:s'),
                 'updated_at' => date('Y-m-d H:i:s')
             ]);
             
             // Update WHMCS service with credentials
+            // Note: service_username is the email, service_password is the generated password
             $this->saveCustomField($serviceid, 'uuid', $uuid);
-            $this->saveCustomField($serviceid, 'service_username', $serviceUsername);
+            $this->saveCustomField($serviceid, 'service_username', $email);
             $this->saveCustomField($serviceid, 'service_password', $servicePassword);
             
             return [
                 'success' => true,
                 'service_id' => $serviceId,
                 'uuid' => $uuid,
-                'username' => $serviceUsername,
+                'username' => $email,  // Email is used as username in the new schema
                 'password' => $servicePassword,
                 'message' => 'Service account created successfully'
             ];

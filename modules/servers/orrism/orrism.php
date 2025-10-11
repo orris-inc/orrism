@@ -439,13 +439,32 @@ function orrism_ChangePassword(array $params)
         $serviceid = $params['serviceid'];
         $password = $params['password'];
 
-        // Update password hash in ORRISM database
-        $updated = Capsule::table('users')
-            ->where('service_id', $serviceid)
-            ->update([
-                'password_hash' => password_hash($password, PASSWORD_DEFAULT),
-                'updated_at' => date('Y-m-d H:i:s')
-            ]);
+        // Load OrrisDB or use Capsule
+        $orrisDbPath = __DIR__ . '/includes/orris_db.php';
+        if (file_exists($orrisDbPath)) {
+            require_once $orrisDbPath;
+        }
+
+        $useOrrisDB = class_exists('OrrisDB') && OrrisDB::isConfigured();
+
+        // Update password in ORRISM database (matching actual table structure)
+        if ($useOrrisDB) {
+            $updated = OrrisDB::table('services')
+                ->where('service_id', $serviceid)
+                ->update([
+                    'password' => password_hash($password, PASSWORD_DEFAULT),
+                    'password_algo' => 'bcrypt',
+                    'updated_at' => date('Y-m-d H:i:s')
+                ]);
+        } else {
+            $updated = Capsule::table('services')
+                ->where('service_id', $serviceid)
+                ->update([
+                    'password' => password_hash($password, PASSWORD_DEFAULT),
+                    'password_algo' => 'bcrypt',
+                    'updated_at' => date('Y-m-d H:i:s')
+                ]);
+        }
 
         if (!$updated) {
             throw new Exception('User not found in database');
@@ -898,8 +917,8 @@ function orrism_AdminServicesTabFields(array $params)
 
         return [
             'UUID' => $service->uuid,
-            'Service Username' => $service->service_username,
-            'WHMCS Account' => $service->whmcs_email,
+            'Service Username' => $service->email,  // Email is used as username
+            'WHMCS Account' => $service->email,
             'Total Bandwidth' => $usage['total_bandwidth'] . ' GB',
             'Used Bandwidth' => $usage['used_bandwidth'] . ' GB',
             'Upload' => $usage['upload_gb'] . ' GB',
@@ -907,9 +926,9 @@ function orrism_AdminServicesTabFields(array $params)
             'Usage Percentage' => $usage['usage_percent'] . '%',
             'Status' => ucfirst($service->status),
             'Node Group' => $service->node_group_id,
-            'Created' => $user->created_at,
-            'Updated' => $user->updated_at,
-            'Last Reset' => $user->last_reset_at ?: 'Never'
+            'Created' => $service->created_at,
+            'Updated' => $service->updated_at,
+            'Last Reset' => $service->last_reset_at ?: 'Never'
         ];
 
     } catch (Exception $e) {
