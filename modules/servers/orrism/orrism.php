@@ -1223,8 +1223,7 @@ function generate_subscription_url(array $params, $serviceId)
     // Priority order for subscription URL base:
     // 1. Custom config from config table (subscription_url_base)
     // 2. Addon configuration (subscription_host)
-    // 3. Server hostname from product configuration
-    // 4. Server IP from product configuration
+    // 3. Auto-detect WHMCS host from current request
 
     $db = db();
     $subscriptionBase = $db->getConfig('subscription_url_base');
@@ -1247,17 +1246,30 @@ function generate_subscription_url(array $params, $serviceId)
     }
 
     if (!$subscriptionBase) {
-        // Fallback: use server hostname/IP from product configuration
-        $serverHost = $params['serverhostname'] ?: $params['serverip'];
-        $protocol = $params['serversecure'] ? 'https' : 'http';
+        // Auto-detect WHMCS host from current HTTP request
+        $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+        $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
 
-        if (empty($serverHost) || $serverHost === 'localhost' || $serverHost === '127.0.0.1') {
-            // Last resort: try to detect from HTTP_HOST
-            $serverHost = $_SERVER['HTTP_HOST'] ?? 'localhost';
-            logModuleCall('orrism', 'generate_subscription_url', [], 'Warning: Using HTTP_HOST as fallback: ' . $serverHost);
+        // Try to get WHMCS system URL from configuration
+        try {
+            $systemUrl = Capsule::table('tblconfiguration')
+                ->where('setting', 'SystemURL')
+                ->value('value');
+
+            if (!empty($systemUrl)) {
+                // Use configured system URL
+                $subscriptionBase = rtrim($systemUrl, '/') . '/subscribe';
+                logModuleCall('orrism', 'generate_subscription_url', [], 'Using WHMCS SystemURL: ' . $systemUrl);
+            } else {
+                // Fallback to detected protocol and host
+                $subscriptionBase = "{$protocol}://{$host}/subscribe";
+                logModuleCall('orrism', 'generate_subscription_url', [], 'Auto-detected host: ' . $host);
+            }
+        } catch (Exception $e) {
+            // Last resort: use current request host
+            $subscriptionBase = "{$protocol}://{$host}/subscribe";
+            logModuleCall('orrism', 'generate_subscription_url', [], 'Exception occurred, using HTTP_HOST: ' . $host);
         }
-
-        $subscriptionBase = "{$protocol}://{$serverHost}/subscribe";
     }
 
     // Generate HMAC token
