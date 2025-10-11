@@ -16,6 +16,9 @@ require_once __DIR__ . '/../product.php';
 require_once __DIR__ . '/utils.php';
 require_once __DIR__ . '/generators.php';
 
+// Include WHMCS server module functions for HMAC token verification
+require_once __DIR__ . '/../../orrism.php';
+
 /**
  * 配置订阅服务类
  */
@@ -25,15 +28,14 @@ class SubscriptionService {
     private $sid;
     private $app;
     private $clientIp;
-    
+
     /**
      * 构造函数
      */
     public function __construct() {
         $this->allowedTypes = ["ss", "nodelist", "clash", "surge", "qx", "shadowrocket", "stash", "sip008"];
         $this->token = isset($_GET['token']) ? htmlspecialchars(trim($_GET['token'])) : '';
-        $this->sid = isset($_GET['sid']) ? htmlspecialchars(trim($_GET['sid'])) : '';
-        $this->app = isset($_GET['app']) ? htmlspecialchars(trim($_GET['app'])) : 'ss';
+        $this->app = isset($_GET['app']) ? htmlspecialchars(trim($_GET['app'])) : 'clash';
         $this->clientIp = Security::getClientIp();
     }
     
@@ -127,67 +129,50 @@ class SubscriptionService {
      * @return array 用户数据
      */
     private function authenticateUser() {
-        // 获取用户 UUID
-        $userUuid = orris_get_uuid($this->sid);
-        if ($userUuid === null) {
+        // Verify HMAC token signature and extract service_id
+        $tokenData = verify_subscription_token($this->token, 0, true);
+
+        if ($tokenData === false) {
             RequestHandler::handleError(
-                '500 Internal Server Error', 
-                "(orris_get_uuid for SID: {$this->sid}): UUID not found for user.", 
-                $this->clientIp, 
-                'Error: Authentication failed. Please contact support.'
+                '401 Unauthorized',
+                "(HMAC Token): Invalid or expired subscription token from IP: {$this->clientIp}",
+                $this->clientIp,
+                'Error: Invalid or expired subscription token.'
             );
         }
-        
-        // 获取用户 TOKEN
-        $userToken = orris_get_token($this->sid);
-        if ($userToken === null) {
-            RequestHandler::handleError(
-                '500 Internal Server Error', 
-                "(orris_get_token for SID: {$this->sid}): Token not found for user.", 
-                $this->clientIp, 
-                'Error: Authentication failed. Please contact support.'
-            );
-        }
-        
-        // 验证 TOKEN
-        if (!hash_equals($userToken, $this->token)) {
-            RequestHandler::handleError(
-                '403 Forbidden', 
-                "(SID: {$this->sid}): Token mismatch. Provided token does not match user token.", 
-                $this->clientIp, 
-                'Error: Authentication failed.'
-            );
-        }
-        
-        // 记录成功的请求
-        error_log("ORRIS API Services Access [IP: {$this->clientIp}]: Successful request for SID: {$this->sid}, App: {$this->app}");
-        
-        // 记录IP到Redis
+
+        // Extract service_id from token
+        $this->sid = $tokenData['service_id'];
+
+        // Log successful HMAC authentication
+        error_log("ORRISM API Services Access [IP: {$this->clientIp}]: HMAC token authenticated for SID: {$this->sid}, App: {$this->app}");
+
+        // Record IP to Redis
         Security::recordIpToRedis($this->sid, $this->clientIp, $this->app);
-        
-        // 获取用户数据
+
+        // Get user data
         $userDataArray = orris_get_user($this->sid);
         if (empty($userDataArray) || !isset($userDataArray[0])) {
             RequestHandler::handleError(
-                '500 Internal Server Error', 
-                "(orris_get_user for SID: {$this->sid}): User data not found.", 
-                $this->clientIp, 
+                '500 Internal Server Error',
+                "(orris_get_user for SID: {$this->sid}): User data not found.",
+                $this->clientIp,
                 'Error: User data unavailable. Please contact support.'
             );
         }
-        
+
         $user = $userDataArray[0];
-        
-        // 检查用户状态
+
+        // Check user status
         if (isset($user['enable']) && $user['enable'] == 0) {
             RequestHandler::handleError(
-                '403 Forbidden', 
-                "(SID: {$this->sid}): User account is disabled (enable=0).", 
-                $this->clientIp, 
+                '403 Forbidden',
+                "(SID: {$this->sid}): User account is disabled (enable=0).",
+                $this->clientIp,
                 'Error: Account disabled. Please contact support.'
             );
         }
-        
+
         return $user;
     }
     

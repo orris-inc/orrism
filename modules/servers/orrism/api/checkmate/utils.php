@@ -204,32 +204,27 @@ class RequestHandler {
     /**
      * 验证请求参数是否有效
      * @param string $app 请求类型
-     * @param string $token 用户令牌
-     * @param string $sid 用户SID
+     * @param string $token HMAC token
+     * @param string $sid 用户SID（未使用，仅保留兼容性）
      * @param array $flag 允许的类型列表
      * @return bool
      */
     public static function isValidRequest($app, $token, $sid, $flag) {
         // 检查必要参数是否存在
-        if (empty($app) || empty($token) || empty($sid)) {
+        if (empty($app) || empty($token)) {
             return false;
         }
-        
+
         // 检查类型是否在允许列表中
         if (!in_array($app, $flag)) {
             return false;
         }
-        
-        // 验证SID是否为纯数字
-        if (!preg_match("/^\d+$/", $sid)) {
-            return false;
-        }
-        
+
         // 验证token的格式，至少应为16位字符
         if (strlen($token) < 16) {
             return false;
         }
-        
+
         return true;
     }
     

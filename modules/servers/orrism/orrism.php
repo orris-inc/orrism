@@ -1238,7 +1238,7 @@ function generate_subscription_url(array $params, $serviceId)
 
             if (!empty($addonConfig)) {
                 // Addon config contains full URL (e.g., https://sub.example.com)
-                $subscriptionBase = rtrim($addonConfig, '/') . '/subscribe';
+                $subscriptionBase = rtrim($addonConfig, '/');
             }
         } catch (Exception $e) {
             logModuleCall('orrism', 'generate_subscription_url', [], 'Failed to read addon config: ' . $e->getMessage());
@@ -1258,16 +1258,16 @@ function generate_subscription_url(array $params, $serviceId)
 
             if (!empty($systemUrl)) {
                 // Use configured system URL
-                $subscriptionBase = rtrim($systemUrl, '/') . '/subscribe';
+                $subscriptionBase = rtrim($systemUrl, '/');
                 logModuleCall('orrism', 'generate_subscription_url', [], 'Using WHMCS SystemURL: ' . $systemUrl);
             } else {
                 // Fallback to detected protocol and host
-                $subscriptionBase = "{$protocol}://{$host}/subscribe";
+                $subscriptionBase = "{$protocol}://{$host}";
                 logModuleCall('orrism', 'generate_subscription_url', [], 'Auto-detected host: ' . $host);
             }
         } catch (Exception $e) {
             // Last resort: use current request host
-            $subscriptionBase = "{$protocol}://{$host}/subscribe";
+            $subscriptionBase = "{$protocol}://{$host}";
             logModuleCall('orrism', 'generate_subscription_url', [], 'Exception occurred, using HTTP_HOST: ' . $host);
         }
     }
@@ -1275,8 +1275,9 @@ function generate_subscription_url(array $params, $serviceId)
     // Generate HMAC token
     $token = generate_subscription_token($serviceId);
 
-    // Build URL with custom base and token
-    return rtrim($subscriptionBase, '/') . '/' . $token;
+    // Build URL using checkmate API endpoint with HMAC token
+    // Format: https://portal.milus.one/modules/servers/orrism/api/checkmate/index.php?token={hmac_token}&app=clash
+    return $subscriptionBase . '/modules/servers/orrism/api/checkmate/index.php?token=' . $token;
 }
 
 /**

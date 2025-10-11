@@ -370,23 +370,23 @@
 
             <h4><i class="fas fa-mobile-alt"></i> Client-Specific Links</h4>
             <div class="orrism-client-tabs">
-                <a href="{$subscriptionUrl}?client=clash" class="orrism-client-tab" target="_blank">
+                <a href="{$subscriptionUrl}&app=clash" class="orrism-client-tab" target="_blank">
                     <i class="fas fa-download"></i> Clash
                 </a>
-                <a href="{$subscriptionUrl}?client=v2ray" class="orrism-client-tab" target="_blank">
-                    <i class="fas fa-download"></i> V2Ray
-                </a>
-                <a href="{$subscriptionUrl}?client=shadowrocket" class="orrism-client-tab" target="_blank">
-                    <i class="fas fa-download"></i> Shadowrocket
-                </a>
-                <a href="{$subscriptionUrl}?client=surge" class="orrism-client-tab" target="_blank">
+                <a href="{$subscriptionUrl}&app=surge" class="orrism-client-tab" target="_blank">
                     <i class="fas fa-download"></i> Surge
                 </a>
-                <a href="{$subscriptionUrl}?client=quantumult" class="orrism-client-tab" target="_blank">
+                <a href="{$subscriptionUrl}&app=shadowrocket" class="orrism-client-tab" target="_blank">
+                    <i class="fas fa-download"></i> Shadowrocket
+                </a>
+                <a href="{$subscriptionUrl}&app=qx" class="orrism-client-tab" target="_blank">
                     <i class="fas fa-download"></i> Quantumult X
                 </a>
-                <a href="{$subscriptionUrl}?client=sing-box" class="orrism-client-tab" target="_blank">
-                    <i class="fas fa-download"></i> Sing-Box
+                <a href="{$subscriptionUrl}&app=stash" class="orrism-client-tab" target="_blank">
+                    <i class="fas fa-download"></i> Stash
+                </a>
+                <a href="{$subscriptionUrl}&app=sip008" class="orrism-client-tab" target="_blank">
+                    <i class="fas fa-download"></i> SIP008
                 </a>
             </div>
 
