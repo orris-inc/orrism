@@ -31,9 +31,14 @@ abstract class ConfigGenerator {
      * @return string 密码
      */
     protected function getNodePassword($node) {
-        if (in_array($node['node_method'], ['2022-blake3-aes-128-gcm', '2022-blake3-aes-256-gcm'])) {
-            $len = $node['node_method'] === '2022-blake3-aes-128-gcm' ? 16 : 32;
-            $ctime_ts = is_numeric($node['ctime']) ? intval($node['ctime']) : strtotime($node['ctime']);
+        // Support both 'method' and 'node_method' for backward compatibility
+        $method = $node['method'] ?? $node['node_method'] ?? '';
+
+        if (in_array($method, ['2022-blake3-aes-128-gcm', '2022-blake3-aes-256-gcm'])) {
+            $len = $method === '2022-blake3-aes-128-gcm' ? 16 : 32;
+            $ctime_ts = is_numeric($node['created_at'] ?? $node['ctime'] ?? time())
+                ? intval($node['created_at'] ?? $node['ctime'])
+                : strtotime($node['created_at'] ?? $node['ctime'] ?? 'now');
             $serverKey = orris_get_server_key($ctime_ts, $len);
             $userKey = orris_uuidToBase64($this->user['uuid'], $len);
             return "{$serverKey}:{$userKey}";
@@ -91,44 +96,170 @@ class SurgeGenerator extends ConfigGenerator {
         $proxies = '';
         $proxyGroup = '';
         $defaultConfig = __DIR__ . '/rules/default.surge.conf';
-        $config_values = orris_get_config(); 
+        $config_values = orris_get_config();
         $subsDomain = $config_values['subscribe_url'] ?? '';
         if (empty($subsDomain)) {
-            error_log("ORRIS API Services Error (surge_generate for SID: {$this->user['sid']}): subscribe_url not found in config.");
+            error_log("ORRIS API Services Error (surge_generate for SID: {$this->user['service_id']}): subscribe_url not found in config.");
         }
-        $subsURL = 'https://' . $subsDomain . '/services?token=' . $this->user['uuid'] . '&type=surge&sid=' . $this->user['sid'];
+        $subsURL = 'https://' . $subsDomain . '/services?token=' . $this->user['uuid'] . '&type=surge&sid=' . $this->user['service_id'];
         header("content-disposition:attachment; filename=Milus_Surge.conf; filename*=UTF-8''Milus_Surge.conf");
 
         foreach ($this->data as $node) {
-            $proxies .= $this->buildShadowsocks($node);
-            $proxyGroup .= $node['node_name'] . ', ';
+            $proxy = $this->buildProxy($node);
+            if ($proxy) {
+                $proxies .= $proxy;
+                $proxyGroup .= $node['name'] . ', ';
+            }
         }
 
         $config_content = file_get_contents($defaultConfig);
         $config_content = str_replace(
-            ['$subs_link', '$subs_domain', '$proxies', '$proxy_group'], 
-            [$subsURL, $subsDomain, $proxies, rtrim($proxyGroup, ', ')], 
+            ['$subs_link', '$subs_domain', '$proxies', '$proxy_group'],
+            [$subsURL, $subsDomain, $proxies, rtrim($proxyGroup, ', ')],
             $config_content
         );
         return $config_content;
     }
-    
+
     /**
-     * 构建Shadowsocks配置字符串
-     * @param array $node 节点数据
-     * @return string 配置字符串
+     * Build proxy configuration based on node type
+     * @param array $node Node data
+     * @return string Proxy configuration line
+     */
+    protected function buildProxy($node) {
+        $type = $node['type'] ?? 'shadowsocks';
+
+        switch ($type) {
+            case 'shadowsocks':
+            case 'ss':
+                return $this->buildShadowsocks($node);
+            case 'snell':
+                return $this->buildSnell($node);
+            case 'trojan':
+                return $this->buildTrojan($node);
+            case 'vmess':
+            case 'v2ray':
+                return $this->buildVMess($node);
+            default:
+                OrrisHelper::log('warning', 'Unsupported node type for Surge', [
+                    'node_type' => $type,
+                    'node_name' => $node['name'] ?? 'unknown'
+                ]);
+                return '';
+        }
+    }
+
+    /**
+     * Build Shadowsocks configuration
+     * @param array $node Node data
+     * @return string Configuration string
      */
     protected function buildShadowsocks($node) {
         $password = $this->getNodePassword($node);
         $config = [
-            "{$node['node_name']}=ss",
+            "{$node['name']}=ss",
             "{$node['address']}",
             "{$node['port']}",
-            "encrypt-method={$node['node_method']}",
+            "encrypt-method={$node['method']}",
             "password={$password}",
             'tfo=true',
             'udp-relay=true'
         ];
+        return implode(',', array_filter($config)) . "\r\n";
+    }
+
+    /**
+     * Build Snell configuration
+     * @param array $node Node data
+     * @return string Configuration string
+     */
+    protected function buildSnell($node) {
+        $password = $this->getNodePassword($node);
+        $version = $node['snell_version'] ?? '4';
+
+        $config = [
+            "{$node['name']}=snell",
+            "{$node['address']}",
+            "{$node['port']}",
+            "psk={$password}",
+            "version={$version}",
+            'tfo=true'
+        ];
+
+        // Add obfs if available
+        if (!empty($node['obfs'])) {
+            $config[] = "obfs={$node['obfs']}";
+            if (!empty($node['obfs_host'])) {
+                $config[] = "obfs-host={$node['obfs_host']}";
+            }
+        }
+
+        return implode(',', array_filter($config)) . "\r\n";
+    }
+
+    /**
+     * Build Trojan configuration
+     * @param array $node Node data
+     * @return string Configuration string
+     */
+    protected function buildTrojan($node) {
+        $password = $this->getNodePassword($node);
+
+        $config = [
+            "{$node['name']}=trojan",
+            "{$node['address']}",
+            "{$node['port']}",
+            "password={$password}"
+        ];
+
+        // Add SNI if available
+        if (!empty($node['sni'])) {
+            $config[] = "sni={$node['sni']}";
+        }
+
+        // Add skip-cert-verify option
+        $config[] = 'skip-cert-verify=' . (empty($node['verify_cert']) ? 'true' : 'false');
+
+        return implode(',', array_filter($config)) . "\r\n";
+    }
+
+    /**
+     * Build VMess configuration
+     * @param array $node Node data
+     * @return string Configuration string
+     */
+    protected function buildVMess($node) {
+        $uuid = $this->user['uuid'];
+
+        $config = [
+            "{$node['name']}=vmess",
+            "{$node['address']}",
+            "{$node['port']}",
+            "username={$uuid}"
+        ];
+
+        // Add additional VMess parameters
+        if (!empty($node['vmess_security'])) {
+            $config[] = "encrypt-method={$node['vmess_security']}";
+        }
+
+        if (!empty($node['tls']) && $node['tls'] == 1) {
+            $config[] = 'tls=true';
+            if (!empty($node['sni'])) {
+                $config[] = "sni={$node['sni']}";
+            }
+        }
+
+        if (!empty($node['ws']) && $node['ws'] == 1) {
+            $config[] = 'ws=true';
+            if (!empty($node['ws_path'])) {
+                $config[] = "ws-path={$node['ws_path']}";
+            }
+            if (!empty($node['ws_headers'])) {
+                $config[] = "ws-headers={$node['ws_headers']}";
+            }
+        }
+
         return implode(',', array_filter($config)) . "\r\n";
     }
 }
@@ -139,11 +270,83 @@ class SurgeGenerator extends ConfigGenerator {
 class SurgeNodelistGenerator extends ConfigGenerator {
     public function generate() {
         header('Content-Type:text/plain; charset=utf-8');
-        $url = '';
+        $output = '';
         foreach ($this->data as $node) {
-            $url .= "{$node['node_name']} = ss, {$node['address']}, {$node['port']}, encrypt-method={$node['node_method']}, password=" . $this->getNodePassword($node) . ", tfo=true, udp-relay=true\r\n";
+            $line = $this->buildNodeLine($node);
+            if ($line) {
+                $output .= $line;
+            }
         }
-        return $url;
+        return $output;
+    }
+
+    /**
+     * Build node line based on node type
+     * @param array $node Node data
+     * @return string Node configuration line
+     */
+    protected function buildNodeLine($node) {
+        $type = $node['type'] ?? 'shadowsocks';
+        $name = $node['name'] ?? 'Unknown';
+        $address = $node['address'] ?? '';
+        $port = $node['port'] ?? '';
+
+        switch ($type) {
+            case 'shadowsocks':
+            case 'ss':
+                $password = $this->getNodePassword($node);
+                $method = $node['method'] ?? 'aes-256-gcm';
+                return "{$name} = ss, {$address}, {$port}, encrypt-method={$method}, password={$password}, tfo=true, udp-relay=true\r\n";
+
+            case 'snell':
+                $password = $this->getNodePassword($node);
+                $version = $node['snell_version'] ?? '4';
+                $line = "{$name} = snell, {$address}, {$port}, psk={$password}, version={$version}, tfo=true";
+                if (!empty($node['obfs'])) {
+                    $line .= ", obfs={$node['obfs']}";
+                    if (!empty($node['obfs_host'])) {
+                        $line .= ", obfs-host={$node['obfs_host']}";
+                    }
+                }
+                return $line . "\r\n";
+
+            case 'trojan':
+                $password = $this->getNodePassword($node);
+                $line = "{$name} = trojan, {$address}, {$port}, password={$password}";
+                if (!empty($node['sni'])) {
+                    $line .= ", sni={$node['sni']}";
+                }
+                $line .= ', skip-cert-verify=' . (empty($node['verify_cert']) ? 'true' : 'false');
+                return $line . "\r\n";
+
+            case 'vmess':
+            case 'v2ray':
+                $uuid = $this->user['uuid'];
+                $line = "{$name} = vmess, {$address}, {$port}, username={$uuid}";
+                if (!empty($node['vmess_security'])) {
+                    $line .= ", encrypt-method={$node['vmess_security']}";
+                }
+                if (!empty($node['tls']) && $node['tls'] == 1) {
+                    $line .= ', tls=true';
+                    if (!empty($node['sni'])) {
+                        $line .= ", sni={$node['sni']}";
+                    }
+                }
+                if (!empty($node['ws']) && $node['ws'] == 1) {
+                    $line .= ', ws=true';
+                    if (!empty($node['ws_path'])) {
+                        $line .= ", ws-path={$node['ws_path']}";
+                    }
+                }
+                return $line . "\r\n";
+
+            default:
+                OrrisHelper::log('warning', 'Unsupported node type for Surge nodelist', [
+                    'node_type' => $type,
+                    'node_name' => $name
+                ]);
+                return '';
+        }
     }
 }
 
