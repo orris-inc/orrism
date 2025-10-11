@@ -175,7 +175,8 @@ class SurgeGenerator extends ConfigGenerator {
      */
     protected function buildSnell($node) {
         $password = $this->getNodePassword($node);
-        $version = $node['snell_version'] ?? '4';
+        // For Snell nodes, the 'method' field stores the version number
+        $version = $node['method'] ?? '4';
 
         $config = [
             "{$node['name']}=snell",
@@ -186,11 +187,16 @@ class SurgeGenerator extends ConfigGenerator {
             'tfo=true'
         ];
 
-        // Add obfs if available
-        if (!empty($node['obfs'])) {
-            $config[] = "obfs={$node['obfs']}";
-            if (!empty($node['obfs_host'])) {
-                $config[] = "obfs-host={$node['obfs_host']}";
+        // Parse config JSON for additional Snell parameters
+        if (!empty($node['config'])) {
+            $nodeConfig = is_string($node['config']) ? json_decode($node['config'], true) : $node['config'];
+
+            // Add obfs if available
+            if (!empty($nodeConfig['obfs'])) {
+                $config[] = "obfs={$nodeConfig['obfs']}";
+                if (!empty($nodeConfig['obfs_host'])) {
+                    $config[] = "obfs-host={$nodeConfig['obfs_host']}";
+                }
             }
         }
 
@@ -212,13 +218,20 @@ class SurgeGenerator extends ConfigGenerator {
             "password={$password}"
         ];
 
+        // Parse config JSON for additional Trojan parameters
+        $nodeConfig = [];
+        if (!empty($node['config'])) {
+            $nodeConfig = is_string($node['config']) ? json_decode($node['config'], true) : $node['config'];
+        }
+
         // Add SNI if available
-        if (!empty($node['sni'])) {
-            $config[] = "sni={$node['sni']}";
+        if (!empty($nodeConfig['sni'])) {
+            $config[] = "sni={$nodeConfig['sni']}";
         }
 
         // Add skip-cert-verify option
-        $config[] = 'skip-cert-verify=' . (empty($node['verify_cert']) ? 'true' : 'false');
+        $skipVerify = isset($nodeConfig['skip_cert_verify']) ? $nodeConfig['skip_cert_verify'] : true;
+        $config[] = 'skip-cert-verify=' . ($skipVerify ? 'true' : 'false');
 
         return implode(',', array_filter($config)) . "\r\n";
     }
@@ -238,25 +251,38 @@ class SurgeGenerator extends ConfigGenerator {
             "username={$uuid}"
         ];
 
-        // Add additional VMess parameters
-        if (!empty($node['vmess_security'])) {
-            $config[] = "encrypt-method={$node['vmess_security']}";
+        // Parse config JSON for additional VMess parameters
+        $nodeConfig = [];
+        if (!empty($node['config'])) {
+            $nodeConfig = is_string($node['config']) ? json_decode($node['config'], true) : $node['config'];
         }
 
-        if (!empty($node['tls']) && $node['tls'] == 1) {
+        // Add encryption method (use method field or config)
+        $security = $node['method'] ?? $nodeConfig['security'] ?? 'auto';
+        if ($security && $security !== 'auto') {
+            $config[] = "encrypt-method={$security}";
+        }
+
+        // Add TLS configuration
+        if (!empty($nodeConfig['tls'])) {
             $config[] = 'tls=true';
-            if (!empty($node['sni'])) {
-                $config[] = "sni={$node['sni']}";
+            if (!empty($nodeConfig['sni'])) {
+                $config[] = "sni={$nodeConfig['sni']}";
             }
         }
 
-        if (!empty($node['ws']) && $node['ws'] == 1) {
+        // Add WebSocket configuration
+        if (!empty($nodeConfig['network']) && $nodeConfig['network'] === 'ws') {
             $config[] = 'ws=true';
-            if (!empty($node['ws_path'])) {
-                $config[] = "ws-path={$node['ws_path']}";
+            if (!empty($nodeConfig['ws_path'])) {
+                $config[] = "ws-path={$nodeConfig['ws_path']}";
             }
-            if (!empty($node['ws_headers'])) {
-                $config[] = "ws-headers={$node['ws_headers']}";
+            if (!empty($nodeConfig['ws_headers'])) {
+                // ws_headers should be a JSON string or array
+                $headers = is_array($nodeConfig['ws_headers'])
+                    ? json_encode($nodeConfig['ws_headers'])
+                    : $nodeConfig['ws_headers'];
+                $config[] = "ws-headers={$headers}";
             }
         }
 
@@ -300,12 +326,18 @@ class SurgeNodelistGenerator extends ConfigGenerator {
 
             case 'snell':
                 $password = $this->getNodePassword($node);
-                $version = $node['snell_version'] ?? '4';
+                // For Snell nodes, the 'method' field stores the version number
+                $version = $node['method'] ?? '4';
                 $line = "{$name} = snell, {$address}, {$port}, psk={$password}, version={$version}, tfo=true";
-                if (!empty($node['obfs'])) {
-                    $line .= ", obfs={$node['obfs']}";
-                    if (!empty($node['obfs_host'])) {
-                        $line .= ", obfs-host={$node['obfs_host']}";
+
+                // Parse config JSON for additional Snell parameters
+                if (!empty($node['config'])) {
+                    $nodeConfig = is_string($node['config']) ? json_decode($node['config'], true) : $node['config'];
+                    if (!empty($nodeConfig['obfs'])) {
+                        $line .= ", obfs={$nodeConfig['obfs']}";
+                        if (!empty($nodeConfig['obfs_host'])) {
+                            $line .= ", obfs-host={$nodeConfig['obfs_host']}";
+                        }
                     }
                 }
                 return $line . "\r\n";
@@ -313,29 +345,50 @@ class SurgeNodelistGenerator extends ConfigGenerator {
             case 'trojan':
                 $password = $this->getNodePassword($node);
                 $line = "{$name} = trojan, {$address}, {$port}, password={$password}";
-                if (!empty($node['sni'])) {
-                    $line .= ", sni={$node['sni']}";
+
+                // Parse config JSON for additional Trojan parameters
+                if (!empty($node['config'])) {
+                    $nodeConfig = is_string($node['config']) ? json_decode($node['config'], true) : $node['config'];
+                    if (!empty($nodeConfig['sni'])) {
+                        $line .= ", sni={$nodeConfig['sni']}";
+                    }
+                    $skipVerify = isset($nodeConfig['skip_cert_verify']) ? $nodeConfig['skip_cert_verify'] : true;
+                    $line .= ', skip-cert-verify=' . ($skipVerify ? 'true' : 'false');
+                } else {
+                    $line .= ', skip-cert-verify=true';
                 }
-                $line .= ', skip-cert-verify=' . (empty($node['verify_cert']) ? 'true' : 'false');
                 return $line . "\r\n";
 
             case 'vmess':
             case 'v2ray':
                 $uuid = $this->user['uuid'];
                 $line = "{$name} = vmess, {$address}, {$port}, username={$uuid}";
-                if (!empty($node['vmess_security'])) {
-                    $line .= ", encrypt-method={$node['vmess_security']}";
+
+                // Parse config JSON for additional VMess parameters
+                $nodeConfig = [];
+                if (!empty($node['config'])) {
+                    $nodeConfig = is_string($node['config']) ? json_decode($node['config'], true) : $node['config'];
                 }
-                if (!empty($node['tls']) && $node['tls'] == 1) {
+
+                // Add encryption method
+                $security = $node['method'] ?? $nodeConfig['security'] ?? 'auto';
+                if ($security && $security !== 'auto') {
+                    $line .= ", encrypt-method={$security}";
+                }
+
+                // Add TLS configuration
+                if (!empty($nodeConfig['tls'])) {
                     $line .= ', tls=true';
-                    if (!empty($node['sni'])) {
-                        $line .= ", sni={$node['sni']}";
+                    if (!empty($nodeConfig['sni'])) {
+                        $line .= ", sni={$nodeConfig['sni']}";
                     }
                 }
-                if (!empty($node['ws']) && $node['ws'] == 1) {
+
+                // Add WebSocket configuration
+                if (!empty($nodeConfig['network']) && $nodeConfig['network'] === 'ws') {
                     $line .= ', ws=true';
-                    if (!empty($node['ws_path'])) {
-                        $line .= ", ws-path={$node['ws_path']}";
+                    if (!empty($nodeConfig['ws_path'])) {
+                        $line .= ", ws-path={$nodeConfig['ws_path']}";
                     }
                 }
                 return $line . "\r\n";
