@@ -21,6 +21,7 @@ use WHMCS\Database\Capsule;
 class OrrisDatabase
 {
     private static $instance = null;
+    private $useOrrisDB = false;
 
     /**
      * Get singleton instance
@@ -36,15 +37,53 @@ class OrrisDatabase
     }
 
     /**
+     * Constructor - Check if OrrisDB is available
+     */
+    public function __construct()
+    {
+        // Load OrrisDB if available
+        $orrisDbPath = __DIR__ . '/orris_db.php';
+        if (file_exists($orrisDbPath)) {
+            require_once $orrisDbPath;
+        }
+
+        // Check if we should use OrrisDB
+        $this->useOrrisDB = class_exists('OrrisDB') && OrrisDB::isConfigured();
+
+        if ($this->useOrrisDB) {
+            logModuleCall('orrism', 'OrrisDatabase', [], 'Using OrrisDB for database operations');
+        } else {
+            logModuleCall('orrism', 'OrrisDatabase', [], 'Using WHMCS Capsule for database operations');
+        }
+    }
+
+    /**
      * Check if ORRISM tables are installed
      *
      * @return bool
      */
     private function tablesExist()
     {
-        return Capsule::schema()->hasTable('services') &&
-               Capsule::schema()->hasTable('nodes') &&
-               Capsule::schema()->hasTable('node_groups');
+        try {
+            if ($this->useOrrisDB) {
+                // Check in OrrisDB (separate database)
+                $schema = OrrisDB::schema();
+                if (!$schema) {
+                    return false;
+                }
+                return $schema->hasTable('services') &&
+                       $schema->hasTable('nodes') &&
+                       $schema->hasTable('node_groups');
+            } else {
+                // Check in WHMCS database
+                return Capsule::schema()->hasTable('services') &&
+                       Capsule::schema()->hasTable('nodes') &&
+                       Capsule::schema()->hasTable('node_groups');
+            }
+        } catch (Exception $e) {
+            logModuleCall('orrism', __METHOD__, [], 'Error checking tables: ' . $e->getMessage());
+            return false;
+        }
     }
 
     /**
@@ -58,13 +97,30 @@ class OrrisDatabase
     }
     
     /**
-     * Get WHMCS database connection
-     * 
+     * Get database connection (OrrisDB or WHMCS Capsule)
+     *
      * @return \Illuminate\Database\Connection
      */
     public function getConnection()
     {
+        if ($this->useOrrisDB) {
+            return OrrisDB::connection();
+        }
         return Capsule::connection();
+    }
+
+    /**
+     * Get database table builder
+     *
+     * @param string $table Table name
+     * @return \Illuminate\Database\Query\Builder
+     */
+    private function table($table)
+    {
+        if ($this->useOrrisDB) {
+            return OrrisDB::table($table);
+        }
+        return Capsule::table($table);
     }
     
     /**
@@ -94,7 +150,7 @@ class OrrisDatabase
             $uuid = $this->generateUUID();
 
             // Check if service already exists
-            $existingService = Capsule::table('services')
+            $existingService = $this->table('services')
                 ->where('service_id', $serviceid)
                 ->first();
 
@@ -104,18 +160,18 @@ class OrrisDatabase
                     'message' => 'Service account already exists'
                 ];
             }
-            
-            // Get WHMCS client info
+
+            // Get WHMCS client info (always from WHMCS database)
             $client = Capsule::table('tblclients')
                 ->where('id', $clientid)
                 ->first();
-            
+
             // Generate service credentials
             $serviceUsername = 'orrism_' . $serviceid;
             $servicePassword = $this->generatePassword();
-            
+
             // Create new service
-            $serviceId = Capsule::table('services')->insertGetId([
+            $serviceId = $this->table('services')->insertGetId([
                 'service_id' => $serviceid,
                 'client_id' => $clientid,
                 'domain' => $params['domain'] ?? null,
@@ -173,7 +229,7 @@ class OrrisDatabase
                 return null;
             }
 
-            return Capsule::table('services')
+            return $this->table('services')
                 ->where('service_id', $serviceid)
                 ->first();
         } catch (Exception $e) {
@@ -209,7 +265,7 @@ class OrrisDatabase
                 return false;
             }
 
-            $updated = Capsule::table('services')
+            $updated = $this->table('services')
                 ->where('service_id', $serviceid)
                 ->update([
                     'status' => $status,
@@ -233,7 +289,7 @@ class OrrisDatabase
     public function deleteService($serviceid)
     {
         try {
-            return Capsule::table('services')
+            return $this->table('services')
                 ->where('service_id', $serviceid)
                 ->delete() > 0;
                 
@@ -252,7 +308,7 @@ class OrrisDatabase
     public function resetServiceTraffic($serviceid)
     {
         try {
-            $updated = Capsule::table('services')
+            $updated = $this->table('services')
                 ->where('service_id', $serviceid)
                 ->update([
                     'upload_bytes' => 0,
@@ -282,7 +338,7 @@ class OrrisDatabase
             $newPassword = $this->generatePassword();
             $newUsername = 'orrism_' . $serviceid;
             
-            $updated = Capsule::table('services')
+            $updated = $this->table('services')
                 ->where('service_id', $serviceid)
                 ->update([
                     'uuid' => $newUuid,
@@ -326,8 +382,8 @@ class OrrisDatabase
         try {
             $bandwidth = ($params['configoption2'] ?: 100) * 1024 * 1024 * 1024; // Convert GB to bytes - configoption2 = Monthly Bandwidth (GB)
             $nodeGroup = $params['configoption1'] ?: 1; // configoption1 = Node Group ID
-            
-            $updated = Capsule::table('services')
+
+            $updated = $this->table('services')
                 ->where('service_id', $serviceid)
                 ->update([
                     'bandwidth_limit' => $bandwidth,
@@ -388,7 +444,7 @@ class OrrisDatabase
     public function getNodesForGroup($nodeGroupId)
     {
         try {
-            return Capsule::table('nodes')
+            return $this->table('nodes')
                 ->where('group_id', $nodeGroupId)
                 ->where('status', 1)
                 ->orderBy('sort_order')
@@ -421,7 +477,7 @@ class OrrisDatabase
             }
 
             // Insert usage record
-            Capsule::table('service_usage')->insert([
+            $this->table('service_usage')->insert([
                 'service_id' => $service->id,
                 'node_id' => $nodeId,
                 'upload_bytes' => $uploadBytes,
@@ -433,11 +489,11 @@ class OrrisDatabase
             ]);
 
             // Update service totals
-            Capsule::table('services')
+            $this->table('services')
                 ->where('id', $service->id)
                 ->increment('upload_bytes', $uploadBytes);
 
-            Capsule::table('services')
+            $this->table('services')
                 ->where('id', $service->id)
                 ->increment('download_bytes', $downloadBytes);
 
@@ -525,7 +581,7 @@ class OrrisDatabase
     public function getConfig($key, $default = null)
     {
         try {
-            $config = Capsule::table('config')
+            $config = $this->table('config')
                 ->where('config_key', $key)
                 ->first();
                 
@@ -574,17 +630,17 @@ class OrrisDatabase
                     $value = strval($value);
             }
             
-            $updated = Capsule::table('config')
+            $updated = $this->table('config')
                 ->where('config_key', $key)
                 ->update([
                     'config_value' => $value,
                     'config_type' => $type,
                     'updated_at' => date('Y-m-d H:i:s')
                 ]);
-            
+
             // If no rows updated, insert new config
             if ($updated === 0) {
-                Capsule::table('config')->insert([
+                $this->table('config')->insert([
                     'config_key' => $key,
                     'config_value' => $value,
                     'config_type' => $type,
