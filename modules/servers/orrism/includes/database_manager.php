@@ -371,7 +371,7 @@ class OrrisDatabaseManager
             $schema->create('nodes', function ($table) {
                 $table->bigIncrements('id');
                 $table->string('name', 100);
-                $table->enum('type', ['shadowsocks', 'v2ray', 'trojan', 'vless', 'vmess', 'hysteria', 'snell'])->default('shadowsocks');
+                $table->string('type', 20)->default('shadowsocks');
                 $table->string('address', 255);
                 $table->unsignedInteger('port');
                 $table->string('method', 50)->nullable();
@@ -380,25 +380,39 @@ class OrrisDatabaseManager
                 $table->unsignedInteger('current_load')->default(0);
                 $table->unsignedBigInteger('bandwidth_limit')->nullable();
                 $table->integer('sort_order')->default(0);
-                $table->enum('status', ['active', 'inactive', 'maintenance'])->default('active');
+                $table->string('status', 20)->default('active');
                 $table->integer('health_score')->default(100);
                 $table->timestamp('last_check_at')->nullable();
                 $table->json('config')->nullable();
                 $table->json('metadata')->nullable();
                 $table->timestamp('created_at')->useCurrent();
                 $table->timestamp('updated_at')->useCurrent();
-                
+
                 // Indexes
                 $table->index(['group_id', 'status'], 'idx_group_status');
                 $table->index(['type', 'status'], 'idx_type_status');
                 $table->index(['current_load', 'capacity'], 'idx_load_capacity');
             });
-            
+
             // Set table options for utf8mb4
             if ($this->useOrrisDB) {
                 OrrisDB::statement("ALTER TABLE `nodes` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
             } else {
                 Capsule::statement("ALTER TABLE `nodes` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+            }
+
+            // Add CHECK constraints for data integrity (MySQL 8.0.16+)
+            try {
+                if ($this->useOrrisDB) {
+                    OrrisDB::statement("ALTER TABLE `nodes` ADD CONSTRAINT `chk_node_type` CHECK (`type` IN ('shadowsocks', 'v2ray', 'trojan', 'vless', 'vmess', 'hysteria', 'snell'))");
+                    OrrisDB::statement("ALTER TABLE `nodes` ADD CONSTRAINT `chk_node_status` CHECK (`status` IN ('active', 'inactive', 'maintenance'))");
+                } else {
+                    Capsule::statement("ALTER TABLE `nodes` ADD CONSTRAINT `chk_node_type` CHECK (`type` IN ('shadowsocks', 'v2ray', 'trojan', 'vless', 'vmess', 'hysteria', 'snell'))");
+                    Capsule::statement("ALTER TABLE `nodes` ADD CONSTRAINT `chk_node_status` CHECK (`status` IN ('active', 'inactive', 'maintenance'))");
+                }
+            } catch (Exception $e) {
+                // Log but don't fail on CHECK constraint errors (for MySQL < 8.0.16)
+                logModuleCall('orrism', 'createTables_nodes_constraints', [], 'CHECK constraint warning: ' . $e->getMessage());
             }
         }
         
@@ -411,34 +425,34 @@ class OrrisDatabaseManager
                 $table->string('uuid', 36)->unique();
                 $table->string('password', 255);
                 $table->string('password_algo', 20)->default('bcrypt');
-                
+
                 // Traffic management
                 $table->unsignedBigInteger('bandwidth_limit')->default(0);
                 $table->unsignedBigInteger('upload_bytes')->default(0);
                 $table->unsignedBigInteger('download_bytes')->default(0);
                 // Note: total_bytes is a generated column, added via raw SQL below
-                
+
                 // Monthly traffic tracking
                 $table->unsignedBigInteger('monthly_upload')->default(0);
                 $table->unsignedBigInteger('monthly_download')->default(0);
                 $table->unsignedTinyInteger('monthly_reset_day')->default(1);
                 $table->timestamp('last_reset_at')->nullable();
-                
+
                 // Service management
-                $table->enum('status', ['active', 'suspended', 'expired', 'banned', 'pending'])->default('pending');
+                $table->string('status', 20)->default('pending');
                 $table->unsignedBigInteger('node_group_id')->nullable();
                 $table->unsignedInteger('max_devices')->default(3);
                 $table->unsignedInteger('current_devices')->default(0);
-                
+
                 // Timestamps
                 $table->timestamp('last_used_at')->nullable();
                 $table->timestamp('expires_at')->nullable();
                 $table->timestamp('created_at')->useCurrent();
                 $table->timestamp('updated_at')->useCurrent();
-                
+
                 // Additional data
                 $table->json('metadata')->nullable();
-                
+
                 // Indexes
                 $table->unique('email', 'uk_email');
                 $table->unique('uuid', 'uk_uuid');
@@ -447,7 +461,7 @@ class OrrisDatabaseManager
                 $table->index('last_used_at', 'idx_last_used');
                 $table->index(['monthly_reset_day', 'last_reset_at'], 'idx_monthly_reset');
             });
-            
+
             // Add generated column and additional index
             if ($this->useOrrisDB) {
                 OrrisDB::statement("ALTER TABLE `services` ADD COLUMN `total_bytes` BIGINT UNSIGNED GENERATED ALWAYS AS (`upload_bytes` + `download_bytes`) STORED");
@@ -457,6 +471,18 @@ class OrrisDatabaseManager
                 Capsule::statement("ALTER TABLE `services` ADD COLUMN `total_bytes` BIGINT UNSIGNED GENERATED ALWAYS AS (`upload_bytes` + `download_bytes`) STORED");
                 Capsule::statement("ALTER TABLE `services` ADD INDEX `idx_traffic_check` (`total_bytes`, `bandwidth_limit`, `status`)");
                 Capsule::statement("ALTER TABLE `services` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+            }
+
+            // Add CHECK constraint for status (MySQL 8.0.16+)
+            try {
+                if ($this->useOrrisDB) {
+                    OrrisDB::statement("ALTER TABLE `services` ADD CONSTRAINT `chk_service_status` CHECK (`status` IN ('active', 'suspended', 'expired', 'banned', 'pending'))");
+                } else {
+                    Capsule::statement("ALTER TABLE `services` ADD CONSTRAINT `chk_service_status` CHECK (`status` IN ('active', 'suspended', 'expired', 'banned', 'pending'))");
+                }
+            } catch (Exception $e) {
+                // Log but don't fail on CHECK constraint errors (for MySQL < 8.0.16)
+                logModuleCall('orrism', 'createTables_services_constraints', [], 'CHECK constraint warning: ' . $e->getMessage());
             }
         }
         
@@ -496,7 +522,7 @@ class OrrisDatabaseManager
                 $table->increments('id');
                 $table->string('config_key', 100)->unique();
                 $table->text('config_value')->nullable();
-                $table->enum('config_type', ['string', 'integer', 'boolean', 'json', 'encrypted'])->default('string');
+                $table->string('config_type', 20)->default('string');
                 $table->string('category', 50)->default('general');
                 $table->text('description')->nullable();
                 $table->boolean('is_system')->default(false);
@@ -504,19 +530,31 @@ class OrrisDatabaseManager
                 $table->json('validation_rules')->nullable();
                 $table->timestamp('created_at')->useCurrent();
                 $table->timestamp('updated_at')->useCurrent();
-                
+
                 // Indexes
                 $table->unique('config_key', 'uk_config_key');
                 $table->index('category', 'idx_category');
                 $table->index('is_system', 'idx_system');
                 $table->index('is_public', 'idx_public');
             });
-            
+
             // Set table options for utf8mb4
             if ($this->useOrrisDB) {
                 OrrisDB::statement("ALTER TABLE `config` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
             } else {
                 Capsule::statement("ALTER TABLE `config` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+            }
+
+            // Add CHECK constraint for config_type (MySQL 8.0.16+)
+            try {
+                if ($this->useOrrisDB) {
+                    OrrisDB::statement("ALTER TABLE `config` ADD CONSTRAINT `chk_config_type` CHECK (`config_type` IN ('string', 'integer', 'boolean', 'json', 'encrypted'))");
+                } else {
+                    Capsule::statement("ALTER TABLE `config` ADD CONSTRAINT `chk_config_type` CHECK (`config_type` IN ('string', 'integer', 'boolean', 'json', 'encrypted'))");
+                }
+            } catch (Exception $e) {
+                // Log but don't fail on CHECK constraint errors (for MySQL < 8.0.16)
+                logModuleCall('orrism', 'createTables_config_constraints', [], 'CHECK constraint warning: ' . $e->getMessage());
             }
         }
         
