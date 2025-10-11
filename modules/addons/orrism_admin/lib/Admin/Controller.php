@@ -189,11 +189,14 @@ class Controller
             
             // Get statistics
             $stats = $this->getSystemStatistics();
-            
-            $content .= '<p><i class="fa fa-users"></i> Active Services: <strong>' . $stats['active_services'] . '</strong></p>';
+
+            $content .= '<p><i class="fa fa-cubes"></i> Active Services: <strong>' . $stats['active_services'] . '</strong></p>';
             $content .= '<p><i class="fa fa-server"></i> Total Nodes: <strong>' . $stats['total_nodes'] . '</strong></p>';
-            $content .= '<p><i class="fa fa-database"></i> ORRISM Users: <strong>' . $stats['orrism_users'] . '</strong></p>';
-            $content .= '<p><i class="fa fa-clock-o"></i> Last Sync: <strong>' . ($stats['last_sync'] ?: 'Never') . '</strong></p>';
+
+            // Optional: Show ORRISM database services count if different from WHMCS
+            if (isset($stats['orrism_services']) && $stats['orrism_services'] > 0) {
+                $content .= '<p><i class="fa fa-database"></i> ORRISM Services: <strong>' . $stats['orrism_services'] . '</strong></p>';
+            }
             
             $content .= '</div></div></div>';
             $content .= '</div>'; // End row
@@ -1045,12 +1048,11 @@ class Controller
         $stats = [
             'active_services' => 0,
             'total_nodes' => 0,
-            'orrism_users' => 0,
-            'last_sync' => null
+            'orrism_services' => 0
         ];
 
         try {
-            // Get active services count
+            // Get active services count from WHMCS
             if (class_exists('OrrisDatabase')) {
                 $orrisDb = new \OrrisDatabase();
                 $stats['active_services'] = $orrisDb->getActiveServiceCount('orrism');
@@ -1073,17 +1075,13 @@ class Controller
                 error_log('ORRISM Controller: Error getting node count: ' . $e->getMessage());
             }
 
-            // Get ORRISM users count
+            // Get ORRISM database services count (optional, for comparison)
             if (class_exists('OrrisDatabaseManager')) {
                 $dbManager = new \OrrisDatabaseManager();
                 if ($dbManager->testConnection()) {
-                    $stats['orrism_users'] = $dbManager->getServiceCount();
+                    $stats['orrism_services'] = $dbManager->getServiceCount();
                 }
             }
-
-            // Get last sync time
-            $settings = $this->getOrrisSettings();
-            $stats['last_sync'] = $settings['last_sync'] ?? null;
 
         } catch (Exception $e) {
             error_log('ORRISM Controller: Error getting statistics: ' . $e->getMessage());
