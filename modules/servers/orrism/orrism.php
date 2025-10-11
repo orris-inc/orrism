@@ -792,30 +792,34 @@ function orrism_ClientArea(array $params)
         // Generate subscription URL
         $subscriptionUrl = generate_subscription_url($params, $service->uuid);
 
-        // Debug: Log final return
-        logModuleCall('orrism', __FUNCTION__ . '_RETURN', ['serviceid' => $serviceid], 'Returning clientarea template with ' . count($nodes) . ' nodes');
+        // Prepare template variables
+        $templateVars = [
+            'serviceid' => $serviceid,
+            'uuid' => $service->uuid,
+            'email' => $service->email,
+            'nodes' => $nodes,
+            'totalBandwidth' => $usage['total_bandwidth'],
+            'usedBandwidth' => $usage['used_bandwidth'],
+            'remainingBandwidth' => $usage['remaining_bandwidth'],
+            'usagePercent' => $usage['usage_percent'],
+            'uploadGB' => $usage['upload_gb'],
+            'downloadGB' => $usage['download_gb'],
+            'subscriptionUrl' => $subscriptionUrl,
+            'allowReset' => $params['configoption7'] == 'on', // Allow Manual Reset
+            'resetCost' => $params['configoption8'] ?: 0, // Manual Reset Cost (%)
+            'maxDevices' => $params['configoption6'] ?: 3, // Max Concurrent Devices
+            'status' => $service->status,
+            'lastReset' => $service->last_reset_at
+        ];
 
+        // Debug: Log final return
+        logModuleCall('orrism', __FUNCTION__ . '_RETURN', ['serviceid' => $serviceid, 'vars' => array_keys($templateVars)], 'Returning clientarea template');
+
+        // WHMCS standard format: return array with templatefile and vars
         return [
             'tabOverviewReplacementTemplate' => 'clientarea',
             'templatefile' => 'clientarea',
-            'vars' => [
-                'serviceid' => $serviceid,
-                'uuid' => $service->uuid,
-                'email' => $service->email,
-                'nodes' => $nodes,
-                'totalBandwidth' => $usage['total_bandwidth'],
-                'usedBandwidth' => $usage['used_bandwidth'],
-                'remainingBandwidth' => $usage['remaining_bandwidth'],
-                'usagePercent' => $usage['usage_percent'],
-                'uploadGB' => $usage['upload_gb'],
-                'downloadGB' => $usage['download_gb'],
-                'subscriptionUrl' => $subscriptionUrl,
-                'allowReset' => $params['configoption7'] == 'on', // Allow Manual Reset
-                'resetCost' => $params['configoption8'] ?: 0, // Manual Reset Cost (%)
-                'maxDevices' => $params['configoption6'] ?: 3, // Max Concurrent Devices
-                'status' => $service->status,
-                'lastReset' => $service->last_reset_at
-            ]
+            'vars' => $templateVars
         ];
 
     } catch (Exception $e) {
