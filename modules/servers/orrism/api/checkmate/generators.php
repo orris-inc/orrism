@@ -113,6 +113,11 @@ class SurgeGenerator extends ConfigGenerator {
         }
 
         $config_content = file_get_contents($defaultConfig);
+
+        error_log("ORRISM Surge: \$subs_link = " . $subsURL);
+        error_log("ORRISM Surge: \$proxies = " . $proxies);
+        error_log("ORRISM Surge: \$proxy_group = " . rtrim($proxyGroup, ', '));
+
         $config_content = str_replace(
             ['$subs_link', '$subs_domain', '$proxies', '$proxy_group'],
             [$subsURL, $subsDomain, $proxies, rtrim($proxyGroup, ', ')],
