@@ -74,16 +74,17 @@ class SubscriptionService {
      * 处理有效请求的核心逻辑
      */
     private function processValidRequest() {
-        // 获取用户产品信息
-        $clientProductResult = $this->getClientProducts();
-        
-        // 验证和处理用户认证信息
+        // Step 1: 验证HMAC token并提取service_id
+        // This must be first because it populates $this->sid from the token
         $userData = $this->authenticateUser();
-        
-        // 获取和验证节点数据
+
+        // Step 2: 获取用户产品信息（需要$this->sid）
+        $clientProductResult = $this->getClientProducts();
+
+        // Step 3: 获取和验证节点数据
         $nodeData = $this->getNodeData();
-        
-        // 生成配置响应
+
+        // Step 4: 生成配置响应
         $this->generateConfigResponse($userData, $nodeData, $clientProductResult['timestamp_due_date']);
     }
     
