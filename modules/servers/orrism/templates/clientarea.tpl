@@ -470,9 +470,10 @@
 <!-- QR Code Library -->
 <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 <script>
+{literal}
 // Generate QR Code
 new QRCode(document.getElementById("qrcode"), {
-    text: "{$subscriptionUrl}",
+    text: "{/literal}{$subscriptionUrl}{literal}",
     width: 200,
     height: 200,
     colorDark: "#667eea",
@@ -512,29 +513,22 @@ function fallbackCopy(text) {
     document.body.removeChild(textArea);
 }
 
-function showNotification(message, type = 'success') {
+function showNotification(message, type) {
+    var bgColor = (type === 'success') ? '#d4edda' : '#f8d7da';
+    var textColor = (type === 'success') ? '#155724' : '#721c24';
+
     const notification = document.createElement('div');
-    notification.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        padding: 15px 20px;
-        background: ${type === 'success' ? '#d4edda' : '#f8d7da'};
-        color: ${type === 'success' ? '#155724' : '#721c24'};
-        border-radius: 6px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        z-index: 10000;
-        font-weight: 500;
-    `;
+    notification.style.cssText = 'position: fixed; top: 20px; right: 20px; padding: 15px 20px; background: ' + bgColor + '; color: ' + textColor + '; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 10000; font-weight: 500;';
     notification.textContent = message;
     document.body.appendChild(notification);
 
-    setTimeout(() => {
+    setTimeout(function() {
         notification.style.transition = 'opacity 0.3s';
         notification.style.opacity = '0';
-        setTimeout(() => {
+        setTimeout(function() {
             document.body.removeChild(notification);
         }, 300);
     }, 3000);
 }
+{/literal}
 </script>
