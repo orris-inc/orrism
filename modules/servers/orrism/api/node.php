@@ -135,18 +135,63 @@ if (php_sapi_name() !== 'cli' && basename($_SERVER['SCRIPT_FILENAME']) === basen
         switch ($action) {
             case 'list':
             case 'get_list':
-                // Get node list
+                // Get node list with optional type filter
                 $conn = orris_get_db_connection();
+
+                // Build query with optional type filter
                 $sql = "SELECT id, name, type, address, port, method, status,
                         group_id, sort_order
-                        FROM nodes ORDER BY sort_order";
+                        FROM nodes";
+
+                $params = [];
+                $where = [];
+
+                // Add type filter if provided
+                if (!empty($_GET['type']) || !empty($_POST['type'])) {
+                    $type = $_GET['type'] ?? $_POST['type'];
+                    $where[] = "type = :type";
+                    $params[':type'] = $type;
+                }
+
+                // Add status filter if provided
+                if (!empty($_GET['status']) || !empty($_POST['status'])) {
+                    $status = $_GET['status'] ?? $_POST['status'];
+                    $where[] = "status = :status";
+                    $params[':status'] = $status;
+                }
+
+                // Add group_id filter if provided
+                if (isset($_GET['group_id']) || isset($_POST['group_id'])) {
+                    $groupId = $_GET['group_id'] ?? $_POST['group_id'];
+                    $where[] = "group_id = :group_id";
+                    $params[':group_id'] = $groupId;
+                }
+
+                // Apply WHERE clause if filters exist
+                if (!empty($where)) {
+                    $sql .= " WHERE " . implode(' AND ', $where);
+                }
+
+                $sql .= " ORDER BY sort_order ASC, id ASC";
+
                 $stmt = $conn->prepare($sql);
+
+                // Bind parameters
+                foreach ($params as $key => $value) {
+                    $stmt->bindValue($key, $value);
+                }
+
                 $stmt->execute();
                 $nodes = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
                 echo json_encode([
                     'success' => true,
                     'count' => count($nodes),
+                    'filters' => [
+                        'type' => $params[':type'] ?? null,
+                        'status' => $params[':status'] ?? null,
+                        'group_id' => $params[':group_id'] ?? null
+                    ],
                     'data' => $nodes
                 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
                 break;
