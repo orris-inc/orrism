@@ -577,7 +577,7 @@ class OrrisDatabaseManager
                 $table->timestamp('connected_at')->useCurrent();
                 $table->timestamp('last_activity')->useCurrent();
                 $table->json('metadata')->nullable();
-                
+
                 // Indexes
                 $table->unique('session_token', 'uk_session_token');
                 $table->index(['service_id', 'connected_at'], 'idx_service_active');
@@ -585,7 +585,7 @@ class OrrisDatabaseManager
                 $table->index(['device_id', 'service_id'], 'idx_device');
                 $table->index('last_activity', 'idx_last_activity');
             });
-            
+
             // Set table options for utf8mb4
             if ($this->useOrrisDB) {
                 OrrisDB::statement("ALTER TABLE `service_sessions` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");

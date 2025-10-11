@@ -271,10 +271,6 @@
         <div class="orrism-panel-body">
             <div class="orrism-stats-grid">
                 <div class="orrism-stat-card">
-                    <div class="orrism-stat-label">UUID</div>
-                    <div class="orrism-stat-value" style="font-size: 16px; word-break: break-all;">{$uuid}</div>
-                </div>
-                <div class="orrism-stat-card">
                     <div class="orrism-stat-label">Account Email</div>
                     <div class="orrism-stat-value" style="font-size: 16px;">{$email}</div>
                 </div>
@@ -293,6 +289,16 @@
                 <div class="orrism-stat-card">
                     <div class="orrism-stat-label">Max Devices</div>
                     <div class="orrism-stat-value">{$maxDevices}</div>
+                </div>
+                <div class="orrism-stat-card">
+                    <div class="orrism-stat-label">Last Reset</div>
+                    <div class="orrism-stat-value" style="font-size: 14px;">
+                        {if $lastReset}
+                            {$lastReset}
+                        {else}
+                            Never
+                        {/if}
+                    </div>
                 </div>
             </div>
         </div>

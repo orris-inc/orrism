@@ -789,8 +789,8 @@ function orrism_ClientArea(array $params)
         // Debug: Log nodes
         logModuleCall('orrism', __FUNCTION__ . '_NODES', ['serviceid' => $serviceid], 'Nodes: ' . count($nodes));
 
-        // Generate subscription URL
-        $subscriptionUrl = generate_subscription_url($params, $service->uuid);
+        // Generate subscription URL with HMAC token (using service_id instead of uuid)
+        $subscriptionUrl = generate_subscription_url($params, $serviceid);
 
         // Prepare template variables
         $templateVars = [
@@ -1212,17 +1212,30 @@ function save_custom_field($serviceid, $fieldname, $value)
 }
 
 /**
- * Generate subscription URL
+ * Generate subscription URL using HMAC token
  *
  * @param array $params Module parameters
- * @param string $uuid User UUID
+ * @param int $serviceId WHMCS service ID (not UUID)
  * @return string
  */
-function generate_subscription_url(array $params, $uuid)
+function generate_subscription_url(array $params, $serviceId)
 {
-    $serverHost = $params['serverhostname'] ?: $params['serverip'];
-    $protocol = $params['serversecure'] ? 'https' : 'http';
-    return "{$protocol}://{$serverHost}/subscribe/{$uuid}";
+    // Get subscription URL base from config, or use default
+    $db = db();
+    $subscriptionBase = $db->getConfig('subscription_url_base');
+
+    if (!$subscriptionBase) {
+        // Default: use server hostname/IP
+        $serverHost = $params['serverhostname'] ?: $params['serverip'];
+        $protocol = $params['serversecure'] ? 'https' : 'http';
+        $subscriptionBase = "{$protocol}://{$serverHost}/subscribe";
+    }
+
+    // Generate HMAC token
+    $token = generate_subscription_token($serviceId);
+
+    // Build URL with custom base and token
+    return rtrim($subscriptionBase, '/') . '/' . $token;
 }
 
 /**
@@ -1257,4 +1270,97 @@ function generate_admin_sso_token(array $params)
         'expires' => time() + 300 // 5 minutes
     ];
     return base64_encode(json_encode($data));
+}
+
+/**
+ * Get subscription secret key
+ *
+ * @return string
+ */
+function get_subscription_secret()
+{
+    $db = db();
+    $secret = $db->getConfig('subscription_secret');
+
+    if (!$secret) {
+        // Generate new secret if not exists
+        $secret = bin2hex(random_bytes(32));
+        $db->setConfig('subscription_secret', $secret, 'encrypted', 'subscription', 'HMAC secret key for subscription URLs', true);
+    }
+
+    return $secret;
+}
+
+/**
+ * Generate HMAC-based subscription token
+ *
+ * @param int $serviceId WHMCS service ID
+ * @param int $timestamp Token generation timestamp
+ * @return string
+ */
+function generate_subscription_token($serviceId, $timestamp = null)
+{
+    if ($timestamp === null) {
+        $timestamp = time();
+    }
+
+    $secret = get_subscription_secret();
+    $data = $serviceId . '|' . $timestamp;
+    $signature = hash_hmac('sha256', $data, $secret);
+
+    // Format: base64(serviceId|timestamp|signature)
+    $token = base64_encode($serviceId . '|' . $timestamp . '|' . $signature);
+
+    // URL-safe base64
+    return strtr($token, '+/', '-_');
+}
+
+/**
+ * Verify and decode subscription token
+ *
+ * @param string $token Subscription token
+ * @param int $maxAge Maximum token age in seconds (default: 0 = no expiry)
+ * @return array|false Array with service_id and timestamp, or false if invalid
+ */
+function verify_subscription_token($token, $maxAge = 0)
+{
+    try {
+        // Convert from URL-safe base64
+        $token = strtr($token, '-_', '+/');
+        $decoded = base64_decode($token, true);
+
+        if ($decoded === false) {
+            return false;
+        }
+
+        $parts = explode('|', $decoded);
+        if (count($parts) !== 3) {
+            return false;
+        }
+
+        list($serviceId, $timestamp, $signature) = $parts;
+
+        // Verify signature
+        $secret = get_subscription_secret();
+        $data = $serviceId . '|' . $timestamp;
+        $expectedSignature = hash_hmac('sha256', $data, $secret);
+
+        if (!hash_equals($expectedSignature, $signature)) {
+            return false;
+        }
+
+        // Check expiry if maxAge is set
+        if ($maxAge > 0 && (time() - $timestamp) > $maxAge) {
+            return false;
+        }
+
+        return [
+            'service_id' => (int)$serviceId,
+            'timestamp' => (int)$timestamp
+        ];
+
+    } catch (Exception $e) {
+        logModuleCall('orrism', 'verify_subscription_token', ['token' => '***'], $e->getMessage());
+        return false;
+    }
 }

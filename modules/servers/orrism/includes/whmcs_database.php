@@ -604,13 +604,16 @@ class OrrisDatabase
     
     /**
      * Set configuration value
-     * 
+     *
      * @param string $key Configuration key
      * @param mixed $value Configuration value
      * @param string $type Value type
+     * @param string $category Configuration category
+     * @param string $description Configuration description
+     * @param bool $isSystem Is system configuration
      * @return bool Success status
      */
-    public function setConfig($key, $value, $type = 'string')
+    public function setConfig($key, $value, $type = 'string', $category = 'general', $description = null, $isSystem = false)
     {
         try {
             // Convert value based on type
@@ -624,7 +627,7 @@ class OrrisDatabase
                 default:
                     $value = strval($value);
             }
-            
+
             $updated = $this->table('config')
                 ->where('config_key', $key)
                 ->update([
@@ -639,13 +642,16 @@ class OrrisDatabase
                     'config_key' => $key,
                     'config_value' => $value,
                     'config_type' => $type,
+                    'category' => $category,
+                    'description' => $description,
+                    'is_system' => $isSystem ? 1 : 0,
                     'created_at' => date('Y-m-d H:i:s'),
                     'updated_at' => date('Y-m-d H:i:s')
                 ]);
             }
-            
+
             return true;
-            
+
         } catch (Exception $e) {
             logModuleCall('orrism', __METHOD__, ['key' => $key], 'Error: ' . $e->getMessage());
             return false;
