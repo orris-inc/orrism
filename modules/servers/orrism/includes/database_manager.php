@@ -419,10 +419,13 @@ class OrrisDatabaseManager
         // Create services table
         if (!$schema->hasTable('services')) {
             $schema->create('services', function ($table) {
+                // Primary key - only unique constraint
                 $table->bigIncrements('id');
-                $table->unsignedBigInteger('service_id')->unique();
+
+                // Service identifiers - no unique constraints
+                $table->unsignedBigInteger('service_id');
                 $table->string('email', 255);
-                $table->string('uuid', 36)->unique();
+                $table->string('uuid', 36);
                 $table->string('password', 255);
                 $table->string('password_algo', 20)->default('bcrypt');
 
@@ -453,9 +456,10 @@ class OrrisDatabaseManager
                 // Additional data
                 $table->json('metadata')->nullable();
 
-                // Indexes
-                $table->unique('email', 'uk_email');
-                $table->unique('uuid', 'uk_uuid');
+                // Indexes for performance - NO unique constraints except primary key
+                $table->index('service_id', 'idx_service_id');
+                $table->index('email', 'idx_email');
+                $table->index('uuid', 'idx_uuid');
                 $table->index(['status', 'expires_at'], 'idx_status_expires');
                 $table->index('node_group_id', 'idx_node_group');
                 $table->index('last_used_at', 'idx_last_used');
