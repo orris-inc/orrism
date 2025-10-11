@@ -673,7 +673,7 @@ function orris_get_nodes($sid) {
 
         // Get nodes by group_id if available
         if ($node_group_id > 0) {
-            $sql = 'SELECT * FROM nodes WHERE group_id = :node_group_id AND enable = 1';
+            $sql = "SELECT * FROM nodes WHERE group_id = :node_group_id AND status = 'active'";
             $stmt = $conn->prepare($sql);
             $stmt->bindValue(':node_group_id', $node_group_id, PDO::PARAM_STR);
             OrrisHelper::log('debug', 'Querying nodes by group_id', [
@@ -684,7 +684,7 @@ function orris_get_nodes($sid) {
             ]);
         } else {
             // Otherwise get all active nodes
-            $sql = 'SELECT * FROM nodes WHERE enable = 1';
+            $sql = "SELECT * FROM nodes WHERE status = 'active'";
             $stmt = $conn->prepare($sql);
             OrrisHelper::log('debug', 'Querying all active nodes', [
                 'function' => 'orris_get_nodes',
@@ -712,8 +712,13 @@ function orris_get_nodes($sid) {
                 ? round(($node['online_user'] / $node['max_user']) * 100, 1)
                 : 0;
 
-            // Add status label
-            $node['status_label'] = $node['enable'] == 1 ? 'Active' : 'Maintenance';
+            // Add status label (status field: 'active', 'inactive', 'maintenance')
+            $statusLabels = [
+                'active' => 'Active',
+                'inactive' => 'Inactive',
+                'maintenance' => 'Maintenance'
+            ];
+            $node['status_label'] = $statusLabels[$node['status']] ?? 'Unknown';
         }
 
         OrrisHelper::log('info', 'Retrieved nodes successfully', [
