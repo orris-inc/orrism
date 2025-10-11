@@ -1316,20 +1316,147 @@ function generate_subscription_token($serviceId, $timestamp = null)
 }
 
 /**
- * Verify and decode subscription token
+ * Check rate limit for token verification attempts
+ * Prevents brute force attacks on token validation
+ *
+ * @return bool True if within rate limit, false if exceeded
+ */
+function check_token_verification_rate_limit()
+{
+    $key = 'token_verify_rate_' . ($_SERVER['REMOTE_ADDR'] ?? 'unknown');
+    $db = db();
+
+    $rateData = $db->getConfig($key);
+
+    if (!$rateData) {
+        // First request, initialize counter
+        $db->setConfig($key, json_encode(['count' => 1, 'window_start' => time()]), 'json', 'security', 'Rate limit tracking', true);
+        return true;
+    }
+
+    $data = json_decode($rateData, true);
+    $windowDuration = 60; // 1 minute window
+    $maxAttempts = 100; // Max 100 attempts per minute per IP
+
+    // Reset window if expired
+    if (time() - $data['window_start'] > $windowDuration) {
+        $db->setConfig($key, json_encode(['count' => 1, 'window_start' => time()]), 'json', 'security', 'Rate limit tracking', true);
+        return true;
+    }
+
+    // Check if limit exceeded
+    if ($data['count'] >= $maxAttempts) {
+        return false;
+    }
+
+    // Increment counter
+    $data['count']++;
+    $db->setConfig($key, json_encode($data), 'json', 'security', 'Rate limit tracking', true);
+    return true;
+}
+
+/**
+ * Check if token is in blocklist
+ *
+ * @param string $token Token to check
+ * @return bool True if blocklisted, false otherwise
+ */
+function is_token_blocklisted($token)
+{
+    // Hash the token before storing/checking to avoid storing sensitive data
+    $tokenHash = hash('sha256', $token);
+
+    $db = db();
+    $blocklistKey = 'token_blocklist_' . $tokenHash;
+
+    $blocked = $db->getConfig($blocklistKey);
+    return !empty($blocked);
+}
+
+/**
+ * Add token to blocklist
+ *
+ * @param string $token Token to blocklist
+ * @param int $duration Duration in seconds (default: 86400 = 24 hours)
+ * @return bool Success status
+ */
+function blocklist_token($token, $duration = 86400)
+{
+    // Hash the token before storing to avoid storing sensitive data
+    $tokenHash = hash('sha256', $token);
+
+    $db = db();
+    $blocklistKey = 'token_blocklist_' . $tokenHash;
+    $expiryTime = time() + $duration;
+
+    return $db->setConfig($blocklistKey, $expiryTime, 'integer', 'security', 'Blocklisted token expiry', true);
+}
+
+/**
+ * Rotate subscription secret key
+ * Should be called periodically for enhanced security
+ *
+ * @return array Old and new secret keys
+ */
+function rotate_subscription_secret()
+{
+    $db = db();
+    $oldSecret = $db->getConfig('subscription_secret');
+
+    // Generate new secret
+    $newSecret = bin2hex(random_bytes(32));
+
+    // Store old secret temporarily for grace period
+    if ($oldSecret) {
+        $db->setConfig('subscription_secret_old', $oldSecret, 'encrypted', 'subscription', 'Previous HMAC secret key (grace period)', true);
+    }
+
+    // Set new secret
+    $db->setConfig('subscription_secret', $newSecret, 'encrypted', 'subscription', 'HMAC secret key for subscription URLs', true);
+
+    // Log rotation event
+    logModuleCall('orrism', 'rotate_subscription_secret', [], 'Secret key rotated successfully');
+
+    return [
+        'old_secret' => $oldSecret,
+        'new_secret' => $newSecret
+    ];
+}
+
+/**
+ * Verify and decode subscription token with enhanced security
  *
  * @param string $token Subscription token
  * @param int $maxAge Maximum token age in seconds (default: 0 = no expiry)
+ * @param bool $checkBlocklist Check if token is in blocklist (default: true)
  * @return array|false Array with service_id and timestamp, or false if invalid
  */
-function verify_subscription_token($token, $maxAge = 0)
+function verify_subscription_token($token, $maxAge = 0, $checkBlocklist = true)
 {
     try {
+        // Rate limiting check - prevent brute force attacks
+        if (!check_token_verification_rate_limit()) {
+            logModuleCall('orrism', 'verify_subscription_token', ['token' => '***'], 'Rate limit exceeded');
+            return false;
+        }
+
+        // Input validation
+        if (empty($token) || !is_string($token)) {
+            return false;
+        }
+
+        // Check token blocklist (for revoked tokens)
+        if ($checkBlocklist && is_token_blocklisted($token)) {
+            logModuleCall('orrism', 'verify_subscription_token', ['token' => '***'], 'Token is blocklisted');
+            return false;
+        }
+
         // Convert from URL-safe base64
         $token = strtr($token, '-_', '+/');
         $decoded = base64_decode($token, true);
 
-        if ($decoded === false) {
+        if ($decoded === false || strlen($decoded) > 1000) {
+            // Prevent DoS via extremely large tokens
             return false;
         }
 
@@ -1340,19 +1467,36 @@ function verify_subscription_token($token, $maxAge = 0)
 
         list($serviceId, $timestamp, $signature) = $parts;
 
-        // Verify signature
+        // Validate components
+        if (!is_numeric($serviceId) || !is_numeric($timestamp)) {
+            return false;
+        }
+
+        // Check timestamp is not in the future (prevent replay with future dates)
+        if ($timestamp > time() + 300) { // Allow 5 min clock skew
+            logModuleCall('orrism', 'verify_subscription_token', ['token' => '***'], 'Token timestamp in future');
+            return false;
+        }
+
+        // Verify signature using constant-time comparison (prevent timing attacks)
         $secret = get_subscription_secret();
         $data = $serviceId . '|' . $timestamp;
         $expectedSignature = hash_hmac('sha256', $data, $secret);
 
+        // CRITICAL: Use hash_equals for constant-time comparison
         if (!hash_equals($expectedSignature, $signature)) {
+            logModuleCall('orrism', 'verify_subscription_token', ['token' => '***'], 'Invalid signature');
             return false;
         }
 
         // Check expiry if maxAge is set
         if ($maxAge > 0 && (time() - $timestamp) > $maxAge) {
+            logModuleCall('orrism', 'verify_subscription_token', ['token' => '***'], 'Token expired');
             return false;
         }
+
+        // Log successful verification (for security auditing)
+        logModuleCall('orrism', 'verify_subscription_token', ['service_id' => $serviceId], 'Token verified successfully');
 
         return [
             'service_id' => (int)$serviceId,
@@ -1360,7 +1504,7 @@ function verify_subscription_token($token, $maxAge = 0)
         ];
 
     } catch (Exception $e) {
-        logModuleCall('orrism', 'verify_subscription_token', ['token' => '***'], $e->getMessage());
+        logModuleCall('orrism', 'verify_subscription_token', ['token' => '***'], 'Exception: ' . $e->getMessage());
         return false;
     }
 }
